@@ -79,8 +79,12 @@ def _ride_to_df(ride: RideData) -> pd.DataFrame:
 def _compute_derivatives(df: pd.DataFrame) -> pd.DataFrame:
     n = len(df)
     # dt
-    dt = df["timestamp"].diff().dt.total_seconds().fillna(1.0).clip(lower=0.0).to_numpy()
-    dt[0] = dt[1] if n > 1 else 1.0
+    dt = np.asarray(
+        df["timestamp"].diff().dt.total_seconds().fillna(1.0).clip(lower=0.0).to_numpy(),
+        dtype=float,
+    ).copy()
+    if n > 1:
+        dt[0] = dt[1]
     df["dt"] = dt
 
     # Smooth altitude (Savitzky-Golay)

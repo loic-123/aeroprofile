@@ -36,6 +36,10 @@ export interface AnalysisResult {
   crr_was_fixed: boolean;
   solver_method: string;
   solver_note: string;
+  cda_climb: number | null;
+  cda_descent: number | null;
+  cda_flat: number | null;
+  heading_variance: number;
   ride_date: string;
   ride_distance_km: number;
   ride_duration_s: number;

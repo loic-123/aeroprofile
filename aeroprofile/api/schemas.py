@@ -45,6 +45,10 @@ class AnalysisResultOut(BaseModel):
     crr_was_fixed: bool = False
     solver_method: str = "martin_ls"
     solver_note: str = ""
+    cda_climb: Optional[float] = None
+    cda_descent: Optional[float] = None
+    cda_flat: Optional[float] = None
+    heading_variance: float = 0.0
 
     ride_date: str
     ride_distance_km: float

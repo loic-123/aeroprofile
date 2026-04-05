@@ -58,6 +58,10 @@ class AnalysisResult:
     crr_was_fixed: bool = False
     solver_method: str = "martin_ls"  # "martin_ls" | "chung_ve"
     solver_note: str = ""
+    cda_climb: Optional[float] = None
+    cda_descent: Optional[float] = None
+    cda_flat: Optional[float] = None
+    heading_variance: float = 0.0  # circular variance of bearing (0-1)
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -276,6 +280,20 @@ async def analyze(
     # Virtual elevation
     df["altitude_virtual"] = virtual_elevation(df, sol.cda, sol.crr, mass_kg, eta)
 
+    # CdA climb / descent / flat (diagnostic: big asymmetry hints at wind error)
+    cda_climb = _subset_cda(df, mass_kg, eta, sol.crr, lambda g: g > 0.02)
+    cda_descent = _subset_cda(df, mass_kg, eta, sol.crr, lambda g: g < -0.02)
+    cda_flat = _subset_cda(df, mass_kg, eta, sol.crr, lambda g: abs(g) <= 0.02)
+
+    # Heading variance (circular) — tells whether wind could be inverted
+    valid = df[df["filter_valid"]]
+    if len(valid) > 20:
+        br = np.radians(valid["bearing"].to_numpy())
+        R = np.sqrt(np.cos(br).mean() ** 2 + np.sin(br).mean() ** 2)
+        heading_variance = float(1.0 - R)  # 0 = one direction, 1 = uniform
+    else:
+        heading_variance = 0.0
+
     # Rolling CdA (10 min window)
     window_s = 600
     df["cda_rolling"] = _rolling_cda(df, mass_kg, eta, window_s)
@@ -295,6 +313,10 @@ async def analyze(
     return AnalysisResult(
         solver_method=solver_method,
         solver_note=solver_note,
+        cda_climb=cda_climb,
+        cda_descent=cda_descent,
+        cda_flat=cda_flat,
+        heading_variance=heading_variance,
         cda=sol.cda,
         crr=sol.crr,
         cda_ci=sol.cda_ci,
@@ -317,6 +339,37 @@ async def analyze(
         df=df,
         crr_was_fixed=sol.crr_was_fixed,
     )
+
+
+def _subset_cda(df: pd.DataFrame, mass: float, eta: float, crr: float, predicate) -> Optional[float]:
+    """Re-solve CdA on a gradient-defined subset with Crr fixed.
+
+    Returns None when the subset is too small or the solver fails. Used as a
+    diagnostic: a 20%+ gap between climb and descent CdA points at an
+    unmodelled bias (wind asymmetry, power-meter cadence/torque drift, or
+    drivetrain η dependence on gradient).
+    """
+    from scipy.optimize import least_squares
+    from aeroprofile.physics.power_model import residual_power
+
+    sub = df[df["filter_valid"] & df["gradient"].apply(predicate)]
+    if len(sub) < 40:
+        return None
+    V = sub["v_ground"].to_numpy()
+    Va = sub["v_air"].to_numpy()
+    grad = sub["gradient"].to_numpy()
+    acc = sub["acceleration"].to_numpy()
+    rho = sub["rho"].to_numpy()
+    P = sub["power"].to_numpy()
+
+    def res(x):
+        return residual_power((x[0], crr), V, Va, grad, acc, mass, rho, P, eta)
+
+    try:
+        r = least_squares(res, x0=(0.30,), bounds=([0.10], [0.70]), method="trf")
+        return float(r.x[0])
+    except Exception:
+        return None
 
 
 def _rolling_cda(df: pd.DataFrame, mass: float, eta: float, window_s: int) -> np.ndarray:

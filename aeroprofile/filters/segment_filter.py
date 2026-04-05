@@ -29,31 +29,31 @@ def _arr(s) -> np.ndarray:
 def apply_filters(
     df: pd.DataFrame,
     min_block_seconds: int = 30,
-    drop_descents: bool = True,
+    drop_descents: bool = False,
     max_gradient: float = 0.08,
-    descent_gradient: float = -0.03,
+    descent_gradient: float = -0.08,
     steady_speed_window_s: int = 15,
-    steady_speed_cv_max: float = 0.12,
+    steady_speed_cv_max: float = 0.15,
+    min_power_w: float = 50.0,
+    max_accel: float = 0.3,
 ) -> pd.DataFrame:
     """Adds one boolean column per filter plus ``filter_valid``. Mutates df.
 
-    Defaults tightened from an initial quick-look version based on literature
-    practice (Martin 1998; Chung VE; Golden Cheetah):
+    Thresholds follow literature consensus (Martin 1998; Chung VE; Golden
+    Cheetah Aerolab; Debraux et al. 2011):
 
-    - Descents are dropped entirely by default (``drop_descents=True``):
-      braking, cornering, unmodelled bike-handling losses dominate the
-      physics and the aero signal drowns in noise. This matches what
-      Virtual-Elevation practitioners do when they cannot enforce closed-loop
-      protocols.
-    - ``filter_no_power``: ANY sample with power == 0 is excluded, not only
-      flat-ground coasting. Coasting removes the only constraint that links
-      aero force to measured power.
-    - ``min_block_seconds`` default raised from 10 to 60 to enforce
-      quasi-steady-state segments (the Martin equation assumes it).
-    - New ``filter_unsteady``: rolling coefficient of variation of ground
-      speed over ``steady_speed_window_s`` must stay below
-      ``steady_speed_cv_max`` (8%) — drops punchy sprints, stops at lights,
-      brake-and-accelerate patterns that bias acceleration estimates.
+    - Descents are KEPT by default. High V_air in descents gives excellent
+      aero signal (Chung's own method uses coast-down descents as premium
+      CdA data). Braking and cornering ARE filtered out inside descents.
+    - ``filter_low_power``: P < 50 W is dropped. Below that threshold the
+      aero-force / power ratio is unusable regardless of gradient.
+    - ``filter_hard_accel`` / ``filter_braking``: threshold ±0.3 m/s² per
+      Martin et al. 1998 (tighter than our earlier ±1.5 which was too lax).
+    - ``min_block_seconds``: 30 s contiguous blocks required for
+      quasi-steady-state aero extraction.
+    - ``filter_unsteady``: rolling CV of ground speed over 15 s must stay
+      below 15% — drops punchy sprints, stops, brake-and-accelerate.
+    - ``filter_sharp_turn``: drop |yaw_rate| > 10°/s (cornering loss).
     """
     n = len(df)
     v = _arr(df["v_ground"])
@@ -72,22 +72,24 @@ def apply_filters(
     dt = _arr(df["dt"]) if "dt" in df.columns else np.ones(n)
 
     df["filter_stopped"] = v < 1.0
-    df["filter_low_speed"] = v < 4.0
-    # No-power points are ALWAYS excluded regardless of grade.
-    df["filter_no_power"] = p <= 0.0
-    df["filter_braking"] = a < -1.0
-    df["filter_hard_accel"] = a > 1.0
+    df["filter_low_speed"] = v < 3.0
+    # Low-power = unusable aero signal (Martin 1998: P < 50 W threshold).
+    df["filter_no_power"] = p < min_power_w
+    df["filter_braking"] = a < -max_accel
+    df["filter_hard_accel"] = a > max_accel
     df["filter_steep_climb"] = grad > max_gradient
     if drop_descents:
         df["filter_descent"] = grad < descent_gradient
     else:
-        df["filter_descent"] = grad < -max_gradient
+        # Only drop very steep descents (physics breaks down — coasting,
+        # terminal velocity, uncontrolled braking).
+        df["filter_descent"] = grad < descent_gradient
 
-    # Bearing rate (deg/s), wrap-safe
+    # Bearing rate (deg/s), wrap-safe; per Debraux literature threshold 10°/s
     db = np.diff(bearing, prepend=bearing[0])
     db = (db + 180.0) % 360.0 - 180.0
     bearing_rate = np.abs(db) / np.where(dt > 0, dt, 1.0)
-    df["filter_sharp_turn"] = bearing_rate > 15.0
+    df["filter_sharp_turn"] = bearing_rate > 10.0
 
     df["filter_negative_v_air"] = v_air <= 0
     df["filter_gps_jump"] = dd > 50.0

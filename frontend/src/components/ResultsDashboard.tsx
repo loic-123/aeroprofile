@@ -48,6 +48,56 @@ function StatCard({
   );
 }
 
+function CdABreakdown({ result }: { result: AnalysisResult }) {
+  const { cda_climb, cda_descent, cda_flat } = result;
+  if (cda_climb == null && cda_descent == null && cda_flat == null) return null;
+
+  const vals = [cda_climb, cda_descent, cda_flat].filter(
+    (v): v is number => v != null,
+  );
+  const spread = vals.length >= 2 ? Math.max(...vals) - Math.min(...vals) : 0;
+  const asymmetric = spread > 0.08;
+
+  return (
+    <div className="bg-panel border border-border rounded-lg p-4">
+      <h3 className="text-sm font-semibold mb-1 flex items-center">
+        CdA par régime de pente
+        <InfoTooltip text="CdA recalculé séparément sur les portions montantes (>+2%), descendantes (<−2%) et plates (±2%). Un écart > 0.08 m² entre les trois suggère un biais : vent asymétrique mal capturé, dérive du capteur à haute puissance, ou changement de position entre montée et descente. Ce n'est pas forcément une erreur — les cyclistes se redressent VRAIMENT en montée lente." />
+      </h3>
+      <p className="text-xs text-muted mb-3">
+        Grosse asymétrie = signal de biais (vent, calibration) OU changement
+        de position réel entre montée et descente.
+      </p>
+      <div className="grid grid-cols-3 gap-3 font-mono text-sm">
+        <div>
+          <div className="text-xs text-muted">Plat (±2%)</div>
+          <div className="text-lg">
+            {cda_flat != null ? cda_flat.toFixed(3) : "—"}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-muted">Montée (&gt;+2%)</div>
+          <div className="text-lg">
+            {cda_climb != null ? cda_climb.toFixed(3) : "—"}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-muted">Descente (&lt;−2%)</div>
+          <div className="text-lg">
+            {cda_descent != null ? cda_descent.toFixed(3) : "—"}
+          </div>
+        </div>
+      </div>
+      {asymmetric && (
+        <div className="mt-3 text-xs text-orange-400">
+          ⚠ Écart de {spread.toFixed(3)} m² entre régimes — vérifiez que le
+          vent API est représentatif de la sortie.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DerivedMetrics({ result }: { result: AnalysisResult }) {
   // Power needed to maintain a flat speed of V, no wind, typical mass 75kg
   const rho = result.avg_rho;
@@ -154,6 +204,8 @@ export default function ResultsDashboard({ result }: Props) {
           <p className="mt-1 text-xs">{result.solver_note}</p>
         </div>
       )}
+
+      <CdABreakdown result={result} />
 
       {badFit && (
         <div className="bg-coral/10 border border-coral rounded-lg p-4 flex gap-3">

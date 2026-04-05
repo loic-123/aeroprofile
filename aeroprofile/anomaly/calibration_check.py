@@ -186,20 +186,21 @@ def detect_anomalies(
         cda_down = _quick_cda(desc, crr, mass, eta)
         if cda_up and cda_down:
             diff = abs(cda_up - cda_down) / max((cda_up + cda_down) / 2, 1e-6)
-            if diff > 0.20:
+            if diff > 0.30:
                 anomalies.append(
                     Anomaly(
-                        "warning",
+                        "info",
                         "climb_descent_asymmetry",
-                        "Incohérence montée/descente",
-                        f"Le CdA calculé diffère beaucoup en montée ({cda_up:.3f}) "
-                        f"et en descente ({cda_down:.3f}), soit {diff*100:.0f}% "
-                        "d'écart. Physiquement le CdA devrait être similaire "
-                        "dans les deux cas. Causes probables : (1) votre poids "
-                        "saisi est faux (fait pencher la gravité dans une "
-                        "direction) ; (2) l'altitude GPS/baromètre est bruitée "
-                        "ou en dérive ; (3) le rendement de transmission η est "
-                        "mal réglé ; (4) freinages en descente non filtrés.",
+                        "CdA montée vs descente asymétrique",
+                        f"CdA en montée ({cda_up:.3f}) vs descente ({cda_down:.3f}) — "
+                        f"écart {diff*100:.0f}%. Causes les plus probables (par "
+                        "ordre, littérature): (1) vent réel ≠ vent API (un vent "
+                        "de face subi en montée devient tailwind en descente, "
+                        "ce qui gonfle le CdA montée); (2) vous étiez en "
+                        "position plus droite en montée (respiration), plus "
+                        "couchée en descente — ce n'est pas un bug mais un "
+                        "signal réel; (3) biais capteur à couple élevé "
+                        "(crankset PM sur-lisent de 1–3% en montée lente).",
                         value=diff,
                     )
                 )

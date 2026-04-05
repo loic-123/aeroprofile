@@ -64,7 +64,8 @@ def _virtual_elevation_vec(
 
 
 def _residuals_ve(params, V, V_air, rho, P, dt, alt_real, mass, eta,
-                  block_starts, crr_prior_mean, crr_prior_sigma):
+                  block_starts, crr_prior_mean, crr_prior_sigma,
+                  cda_prior_mean=None, cda_prior_sigma=None):
     """Stack of residuals for least_squares.
 
     Primary: alt_virtual minus the real altitude change, per BLOCK (we reset
@@ -92,17 +93,15 @@ def _residuals_ve(params, V, V_air, rho, P, dt, alt_real, mass, eta,
         res = (ve - ve_start) - target_adj
     else:
         res = ve - target
+    n = len(res)
+    prior_weight = 0.3 * np.sqrt(n) * max(1.0, float(np.sqrt(np.mean(res * res))))
+    extras = []
     if crr_prior_mean is not None and crr_prior_sigma is not None:
-        # Scale the prior to compete with the data residual budget.
-        # Altitude residuals are in metres (per-block RMSE of several metres),
-        # so with N ~ 5-8k samples the data cost is ~sum(res²) ~ 10^4-10^5.
-        # Match that by weighting the prior so that (Crr - μ)/σ is scored
-        # like 20 metres of altitude error.
-        n = len(res)
-        # Empirical: prior worth ~10% of the data samples' leverage
-        prior_weight = 0.3 * np.sqrt(n) * max(1.0, float(np.sqrt(np.mean(res * res))))
-        prior_res = np.array([prior_weight * (Crr - crr_prior_mean) / crr_prior_sigma])
-        return np.concatenate([res, prior_res])
+        extras.append(prior_weight * (Crr - crr_prior_mean) / crr_prior_sigma)
+    if cda_prior_mean is not None and cda_prior_sigma is not None:
+        extras.append(prior_weight * (CdA - cda_prior_mean) / cda_prior_sigma)
+    if extras:
+        return np.concatenate([res, np.array(extras)])
     return res
 
 
@@ -113,6 +112,8 @@ def solve_chung_ve(
     crr_fixed: float | None = None,
     crr_prior_mean: float | None = 0.004,
     crr_prior_sigma: float | None = 0.0015,
+    cda_prior_mean: float | None = 0.30,
+    cda_prior_sigma: float | None = 0.12,
 ) -> ChungResult:
     """Estimate (CdA, Crr) by minimising altitude-reconstruction error.
 
@@ -186,7 +187,8 @@ def solve_chung_ve(
                 _residuals_ve,
                 x0=x0,
                 args=(V, V_air, rho, P, dt, alt_real, mass, eta,
-                      block_starts, crr_prior_mean, crr_prior_sigma),
+                      block_starts, crr_prior_mean, crr_prior_sigma,
+                      cda_prior_mean, cda_prior_sigma),
                 bounds=(bounds_lower, bounds_upper),
                 method="trf",
             )

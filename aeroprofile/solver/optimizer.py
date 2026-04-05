@@ -71,13 +71,21 @@ def solve_cda_crr(
     crr_fixed: float | None = None,
     crr_prior_mean: float | None = 0.004,
     crr_prior_sigma: float | None = 0.0015,
+    cda_prior_mean: float | None = 0.30,
+    cda_prior_sigma: float | None = 0.12,
 ) -> SolverResult:
     """Solve CdA and Crr (or CdA only with fixed Crr) via multi-start TRF.
 
-    A weak Gaussian prior on Crr (default μ=0.004, σ=0.0015) keeps Crr from
-    absorbing unmodelled errors (wind, aero, drafting) when the data are
-    insufficient to constrain it on their own. Pass ``crr_prior_mean=None``
-    to disable.
+    Two weak Gaussian priors keep the estimates physically plausible when
+    the data are insufficient (short rides, drafting, heavy wind error):
+
+    - Crr ~ N(0.004, 0.0015²): road-tyre asphalt reference.
+    - CdA ~ N(0.30, 0.12²): intentionally very wide so the prior is only
+      a soft stabiliser (stops the solver from hitting the 0.15 or 0.60
+      bound when the problem is ill-conditioned). On a well-fit ride its
+      effect is < 0.01 m² on CdA.
+
+    Pass prior_mean=None to disable either prior.
     """
     valid = df[df["filter_valid"]].reset_index(drop=True)
     if len(valid) < 20:
@@ -94,11 +102,16 @@ def solve_cda_crr(
     P = valid["power"].to_numpy()
     n_data = len(P)
 
-    use_prior = (
+    use_crr_prior = (
         crr_fixed is None
         and crr_prior_mean is not None
         and crr_prior_sigma is not None
         and crr_prior_sigma > 0
+    )
+    use_cda_prior = (
+        cda_prior_mean is not None
+        and cda_prior_sigma is not None
+        and cda_prior_sigma > 0
     )
 
     if crr_fixed is not None:
@@ -140,20 +153,29 @@ def solve_cda_crr(
     bounds_upper = [0.60, 0.012]
     starts = [(0.25, 0.003), (0.35, 0.005), (0.45, 0.007)]
 
-    # Weight the Crr prior so that it contributes like sqrt(N) "good" samples
-    # (in watts). Prior sigma is in Crr units; multiply by a representative
-    # ∂P/∂Crr = m·g·<V> to convert to watts-equivalent.
-    if use_prior:
-        mean_pwr_arm = mass * 9.80665 * float(np.mean(V_ground))
-        prior_weight_w = np.sqrt(n_data) * 1.0  # ~1 W uncertainty equivalent
+    # Weight priors to contribute like ~3 "ok" samples each (≈3 W residuals).
+    # The prior is only meant as a stabiliser: with well-fit data it barely
+    # moves the MAP estimate, with badly-fit data it stops the solver from
+    # sticking to the bounds. Calibrated against synthetic recovery tests.
+    mean_V = float(np.mean(V_ground))
+    mean_V_air_sq = float(np.mean(V_air * V_air))
+    mean_rho = float(np.mean(rho))
+    crr_arm = mass * 9.80665 * mean_V  # ∂P/∂Crr
+    cda_arm = 0.5 * mean_rho * mean_V_air_sq * mean_V  # ∂P/∂CdA
+    prior_weight_w = 3.0  # ~3 W of "prior uncertainty"
 
     def residuals_with_prior(x):
         base = residual_power(x, V_ground, V_air, gradient, accel, mass, rho, P, eta)
-        if not use_prior:
-            return base
-        # Single extra residual: (Crr - μ) / σ × weight × arm
-        prior_res = prior_weight_w * mean_pwr_arm * (x[1] - crr_prior_mean) / crr_prior_sigma
-        return np.concatenate([base, [prior_res]])
+        extras = []
+        if use_crr_prior:
+            extras.append(prior_weight_w * crr_arm * (x[1] - crr_prior_mean) / crr_prior_sigma)
+        if use_cda_prior:
+            extras.append(prior_weight_w * cda_arm * (x[0] - cda_prior_mean) / cda_prior_sigma)
+        if extras:
+            return np.concatenate([base, np.array(extras)])
+        return base
+
+    n_extra = int(use_crr_prior) + int(use_cda_prior)
 
     best = None
     for x0 in starts:
@@ -167,9 +189,9 @@ def solve_cda_crr(
             best = r
 
     cda, crr = float(best.x[0]), float(best.x[1])
-    # CI from the DATA residuals only (drop the prior row if present)
-    fun_data = best.fun[:n_data] if use_prior else best.fun
-    jac_data = best.jac[:n_data, :] if use_prior else best.jac
+    # CI from the DATA residuals only (drop the prior rows if present)
+    fun_data = best.fun[:n_data] if n_extra else best.fun
+    jac_data = best.jac[:n_data, :] if n_extra else best.jac
     p_params = 2
     if n_data > p_params:
         s2 = float(np.sum(fun_data ** 2)) / (n_data - p_params)

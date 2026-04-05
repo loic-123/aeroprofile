@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, timedelta, timezone
 
 import httpx
@@ -47,10 +48,28 @@ async def fetch_weather(lat: float, lon: float, ride_date: date | str) -> dict:
         "windspeed_unit": "kmh",
     }
 
+    async def _get_with_retry(client, url, p):
+        # Open-Meteo free tier returns 429 when rate-limited. Retry up to
+        # 3 times with exponential backoff (1s, 2s, 4s).
+        last_exc = None
+        for attempt in range(3):
+            try:
+                r = await client.get(url, params=p)
+                if r.status_code == 429:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                return r
+            except httpx.HTTPError as e:
+                last_exc = e
+                await asyncio.sleep(2 ** attempt)
+        if last_exc is not None:
+            raise last_exc
+        return r
+
     async with httpx.AsyncClient(timeout=20.0) as client:
         if not use_forecast:
             params_archive = {**params, "start_date": day, "end_date": day}
-            r = await client.get(ARCHIVE_URL, params=params_archive)
+            r = await _get_with_retry(client, ARCHIVE_URL, params_archive)
             if r.status_code == 200:
                 data = r.json()
                 if data.get("hourly", {}).get("time"):
@@ -58,7 +77,7 @@ async def fetch_weather(lat: float, lon: float, ride_date: date | str) -> dict:
         # Fallback to forecast with past_days
         past_days = max(1, min(7, (today - day_dt).days + 1))
         params_fc = {**params, "past_days": past_days, "forecast_days": 1}
-        r = await client.get(FORECAST_URL, params=params_fc)
+        r = await _get_with_retry(client, FORECAST_URL, params_fc)
         r.raise_for_status()
         data = r.json()
         return data["hourly"]

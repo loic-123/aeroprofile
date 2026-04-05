@@ -171,27 +171,8 @@ async def analyze(
     ride_date = df["timestamp"].iloc[0].date()
     total_km = float(df["distance"].iloc[-1]) / 1000.0 if len(df) > 1 else 0.0
 
-    if fetch_wx:
-        # Use tiled weather for rides > 15 km (otherwise one tile is enough)
-        if tiled_weather and total_km > 15.0:
-            try:
-                tiles = await fetch_weather_tiled(
-                    df["lat"].to_numpy(), df["lon"].to_numpy(), ride_date,
-                    tile_km=5.0, max_tiles=6,
-                )
-                if tiles:
-                    wx = interpolate_tiled_weather(tiles, df["timestamp"].tolist())
-                else:
-                    hourly = await fetch_weather(lat_c, lon_c, ride_date)
-                    wx = interpolate_weather(hourly, df["timestamp"].tolist())
-            except Exception:
-                hourly = await fetch_weather(lat_c, lon_c, ride_date)
-                wx = interpolate_weather(hourly, df["timestamp"].tolist())
-        else:
-            hourly = await fetch_weather(lat_c, lon_c, ride_date)
-            wx = interpolate_weather(hourly, df["timestamp"].tolist())
-    else:
-        wx = pd.DataFrame(
+    def _no_wind_fallback():
+        return pd.DataFrame(
             {
                 "wind_speed_ms": np.zeros(len(df)),
                 "wind_dir_deg": np.zeros(len(df)),
@@ -200,6 +181,32 @@ async def analyze(
                 "surface_pressure_hpa": np.full(len(df), 1013.25),
             }
         )
+
+    if fetch_wx:
+        wx = None
+        # Use tiled weather for rides > 30 km (otherwise one tile is enough).
+        # Tile count is intentionally conservative to avoid Open-Meteo 429.
+        if tiled_weather and total_km > 30.0:
+            try:
+                tiles = await fetch_weather_tiled(
+                    df["lat"].to_numpy(), df["lon"].to_numpy(), ride_date,
+                    tile_km=10.0, max_tiles=3,
+                )
+                if tiles:
+                    wx = interpolate_tiled_weather(tiles, df["timestamp"].tolist())
+            except Exception:
+                pass
+        if wx is None:
+            try:
+                hourly = await fetch_weather(lat_c, lon_c, ride_date)
+                wx = interpolate_weather(hourly, df["timestamp"].tolist())
+            except Exception:
+                # Last-resort: ride continues with no wind correction rather
+                # than erroring out. The solver will still produce a CdA
+                # estimate, just without wind correction.
+                wx = _no_wind_fallback()
+    else:
+        wx = _no_wind_fallback()
 
     df = pd.concat([df, wx], axis=1)
 

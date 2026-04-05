@@ -58,24 +58,32 @@ async def fetch_weather_tiled(
     lats: np.ndarray,
     lons: np.ndarray,
     ride_date: date | str,
-    tile_km: float = 5.0,
-    max_tiles: int = 6,
+    tile_km: float = 10.0,
+    max_tiles: int = 3,
 ) -> list[tuple[int, dict]]:
     """Return a list of (first_point_index, hourly_weather_dict) tiles.
 
-    The cyclist's ride is segmented; each segment starts at ``first_point_index``
-    and ends where the next tile begins.
+    Open-Meteo's free tier rate-limits parallel requests (HTTP 429), so
+    tiles are fetched SEQUENTIALLY with a small inter-request delay.
+    Defaults are conservative: 3 tiles max (start / middle / end), 10 km
+    spacing. For a 100 km mountain ride that's still enough to catch the
+    main wind gradient.
     """
     anchors = _pick_tile_anchors(lats, lons, tile_km, max_tiles)
-    results = await asyncio.gather(
-        *[fetch_weather(lat, lon, ride_date) for _, lat, lon in anchors],
-        return_exceptions=True,
-    )
     tiles: list[tuple[int, dict]] = []
-    for (idx, _lat, _lon), res in zip(anchors, results):
-        if isinstance(res, Exception) or not isinstance(res, dict):
-            continue
-        tiles.append((idx, res))
+    for i, (idx, lat, lon) in enumerate(anchors):
+        try:
+            data = await fetch_weather(lat, lon, ride_date)
+            if isinstance(data, dict):
+                tiles.append((idx, data))
+        except Exception:
+            # Skip failed tiles; the pipeline will fall back to a single
+            # centroid fetch upstream if the list ends up empty.
+            pass
+        # 300 ms between requests keeps us well under Open-Meteo's
+        # published 600 calls/minute / 10 calls/second limit.
+        if i < len(anchors) - 1:
+            await asyncio.sleep(0.3)
     return tiles
 
 

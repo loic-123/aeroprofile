@@ -20,25 +20,30 @@ FILTER_NAMES = (
 )
 
 
+def _arr(s) -> np.ndarray:
+    """Return a fresh, writable float array from a pandas Series or array-like."""
+    return np.array(s, dtype=float, copy=True)
+
+
 def apply_filters(df: pd.DataFrame, min_block_seconds: int = 10) -> pd.DataFrame:
     """Adds one boolean column per filter plus `filter_valid`. Mutates df."""
     n = len(df)
-    v = df["v_ground"].to_numpy()
-    p = df["power"].to_numpy()
-    a = df["acceleration"].to_numpy()
-    grad = df["gradient"].to_numpy()
-    bearing = df["bearing"].to_numpy()
-    v_air = df["v_air"].to_numpy()
+    v = _arr(df["v_ground"])
+    p = _arr(df["power"])
+    a = _arr(df["acceleration"])
+    grad = _arr(df["gradient"])
+    bearing = _arr(df["bearing"])
+    v_air = _arr(df["v_air"])
 
     # distance jumps
     if "distance" in df.columns:
-        d = df["distance"].to_numpy()
+        d = _arr(df["distance"])
         dd = np.diff(d, prepend=d[0])
     else:
         dd = np.zeros(n)
 
     # dt
-    dt = df["dt"].to_numpy() if "dt" in df.columns else np.ones(n)
+    dt = _arr(df["dt"]) if "dt" in df.columns else np.ones(n)
 
     df["filter_stopped"] = v < 1.0
     df["filter_low_speed"] = v < 4.0
@@ -64,11 +69,11 @@ def apply_filters(df: pd.DataFrame, min_block_seconds: int = 10) -> pd.DataFrame
 
     any_filter = np.zeros(n, dtype=bool)
     for name in FILTER_NAMES:
-        any_filter |= df[name].to_numpy()
+        any_filter = any_filter | np.asarray(df[name].to_numpy(), dtype=bool)
     df["filter_valid"] = ~any_filter
 
     # Keep only contiguous valid blocks of at least `min_block_seconds`
-    valid = df["filter_valid"].to_numpy().copy()
+    valid = np.array(df["filter_valid"].to_numpy(), dtype=bool, copy=True)
     i = 0
     while i < n:
         if not valid[i]:

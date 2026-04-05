@@ -79,10 +79,11 @@ def _ride_to_df(ride: RideData) -> pd.DataFrame:
 def _compute_derivatives(df: pd.DataFrame) -> pd.DataFrame:
     n = len(df)
     # dt
-    dt = np.asarray(
+    dt = np.array(
         df["timestamp"].diff().dt.total_seconds().fillna(1.0).clip(lower=0.0).to_numpy(),
         dtype=float,
-    ).copy()
+        copy=True,
+    )
     if n > 1:
         dt[0] = dt[1]
     df["dt"] = dt

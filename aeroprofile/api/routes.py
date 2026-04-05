@@ -88,7 +88,20 @@ async def analyze_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur d'analyse : {e}")
+        import traceback as _tb
+        tb = _tb.format_exc()
+        # Log to stderr for the hosting platform
+        import sys as _sys
+        print(tb, file=_sys.stderr, flush=True)
+        # Return the last frame so the user sees where it blew up
+        last_line = tb.strip().splitlines()[-1] if tb else str(e)
+        # Also include the frame closest to our code
+        frames = [ln for ln in tb.splitlines() if "aeroprofile" in ln and "site-packages" not in ln]
+        frame_hint = frames[-1].strip() if frames else ""
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur d'analyse : {last_line} | at: {frame_hint}",
+        )
     finally:
         try:
             tmp_path.unlink()

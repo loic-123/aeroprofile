@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aeroprofile"
+version = "0.1.0"
+description = "Compute cyclist CdA and Crr from power-meter activity files with automatic wind correction."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [{ name = "AeroProfile Contributors" }]
+keywords = ["cycling", "aerodynamics", "cda", "crr", "power-meter", "fit", "gpx", "tcx"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "fitparse>=1.2.0",
+    "gpxpy>=1.6.0",
+    "lxml>=5.0.0",
+    "scipy>=1.12.0",
+    "numpy>=1.26.0",
+    "pandas>=2.2.0",
+    "httpx>=0.27.0",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.29.0",
+    "python-multipart>=0.0.9",
+    "pydantic>=2.6.0",
+    "click>=8.1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.3"]
+
+[project.scripts]
+aeroprofile = "aeroprofile.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["aeroprofile*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

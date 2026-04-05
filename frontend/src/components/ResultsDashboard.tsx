@@ -278,17 +278,11 @@ export default function ResultsDashboard({ result }: Props) {
           tooltip="Crr = coefficient de résistance au roulement (sans unité). Dépend des pneus, de la pression, et du revêtement. Typiquement 0.003–0.004 sur pneu route bien gonflé et asphalte lisse, 0.005–0.007 sur route dégradée, 0.007–0.010 en gravel."
         />
         <StatCard
-          label="R²"
-          value={result.r_squared.toFixed(3)}
-          sub={
-            result.r_squared > 0.7
-              ? "excellent"
-              : result.r_squared > 0.4
-                ? "correct"
-                : "faible"
-          }
+          label="Erreur moyenne"
+          value={`±${result.rmse_w.toFixed(0)} W`}
+          sub={`R² ${result.r_squared.toFixed(2)} • MAE ${result.mae_w.toFixed(0)} W`}
           accent={r2Accent}
-          tooltip="R² mesure la qualité de l'ajustement du modèle physique aux données mesurées (0 à 1). > 0.7 = excellent, 0.4–0.7 = correct, < 0.4 = faible. Un R² négatif veut dire que le modèle est moins bon qu'une simple moyenne — signe de bruit important, drafting, ou capteur défectueux."
+          tooltip="Erreur RMSE (root-mean-square) entre la puissance modélisée et la puissance mesurée. 'Le modèle se trompe en moyenne de ±X watts.' Sur une sortie réelle, 15-25 W est typique ; sous 15 W excellent ; au-dessus de 30 W il y a un biais (vent mal capturé, drafting, capteur mal calibré). Le R² complémentaire dépend de la variance de la sortie et n'est pas toujours informatif."
         />
         <StatCard
           label="ρ moyen"

@@ -62,6 +62,8 @@ class AnalysisResult:
     cda_descent: Optional[float] = None
     cda_flat: Optional[float] = None
     heading_variance: float = 0.0  # circular variance of bearing (0-1)
+    rmse_w: float = 0.0  # RMSE of power residuals in watts
+    mae_w: float = 0.0   # mean absolute error in watts
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -95,6 +97,20 @@ def _compute_derivatives(df: pd.DataFrame) -> pd.DataFrame:
     if n > 1:
         dt[0] = dt[1]
     df["dt"] = dt
+
+    # 5-second centred rolling mean on power (Martin et al. 1998 recommend
+    # smoothing on the order of pedal-stroke duration to damp per-stroke
+    # torque oscillation; 5 s also matches the quasi-steady-state assumption
+    # of the forward model). Keeps the raw column for reference.
+    p_raw = df["power"].to_numpy()
+    p_smooth = (
+        pd.Series(p_raw)
+        .rolling(window=5, center=True, min_periods=1)
+        .mean()
+        .to_numpy()
+    )
+    df["power_raw"] = p_raw
+    df["power"] = p_smooth
 
     # Smooth altitude (Savitzky-Golay)
     win = min(31, n if n % 2 == 1 else n - 1)
@@ -289,10 +305,21 @@ async def analyze(
     valid = df[df["filter_valid"]]
     if len(valid) > 20:
         br = np.radians(valid["bearing"].to_numpy())
-        R = np.sqrt(np.cos(br).mean() ** 2 + np.sin(br).mean() ** 2)
-        heading_variance = float(1.0 - R)  # 0 = one direction, 1 = uniform
+        R_ = np.sqrt(np.cos(br).mean() ** 2 + np.sin(br).mean() ** 2)
+        heading_variance = float(1.0 - R_)  # 0 = one direction, 1 = uniform
     else:
         heading_variance = 0.0
+
+    # Power-residual stats (independent of R² scaling; direct "typical error" in W)
+    if len(valid) > 0:
+        p_meas = valid["power"].to_numpy()
+        p_model = valid["power_modeled"].to_numpy()
+        res_w = p_model - p_meas
+        rmse_w = float(np.sqrt(np.mean(res_w ** 2)))
+        mae_w = float(np.mean(np.abs(res_w)))
+    else:
+        rmse_w = 0.0
+        mae_w = 0.0
 
     # Rolling CdA (10 min window)
     window_s = 600
@@ -317,6 +344,8 @@ async def analyze(
         cda_descent=cda_descent,
         cda_flat=cda_flat,
         heading_variance=heading_variance,
+        rmse_w=rmse_w,
+        mae_w=mae_w,
         cda=sol.cda,
         crr=sol.crr,
         cda_ci=sol.cda_ci,

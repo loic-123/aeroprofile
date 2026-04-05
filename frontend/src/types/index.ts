@@ -40,6 +40,8 @@ export interface AnalysisResult {
   cda_descent: number | null;
   cda_flat: number | null;
   heading_variance: number;
+  rmse_w: number;
+  mae_w: number;
   ride_date: string;
   ride_distance_km: number;
   ride_duration_s: number;

@@ -123,6 +123,8 @@ async def analyze_endpoint(
         cda_descent=result.cda_descent,
         cda_flat=result.cda_flat,
         heading_variance=result.heading_variance,
+        rmse_w=result.rmse_w,
+        mae_w=result.mae_w,
         ride_date=result.ride_date,
         ride_distance_km=result.ride_distance_km,
         ride_duration_s=result.ride_duration_s,

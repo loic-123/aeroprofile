@@ -49,6 +49,8 @@ class AnalysisResultOut(BaseModel):
     cda_descent: Optional[float] = None
     cda_flat: Optional[float] = None
     heading_variance: float = 0.0
+    rmse_w: float = 0.0
+    mae_w: float = 0.0
 
     ride_date: str
     ride_distance_km: float

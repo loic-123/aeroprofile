@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Upload, Trash2, Loader2, Trophy, Wind, Activity, User } from "lucide-react";
+import { Upload, Trash2, Loader2, Trophy, Wind, Activity, User, AlertTriangle } from "lucide-react";
 import { analyze } from "../api/client";
 import type { AnalysisResult } from "../types";
 import PositionSchematic from "./PositionSchematic";
@@ -63,6 +63,29 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
   };
   const mostEfficient = [...done].sort((a, b) => drag(a) - drag(b))[0];
 
+  // Drafting suspicion: if riders have similar avg speed (±5%) but very
+  // different CdA (>15%), the lower-CdA rider was probably drafting behind
+  // the higher-CdA one (taking less wind while matching pace).
+  let draftWarning: { drafter: string; puller: string; cdaGap: number } | null = null;
+  if (done.length >= 2) {
+    const speeds = done.map((r) => r.result!.avg_speed_kmh);
+    const minS = Math.min(...speeds);
+    const maxS = Math.max(...speeds);
+    if (maxS > 0 && (maxS - minS) / maxS < 0.05) {
+      const byCda = [...done].sort((a, b) => a.result!.cda - b.result!.cda);
+      const low = byCda[0];
+      const high = byCda[byCda.length - 1];
+      const gap = (high.result!.cda - low.result!.cda) / high.result!.cda;
+      if (gap > 0.15) {
+        draftWarning = {
+          drafter: low.name,
+          puller: high.name,
+          cdaGap: gap,
+        };
+      }
+    }
+  }
+
   return (
     <div className="space-y-6">
       <button
@@ -116,6 +139,33 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           )}
         </button>
       </div>
+
+      {done.length >= 2 && draftWarning && (
+        <div className="bg-orange-500/10 border border-orange-500 rounded-lg p-4 flex gap-3">
+          <AlertTriangle className="text-orange-400 flex-shrink-0" size={20} />
+          <div className="text-sm">
+            <div className="font-semibold text-orange-400">
+              Drafting probable entre cyclistes
+            </div>
+            <p className="mt-1">
+              <strong>{draftWarning.drafter}</strong> a un CdA{" "}
+              {(draftWarning.cdaGap * 100).toFixed(0)}% plus bas que{" "}
+              <strong>{draftWarning.puller}</strong> alors qu'ils roulent à la
+              même vitesse moyenne. La cause la plus probable : ils étaient
+              ensemble et <strong>{draftWarning.drafter}</strong> a été en
+              abri derrière <strong>{draftWarning.puller}</strong> la plupart
+              du temps. Conséquence : les CdA individuels ne sont pas
+              comparables tels quels.
+            </p>
+            <p className="mt-2 text-xs text-muted">
+              Pour comparer vraiment leurs positions aéro, regardez le « CdA
+              plat » de chacun pendant des périodes solo, ou utilisez le W/kg
+              : celui qui tire plus de relais produit plus de watts à la
+              même vitesse.
+            </p>
+          </div>
+        </div>
+      )}
 
       {done.length >= 2 && (
         <>

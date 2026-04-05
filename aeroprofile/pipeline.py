@@ -222,9 +222,11 @@ async def analyze(
         "Moindres carrés de Martin et al. (1998) avec prior faible sur Crr."
     )
 
-    # If the Martin fit is poor (noisy ride, descents, wind), fall back to
-    # Chung's Virtual-Elevation method, which integrates the energy balance
-    # and is dramatically more robust on mountain rides.
+    # If the Martin fit is poor (noisy ride, descents, wind), try Chung's
+    # Virtual-Elevation method, which integrates the energy balance and is
+    # dramatically more robust on mountain rides. But ONLY swap if Chung's
+    # own R² is better than Martin's.
+    martin_r2 = sol.r_squared
     if sol.r_squared < 0.3:
         try:
             chung = solve_chung_ve(
@@ -233,9 +235,7 @@ async def analyze(
                 eta=eta,
                 crr_fixed=effective_crr_fixed,
             )
-            # Replace only if Chung produces a physically plausible CdA
-            if 0.15 <= chung.cda <= 0.55:
-                # Build a pseudo SolverResult so downstream code stays uniform
+            if 0.15 <= chung.cda <= 0.55 and chung.r_squared_elev > max(martin_r2, 0.0):
                 sol = SolverResult(
                     cda=chung.cda,
                     crr=chung.crr,
@@ -248,9 +248,9 @@ async def analyze(
                 )
                 solver_method = "chung_ve"
                 solver_note = (
-                    "Méthode Chung (Virtual Elevation) utilisée : Martin LS avait "
-                    "un R² trop faible. R² reporté ici = qualité de la "
-                    "reconstruction d'altitude (pas de la puissance)."
+                    "Méthode Chung (Virtual Elevation) utilisée : Martin LS "
+                    f"avait R²={martin_r2:.2f}. R² reporté ici = qualité "
+                    "de la reconstruction d'altitude."
                 )
         except Exception:
             pass

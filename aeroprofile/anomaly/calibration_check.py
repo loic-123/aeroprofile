@@ -231,6 +231,40 @@ def detect_anomalies(
             )
         )
 
+    # 8. Drafting suspicion: on the flat + high-speed segments, compare
+    #    measured power to what a "typical" solo cyclist would need
+    #    (CdA=0.32, Crr=0.004). If the measured power is systematically
+    #    low (< 80%), the rider is very likely drafting.
+    try:
+        plat = valid[(valid["v_ground"] > 8.33) & (valid["gradient"].abs() < 0.02)]
+        if len(plat) >= 100:
+            from aeroprofile.physics.power_model import power_model as _pm
+            P_typ = _pm(
+                plat["v_ground"].to_numpy(),
+                plat["v_air"].to_numpy(),
+                plat["gradient"].to_numpy(),
+                plat["acceleration"].to_numpy(),
+                mass, 0.32, 0.004, plat["rho"].to_numpy(), eta,
+            )
+            ratio = plat["power"].to_numpy() / np.maximum(P_typ, 50.0)
+            mean_ratio = float(np.mean(ratio))
+            if mean_ratio < 0.80:
+                anomalies.append(
+                    Anomaly(
+                        "info",
+                        "drafting_suspected",
+                        "Drafting probablement présent",
+                        f"Sur les segments rapides à plat, vous avez produit en "
+                        f"moyenne {mean_ratio*100:.0f}% de la puissance qu'il "
+                        "faut pour rouler solo dans cette position. Soit vous "
+                        "avez suivi des roues, soit vous avez une position très "
+                        "aéro. Le CdA calculé est donc peut-être sous-estimé.",
+                        value=mean_ratio,
+                    )
+                )
+    except Exception:
+        pass
+
     if not anomalies:
         anomalies.append(
             Anomaly(

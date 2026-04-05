@@ -43,6 +43,8 @@ class AnalysisResultOut(BaseModel):
     crr_ci_high: float
     r_squared: float
     crr_was_fixed: bool = False
+    solver_method: str = "martin_ls"
+    solver_note: str = ""
 
     ride_date: str
     ride_distance_km: float

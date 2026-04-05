@@ -17,12 +17,14 @@ from aeroprofile.physics.constants import ETA_DEFAULT
 from aeroprofile.physics.wind import compute_bearing_series, compute_v_air
 from aeroprofile.weather.open_meteo import fetch_weather
 from aeroprofile.weather.interpolation import interpolate_weather
+from aeroprofile.weather.tiled import fetch_weather_tiled, interpolate_tiled_weather
 from aeroprofile.filters.segment_filter import apply_filters, FILTER_NAMES
 from aeroprofile.solver.optimizer import (
     solve_cda_crr,
     check_speed_variety,
     SolverResult,
 )
+from aeroprofile.solver.chung_ve import solve_chung_ve, ChungResult
 from aeroprofile.solver.virtual_elevation import virtual_elevation
 from aeroprofile.anomaly.calibration_check import detect_anomalies, Anomaly
 from aeroprofile.physics.power_model import power_model
@@ -54,6 +56,8 @@ class AnalysisResult:
     anomalies: list[Anomaly] = field(default_factory=list)
     df: Optional[pd.DataFrame] = None  # full processed dataframe
     crr_was_fixed: bool = False
+    solver_method: str = "martin_ls"  # "martin_ls" | "chung_ve"
+    solver_note: str = ""
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -131,6 +135,9 @@ async def analyze(
     eta: float = ETA_DEFAULT,
     wind_height_factor: float = 0.7,
     fetch_wx: bool = True,
+    tiled_weather: bool = True,
+    drop_descents: bool = True,
+    min_block_seconds: int = 30,
 ) -> AnalysisResult:
     ride = parse_file(filepath)
     validate_ride(ride)
@@ -142,10 +149,27 @@ async def analyze(
     lat_c = float(df["lat"].mean())
     lon_c = float(df["lon"].mean())
     ride_date = df["timestamp"].iloc[0].date()
+    total_km = float(df["distance"].iloc[-1]) / 1000.0 if len(df) > 1 else 0.0
 
     if fetch_wx:
-        hourly = await fetch_weather(lat_c, lon_c, ride_date)
-        wx = interpolate_weather(hourly, df["timestamp"].tolist())
+        # Use tiled weather for rides > 15 km (otherwise one tile is enough)
+        if tiled_weather and total_km > 15.0:
+            try:
+                tiles = await fetch_weather_tiled(
+                    df["lat"].to_numpy(), df["lon"].to_numpy(), ride_date,
+                    tile_km=5.0, max_tiles=6,
+                )
+                if tiles:
+                    wx = interpolate_tiled_weather(tiles, df["timestamp"].tolist())
+                else:
+                    hourly = await fetch_weather(lat_c, lon_c, ride_date)
+                    wx = interpolate_weather(hourly, df["timestamp"].tolist())
+            except Exception:
+                hourly = await fetch_weather(lat_c, lon_c, ride_date)
+                wx = interpolate_weather(hourly, df["timestamp"].tolist())
+        else:
+            hourly = await fetch_weather(lat_c, lon_c, ride_date)
+            wx = interpolate_weather(hourly, df["timestamp"].tolist())
     else:
         wx = pd.DataFrame(
             {
@@ -175,7 +199,11 @@ async def analyze(
     )
 
     # Filters
-    df = apply_filters(df)
+    df = apply_filters(
+        df,
+        min_block_seconds=min_block_seconds,
+        drop_descents=drop_descents,
+    )
 
     # Check variety → maybe fix Crr
     insufficient, _msg = check_speed_variety(df[df["filter_valid"]]["v_ground"].to_numpy())
@@ -183,8 +211,45 @@ async def analyze(
     if insufficient and crr_fixed is None:
         effective_crr_fixed = 0.005
 
-    # Solve
+    # Primary solver: Martin least-squares with weak Crr prior
     sol: SolverResult = solve_cda_crr(df, mass_kg, eta=eta, crr_fixed=effective_crr_fixed)
+    solver_method = "martin_ls"
+    solver_note = (
+        "Moindres carrés de Martin et al. (1998) avec prior faible sur Crr."
+    )
+
+    # If the Martin fit is poor (noisy ride, descents, wind), fall back to
+    # Chung's Virtual-Elevation method, which integrates the energy balance
+    # and is dramatically more robust on mountain rides.
+    if sol.r_squared < 0.3:
+        try:
+            chung = solve_chung_ve(
+                df,
+                mass=mass_kg,
+                eta=eta,
+                crr_fixed=effective_crr_fixed,
+            )
+            # Replace only if Chung produces a physically plausible CdA
+            if 0.15 <= chung.cda <= 0.55:
+                # Build a pseudo SolverResult so downstream code stays uniform
+                sol = SolverResult(
+                    cda=chung.cda,
+                    crr=chung.crr,
+                    cda_ci=chung.cda_ci,
+                    crr_ci=chung.crr_ci,
+                    r_squared=chung.r_squared_elev,
+                    residuals=chung.residuals,
+                    n_points=chung.n_points,
+                    crr_was_fixed=(effective_crr_fixed is not None),
+                )
+                solver_method = "chung_ve"
+                solver_note = (
+                    "Méthode Chung (Virtual Elevation) utilisée : Martin LS avait "
+                    "un R² trop faible. R² reporté ici = qualité de la "
+                    "reconstruction d'altitude (pas de la puissance)."
+                )
+        except Exception:
+            pass
 
     # Modelled power on full df for decomposition
     df["power_modeled"] = power_model(
@@ -228,6 +293,8 @@ async def analyze(
     duration = float((df["timestamp"].iloc[-1] - df["timestamp"].iloc[0]).total_seconds())
 
     return AnalysisResult(
+        solver_method=solver_method,
+        solver_note=solver_note,
         cda=sol.cda,
         crr=sol.crr,
         cda_ci=sol.cda_ci,

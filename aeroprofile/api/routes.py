@@ -117,6 +117,8 @@ async def analyze_endpoint(
         crr_ci_high=result.crr_ci[1],
         r_squared=result.r_squared,
         crr_was_fixed=result.crr_was_fixed,
+        solver_method=result.solver_method,
+        solver_note=result.solver_note,
         ride_date=result.ride_date,
         ride_distance_km=result.ride_distance_km,
         ride_duration_s=result.ride_duration_s,

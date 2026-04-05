@@ -34,6 +34,8 @@ export interface AnalysisResult {
   crr_ci_high: number;
   r_squared: number;
   crr_was_fixed: boolean;
+  solver_method: string;
+  solver_note: string;
   ride_date: string;
   ride_distance_km: number;
   ride_duration_s: number;

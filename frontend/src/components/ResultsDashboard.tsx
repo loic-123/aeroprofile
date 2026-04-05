@@ -146,6 +146,15 @@ export default function ResultsDashboard({ result }: Props) {
         </h2>
       </div>
 
+      {result.solver_method === "chung_ve" && (
+        <div className="bg-info/10 border border-info rounded-lg p-3 text-sm">
+          <div className="font-semibold text-info">
+            Méthode : Chung (Virtual Elevation)
+          </div>
+          <p className="mt-1 text-xs">{result.solver_note}</p>
+        </div>
+      )}
+
       {badFit && (
         <div className="bg-coral/10 border border-coral rounded-lg p-4 flex gap-3">
           <AlertCircle className="text-coral flex-shrink-0" size={20} />

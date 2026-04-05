@@ -177,6 +177,9 @@ export default function ResultsDashboard({ result }: Props) {
   const hours = Math.floor(result.ride_duration_s / 3600);
   const mins = Math.floor((result.ride_duration_s % 3600) / 60);
   const badFit = result.r_squared < 0.3;
+  // R² < 0 means the physical model is worse than a simple mean — the CdA/Crr
+  // point estimates are mathematically valid but physically meaningless.
+  const unreliable = result.r_squared < 0;
 
   const cdaAccent: "teal" | "coral" =
     result.cda < 0.2 || result.cda > 0.5 ? "coral" : "teal";
@@ -207,7 +210,31 @@ export default function ResultsDashboard({ result }: Props) {
 
       <CdABreakdown result={result} />
 
-      {badFit && (
+      {unreliable ? (
+        <div className="bg-coral/10 border border-coral rounded-lg p-4 flex gap-3">
+          <AlertCircle className="text-coral flex-shrink-0" size={20} />
+          <div>
+            <div className="font-semibold text-coral">
+              CdA et Crr non estimables sur cette sortie (R² = {result.r_squared.toFixed(2)})
+            </div>
+            <p className="text-sm mt-1">
+              Le modèle physique ne s'applique pas à cette sortie : il y a une
+              ou plusieurs forces non prises en compte (vent réel très différent
+              de la météo API, drafting massif dans un peloton, freins qui
+              frottent, capteur défectueux…). <strong>Les valeurs CdA/Crr
+              affichées ci-dessous ne sont pas fiables</strong> — le solveur
+              a trouvé le "moins mauvais" fit possible, pas une mesure correcte.
+            </p>
+            <p className="text-sm mt-2">
+              Ce que vous pouvez quand même exploiter : le <strong>breakdown
+              plat / montée / descente</strong> ci-dessous (qui reste
+              qualitativement parlant), et la <strong>direction du biais
+              des résidus</strong> dans les alertes (qui indique s'il faut
+              chercher un capteur sur- ou sous-calibré).
+            </p>
+          </div>
+        </div>
+      ) : badFit && (
         <div className="bg-coral/10 border border-coral rounded-lg p-4 flex gap-3">
           <AlertCircle className="text-coral flex-shrink-0" size={20} />
           <div>
@@ -228,20 +255,26 @@ export default function ResultsDashboard({ result }: Props) {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard
           label="CdA"
-          value={result.cda.toFixed(3)}
-          sub={`IC ${result.cda_ci_low.toFixed(3)} – ${result.cda_ci_high.toFixed(3)} m²`}
-          accent={cdaAccent}
+          value={unreliable ? "—" : result.cda.toFixed(3)}
+          sub={
+            unreliable
+              ? "non fiable (R² < 0)"
+              : `IC ${result.cda_ci_low.toFixed(3)} – ${result.cda_ci_high.toFixed(3)} m²`
+          }
+          accent={unreliable ? "coral" : cdaAccent}
           tooltip="CdA = coefficient de traînée × surface frontale (m²). Représente la résistance à l'air. Typiquement 0.28–0.38 sur route mains sur cocottes, 0.22–0.28 en position basse, 0.18–0.22 en CLM. Plus petit = plus aéro. IC = intervalle de confiance à 95%."
         />
         <StatCard
           label="Crr"
-          value={result.crr.toFixed(4)}
+          value={unreliable ? "—" : result.crr.toFixed(4)}
           sub={
-            result.crr_was_fixed
-              ? "FIXÉ (sortie sans assez de variété)"
-              : `IC ${result.crr_ci_low.toFixed(4)} – ${result.crr_ci_high.toFixed(4)}`
+            unreliable
+              ? "non fiable (R² < 0)"
+              : result.crr_was_fixed
+                ? "FIXÉ (sortie sans assez de variété)"
+                : `IC ${result.crr_ci_low.toFixed(4)} – ${result.crr_ci_high.toFixed(4)}`
           }
-          accent={crrAccent}
+          accent={unreliable ? "coral" : crrAccent}
           tooltip="Crr = coefficient de résistance au roulement (sans unité). Dépend des pneus, de la pression, et du revêtement. Typiquement 0.003–0.004 sur pneu route bien gonflé et asphalte lisse, 0.005–0.007 sur route dégradée, 0.007–0.010 en gravel."
         />
         <StatCard
@@ -271,21 +304,23 @@ export default function ResultsDashboard({ result }: Props) {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-panel border border-border rounded-lg p-4 md:col-span-2">
-          <h3 className="text-sm font-semibold mb-1 flex items-center">
-            Position estimée
-            <InfoTooltip text="Silhouette simplifiée déduite du CdA estimé. Un CdA bas correspond à une position très couchée/aéro ; un CdA élevé à une position droite. C'est une illustration pédagogique, pas une mesure de votre posture réelle." />
-          </h3>
-          <p className="text-xs text-muted mb-3">
-            Silhouette déduite du CdA : plus le CdA est bas, plus le cycliste est couché.
-          </p>
-          <div className="flex justify-center">
-            <PositionSchematic cda={result.cda} size={320} />
+      {!unreliable && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-panel border border-border rounded-lg p-4 md:col-span-2">
+            <h3 className="text-sm font-semibold mb-1 flex items-center">
+              Position estimée
+              <InfoTooltip text="Silhouette simplifiée déduite du CdA estimé. Un CdA bas correspond à une position très couchée/aéro ; un CdA élevé à une position droite. C'est une illustration pédagogique, pas une mesure de votre posture réelle." />
+            </h3>
+            <p className="text-xs text-muted mb-3">
+              Silhouette déduite du CdA : plus le CdA est bas, plus le cycliste est couché.
+            </p>
+            <div className="flex justify-center">
+              <PositionSchematic cda={result.cda} size={320} />
+            </div>
           </div>
+          <DerivedMetrics result={result} />
         </div>
-        <DerivedMetrics result={result} />
-      </div>
+      )}
 
       <AnomalyAlerts anomalies={result.anomalies} />
 

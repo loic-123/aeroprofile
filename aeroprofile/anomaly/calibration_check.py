@@ -44,8 +44,12 @@ def detect_anomalies(
                 "error",
                 "cda_too_low",
                 "CdA physiquement impossible (trop bas)",
-                "Capteur probablement sur-calibré (lit trop haut). "
-                "Vérifiez la calibration de votre capteur de puissance.",
+                f"CdA = {cda:.3f} m², alors qu'un coureur en position de CLM "
+                "professionnel atteint ~0.18. Un CdA plus bas est physiquement "
+                "improbable pour un cycliste seul. Causes probables : (1) votre "
+                "capteur de puissance lit TROP HAUT (sur-calibré) — recalibrez-le "
+                "(zero offset) ; (2) poids saisi trop élevé ; (3) beaucoup de "
+                "drafting pendant la sortie.",
                 value=cda,
             )
         )
@@ -55,8 +59,11 @@ def detect_anomalies(
                 "error",
                 "cda_too_high",
                 "CdA physiquement impossible (trop haut)",
-                "Capteur probablement sous-calibré (lit trop bas), "
-                "ou poids saisi trop faible.",
+                f"CdA = {cda:.3f} m², alors qu'une position très droite sur VTT "
+                "est ~0.50. Un CdA plus haut est très improbable. Causes probables : "
+                "(1) votre capteur lit TROP BAS (sous-calibré) — recalibrez-le ; "
+                "(2) poids saisi TROP FAIBLE ; (3) freinages prolongés non filtrés ; "
+                "(4) vent réel bien plus fort que les données météo API.",
                 value=cda,
             )
         )
@@ -68,7 +75,11 @@ def detect_anomalies(
                 "warning",
                 "crr_too_low",
                 "Crr anormalement bas",
-                "Valeur en dessous du Crr de boyaux vélodrome.",
+                f"Crr = {crr:.4f}, en dessous des boyaux vélodrome (0.002–0.003). "
+                "Ce n'est probablement pas réaliste : soit le solveur n'arrive pas "
+                "à séparer CdA et Crr (pas assez de variété montée/plat), soit le "
+                "modèle compense une autre erreur. Essayez de fixer Crr "
+                "manuellement (options avancées) à une valeur typique (0.004 route).",
                 value=crr,
             )
         )
@@ -78,7 +89,13 @@ def detect_anomalies(
                 "warning",
                 "crr_too_high",
                 "Crr élevé",
-                "Pneus sous-gonflés ou terrain non asphalté ?",
+                f"Crr = {crr:.4f}, au-dessus d'un Crr route standard (0.004–0.006). "
+                "Causes possibles : (1) pneus sous-gonflés (vérifiez la pression) ; "
+                "(2) route très granuleuse ou dégradée ; (3) pneu VTT / gravel ; "
+                "(4) le solveur compense une sous-estimation du CdA (drafting, "
+                "vent de face non capturé par la météo API). Si la sortie était "
+                "sur route lisse avec pneus bien gonflés, regardez plutôt la "
+                "qualité du capteur de puissance.",
                 value=crr,
             )
         )
@@ -91,7 +108,11 @@ def detect_anomalies(
                 "warning",
                 "cda_ci_wide",
                 "Estimation imprécise",
-                f"IC 95% CdA largeur {ci_width:.3f} — pas assez de segments exploitables.",
+                f"Intervalle de confiance 95% du CdA = {ci_width:.3f} m² de large. "
+                "Les données ne permettent pas de mesurer le CdA avec précision. "
+                "Pour améliorer : faites une sortie avec plus de segments longs à "
+                "vitesse constante (>25 km/h, plat, pas de drafting), ou de plus "
+                "longue durée.",
                 value=ci_width,
             )
         )
@@ -104,8 +125,11 @@ def detect_anomalies(
                 "warning",
                 "residual_bias_positive",
                 "Biais positif des résidus",
-                f"Le modèle prédit ~{mean_res:.0f}W de plus que mesuré — "
-                "capteur pourrait lire trop bas.",
+                f"Le modèle prédit en moyenne ~{mean_res:.0f} W DE PLUS que ce "
+                "que votre capteur a mesuré. Interprétation : soit le CdA réel "
+                "est plus bas (vous êtes plus aéro que ce que le solveur pense), "
+                "soit votre capteur sous-estime la puissance d'environ "
+                f"{mean_res:.0f} W — pensez à le recalibrer avant la prochaine sortie.",
                 value=mean_res,
             )
         )
@@ -115,8 +139,11 @@ def detect_anomalies(
                 "warning",
                 "residual_bias_negative",
                 "Biais négatif des résidus",
-                f"Le modèle prédit ~{abs(mean_res):.0f}W de moins que mesuré — "
-                "capteur pourrait lire trop haut.",
+                f"Le modèle prédit en moyenne ~{abs(mean_res):.0f} W DE MOINS que "
+                "ce que votre capteur a mesuré. Interprétation : soit votre CdA "
+                "est plus élevé que ce que le solveur pense (position moins aéro), "
+                "soit votre capteur surestime la puissance d'environ "
+                f"{abs(mean_res):.0f} W.",
                 value=mean_res,
             )
         )
@@ -138,8 +165,13 @@ def detect_anomalies(
                             "warning",
                             "cda_drift",
                             "CdA instable dans le temps",
-                            f"Dérive de {drift*100:.0f}% entre début et fin de sortie. "
-                            "Possible dérive de calibration.",
+                            f"Le CdA a dérivé de {drift*100:.0f}% entre le début "
+                            f"(Q1 : {cdas[0]:.3f}) et la fin (Q4 : {cdas[3]:.3f}) "
+                            "de la sortie. Causes possibles : (1) votre capteur "
+                            "de puissance se décalibre à chaud (dérive thermique) ; "
+                            "(2) changement de position (aéro vs relevé) ; "
+                            "(3) changement de conditions (vent qui tourne, pluie) ; "
+                            "(4) fatigue qui fait se relever le cycliste.",
                             value=drift,
                         )
                     )
@@ -160,8 +192,14 @@ def detect_anomalies(
                         "warning",
                         "climb_descent_asymmetry",
                         "Incohérence montée/descente",
-                        f"CdA montée={cda_up:.3f} vs descente={cda_down:.3f} ({diff*100:.0f}% d'écart). "
-                        "Erreur de poids ou d'altitude possible.",
+                        f"Le CdA calculé diffère beaucoup en montée ({cda_up:.3f}) "
+                        f"et en descente ({cda_down:.3f}), soit {diff*100:.0f}% "
+                        "d'écart. Physiquement le CdA devrait être similaire "
+                        "dans les deux cas. Causes probables : (1) votre poids "
+                        "saisi est faux (fait pencher la gravité dans une "
+                        "direction) ; (2) l'altitude GPS/baromètre est bruitée "
+                        "ou en dérive ; (3) le rendement de transmission η est "
+                        "mal réglé ; (4) freinages en descente non filtrés.",
                         value=diff,
                     )
                 )

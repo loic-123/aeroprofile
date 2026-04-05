@@ -1,7 +1,6 @@
 /**
- * Draw a simplified cyclist silhouette whose torso angle and arm/back posture
- * reflect the estimated CdA. The shape is purely illustrative — a rider with
- * lower CdA is drawn more tucked.
+ * Six hand-tuned cyclist silhouettes, picked by CdA bucket.
+ * Flat SVG, no runtime geometry, minimal nodes.
  */
 
 interface Props {
@@ -11,206 +10,133 @@ interface Props {
 }
 
 interface Posture {
+  bucket: "tt_pro" | "tt_am" | "drops" | "hoods" | "upright" | "cityish";
   name: string;
-  torsoAngleDeg: number; // 0 = horizontal, 90 = upright
-  backCurve: number; // 0 = flat, 1 = hunched
-  elbowBend: number; // 0 = straight, 1 = tucked
   description: string;
 }
 
 function postureFromCda(cda: number): Posture {
-  if (cda < 0.22) {
+  if (cda < 0.22)
     return {
+      bucket: "tt_pro",
       name: "CLM pro (Superman)",
-      torsoAngleDeg: 5,
-      backCurve: 0.1,
-      elbowBend: 0.95,
-      description: "Position CLM professionnelle, prolongateurs, dos plat",
+      description: "Prolongateurs, dos plat, position CLM pro",
     };
-  }
-  if (cda < 0.26) {
+  if (cda < 0.26)
     return {
-      name: "CLM amateur bien réglé",
-      torsoAngleDeg: 12,
-      backCurve: 0.2,
-      elbowBend: 0.85,
-      description: "Prolongateurs, position basse et aéro",
+      bucket: "tt_am",
+      name: "CLM amateur",
+      description: "Prolongateurs, dos et bras tendus",
     };
-  }
-  if (cda < 0.33) {
+  if (cda < 0.33)
     return {
-      name: "Route, mains en bas (drops)",
-      torsoAngleDeg: 25,
-      backCurve: 0.35,
-      elbowBend: 0.55,
+      bucket: "drops",
+      name: "Route, mains en bas",
       description: "Mains en bas du cintre, dos modérément plat",
     };
-  }
-  if (cda < 0.39) {
+  if (cda < 0.39)
     return {
+      bucket: "hoods",
       name: "Route, mains sur cocottes",
-      torsoAngleDeg: 38,
-      backCurve: 0.5,
-      elbowBend: 0.35,
-      description: "Position standard, mains sur cocottes",
+      description: "Position standard sur cocottes",
     };
-  }
-  if (cda < 0.46) {
+  if (cda < 0.46)
     return {
+      bucket: "upright",
       name: "Route, position relevée",
-      torsoAngleDeg: 55,
-      backCurve: 0.6,
-      elbowBend: 0.2,
-      description: "Position relevée, mains sur le haut du cintre",
+      description: "Mains sur le haut du cintre, buste relevé",
     };
-  }
   return {
-    name: "Position très droite / VTT",
-    torsoAngleDeg: 75,
-    backCurve: 0.7,
-    elbowBend: 0.1,
+    bucket: "cityish",
+    name: "Position droite / VTT",
     description: "Position droite, type VTT ou vélo ville",
   };
 }
 
+const PATHS: Record<Posture["bucket"], React.ReactNode> = {
+  tt_pro: (
+    <>
+      <circle cx="140" cy="62" r="46" />
+      <circle cx="260" cy="62" r="46" />
+      <path d="M 140 62 L 200 40 L 260 62 L 200 40 L 140 62 M 200 40 L 230 12" />
+      <path d="M 200 40 L 252 34" strokeLinecap="round" />
+      <ellipse cx="265" cy="28" rx="12" ry="8" fill="#1D9E75" stroke="none" />
+      <path d="M 210 22 C 220 10, 245 8, 258 20" fill="none" />
+      <path d="M 200 40 L 180 60 L 165 80" strokeLinecap="round" />
+    </>
+  ),
+  tt_am: (
+    <>
+      <circle cx="140" cy="62" r="46" />
+      <circle cx="260" cy="62" r="46" />
+      <path d="M 140 62 L 200 40 L 260 62 L 200 40 L 140 62 M 200 40 L 225 15" />
+      <path d="M 200 40 L 255 38" strokeLinecap="round" />
+      <circle cx="265" cy="32" r="9" fill="#1D9E75" stroke="none" />
+      <path d="M 212 24 C 225 14, 248 14, 260 26" fill="none" />
+      <path d="M 200 40 L 178 58 L 162 78" strokeLinecap="round" />
+    </>
+  ),
+  drops: (
+    <>
+      <circle cx="140" cy="62" r="46" />
+      <circle cx="260" cy="62" r="46" />
+      <path d="M 140 62 L 200 40 L 260 62 L 200 40 L 140 62 M 200 40 L 222 14" />
+      <path d="M 222 14 L 252 44" strokeLinecap="round" />
+      <circle cx="248" cy="20" r="10" fill="#1D9E75" stroke="none" />
+      <path d="M 220 8 C 230 -2, 252 -2, 264 10" fill="none" />
+      <path d="M 200 40 L 178 58 L 162 78" strokeLinecap="round" />
+    </>
+  ),
+  hoods: (
+    <>
+      <circle cx="140" cy="62" r="46" />
+      <circle cx="260" cy="62" r="46" />
+      <path d="M 140 62 L 200 40 L 260 62 L 200 40 L 140 62 M 200 40 L 218 0" />
+      <path d="M 218 0 L 248 30" strokeLinecap="round" />
+      <circle cx="232" cy="-12" r="11" fill="#1D9E75" stroke="none" />
+      <path d="M 206 -20 C 216 -32, 242 -32, 254 -18" fill="none" />
+      <path d="M 200 40 L 180 58 L 164 78" strokeLinecap="round" />
+    </>
+  ),
+  upright: (
+    <>
+      <circle cx="140" cy="62" r="46" />
+      <circle cx="260" cy="62" r="46" />
+      <path d="M 140 62 L 200 40 L 260 62 L 200 40 L 140 62 M 200 40 L 210 -20" />
+      <path d="M 210 -20 L 240 20" strokeLinecap="round" />
+      <circle cx="216" cy="-34" r="12" fill="#1D9E75" stroke="none" />
+      <path d="M 190 -44 C 202 -58, 228 -58, 240 -42" fill="none" />
+      <path d="M 200 40 L 182 60 L 166 80" strokeLinecap="round" />
+    </>
+  ),
+  cityish: (
+    <>
+      <circle cx="140" cy="62" r="46" />
+      <circle cx="260" cy="62" r="46" />
+      <path d="M 140 62 L 200 40 L 260 62 L 200 40 L 140 62 M 200 40 L 204 -30" />
+      <path d="M 204 -30 L 236 14" strokeLinecap="round" />
+      <circle cx="208" cy="-48" r="12" fill="#1D9E75" stroke="none" />
+      <path d="M 184 -58 C 196 -72, 222 -72, 232 -56" fill="none" />
+      <path d="M 200 40 L 184 62 L 168 82" strokeLinecap="round" />
+    </>
+  ),
+};
+
 export default function PositionSchematic({ cda, label, size = 280 }: Props) {
   const posture = postureFromCda(cda);
-  const w = size;
-  const h = size * 0.7;
-
-  // Reference geometry (side view, facing right)
-  const groundY = h - 20;
-  const wheelR = h * 0.17;
-  const rearWheelX = w * 0.22;
-  const frontWheelX = w * 0.72;
-  const wheelY = groundY - wheelR;
-
-  const bbX = (rearWheelX + frontWheelX) / 2 - 10;
-  const bbY = wheelY + wheelR * 0.1;
-
-  // Handlebar above front wheel
-  const hbX = frontWheelX - 8;
-  const hbY = wheelY - wheelR * 0.6;
-
-  // Saddle above rear wheel
-  const saddleX = rearWheelX + wheelR * 0.9;
-  const saddleY = wheelY - wheelR * 1.0;
-
-  // Hips = saddle
-  const hipX = saddleX;
-  const hipY = saddleY - 2;
-
-  // Torso endpoint (shoulders)
-  const torsoLen = h * 0.38;
-  const angleRad = (posture.torsoAngleDeg * Math.PI) / 180;
-  const shoulderX = hipX + torsoLen * Math.sin(angleRad);
-  const shoulderY = hipY - torsoLen * Math.cos(angleRad);
-
-  // Head
-  const headR = h * 0.07;
-  const neckLen = headR * 1.2;
-  const headX = shoulderX + neckLen * Math.sin(angleRad);
-  const headY = shoulderY - neckLen * Math.cos(angleRad);
-
-  // Arms: shoulder → handlebar, bend based on elbowBend
-  const armMidX =
-    (shoulderX + hbX) / 2 + posture.elbowBend * 8 * Math.cos(angleRad);
-  const armMidY = (shoulderY + hbY) / 2 - posture.elbowBend * 6;
-
-  // Leg: hip → bottom bracket (thigh) → pedal
-  const thighMidX = (hipX + bbX) / 2 - 4;
-  const thighMidY = (hipY + bbY) / 2 + 8;
-
-  // Back curve control point
-  const backCtrlX =
-    (hipX + shoulderX) / 2 + posture.backCurve * 14 * Math.cos(angleRad);
-  const backCtrlY =
-    (hipY + shoulderY) / 2 - posture.backCurve * 14 * Math.sin(angleRad);
-
   return (
     <div className="flex flex-col items-center">
-      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
-        {/* ground */}
-        <line
-          x1={0}
-          y1={groundY}
-          x2={w}
-          y2={groundY}
-          stroke="#262633"
-          strokeWidth={1}
-        />
-        {/* wheels */}
-        <circle
-          cx={rearWheelX}
-          cy={wheelY}
-          r={wheelR}
-          fill="none"
-          stroke="#8b8ba0"
-          strokeWidth={2}
-        />
-        <circle
-          cx={frontWheelX}
-          cy={wheelY}
-          r={wheelR}
-          fill="none"
-          stroke="#8b8ba0"
-          strokeWidth={2}
-        />
-        {/* bike frame: seat tube, top tube, down tube, chainstay, fork */}
-        <line x1={bbX} y1={bbY} x2={saddleX} y2={saddleY} stroke="#8b8ba0" strokeWidth={2} />
-        <line x1={saddleX} y1={saddleY} x2={hbX} y2={hbY} stroke="#8b8ba0" strokeWidth={2} />
-        <line x1={bbX} y1={bbY} x2={hbX} y2={hbY} stroke="#8b8ba0" strokeWidth={2} />
-        <line
-          x1={bbX}
-          y1={bbY}
-          x2={rearWheelX}
-          y2={wheelY}
-          stroke="#8b8ba0"
-          strokeWidth={2}
-        />
-        <line
-          x1={hbX}
-          y1={hbY}
-          x2={frontWheelX}
-          y2={wheelY}
-          stroke="#8b8ba0"
-          strokeWidth={2}
-        />
-        {/* rider: curved back hip→shoulder */}
-        <path
-          d={`M ${hipX} ${hipY} Q ${backCtrlX} ${backCtrlY} ${shoulderX} ${shoulderY}`}
-          stroke="#1D9E75"
-          strokeWidth={4}
-          fill="none"
-          strokeLinecap="round"
-        />
-        {/* arm */}
-        <path
-          d={`M ${shoulderX} ${shoulderY} Q ${armMidX} ${armMidY} ${hbX} ${hbY}`}
-          stroke="#1D9E75"
-          strokeWidth={3}
-          fill="none"
-          strokeLinecap="round"
-        />
-        {/* leg */}
-        <path
-          d={`M ${hipX} ${hipY} Q ${thighMidX} ${thighMidY} ${bbX} ${bbY}`}
-          stroke="#1D9E75"
-          strokeWidth={3.5}
-          fill="none"
-          strokeLinecap="round"
-        />
-        {/* neck + head */}
-        <line
-          x1={shoulderX}
-          y1={shoulderY}
-          x2={headX - Math.sin(angleRad) * headR * 0.8}
-          y2={headY + Math.cos(angleRad) * headR * 0.8}
-          stroke="#1D9E75"
-          strokeWidth={3}
-          strokeLinecap="round"
-        />
-        <circle cx={headX} cy={headY} r={headR} fill="#1D9E75" />
+      <svg
+        width={size}
+        height={size * 0.55}
+        viewBox="40 -80 320 170"
+        fill="none"
+        stroke="#1D9E75"
+        strokeWidth={3}
+        strokeLinejoin="round"
+      >
+        <line x1={40} y1={108} x2={360} y2={108} stroke="#262633" strokeWidth={1} />
+        {PATHS[posture.bucket]}
       </svg>
       <div className="text-center mt-1">
         {label && <div className="text-xs text-muted">{label}</div>}

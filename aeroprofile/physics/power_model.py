@@ -7,6 +7,23 @@ import numpy as np
 from aeroprofile.physics.constants import G, ETA_DEFAULT, WHEEL_INERTIA_EFFECTIVE_MASS
 
 
+def eta_variable(P_total: np.ndarray, eta_base: float = ETA_DEFAULT) -> np.ndarray:
+    """Power-dependent drivetrain efficiency.
+
+    η increases slightly with load (chain tension more efficient at higher
+    torque) and decreases at very low power (proportionally more friction).
+    Based on Spicer et al. (2001) measurements:
+      η ≈ 0.977 at 150 W (reference)
+      η ≈ 0.960 at 50 W
+      η ≈ 0.985 at 400 W
+
+    Modelled as: η = eta_base + 0.00003 × (P - 150), clipped to [0.95, 0.99].
+    """
+    P_total = np.asarray(P_total, dtype=float)
+    eta = eta_base + 0.00003 * (P_total - 150.0)
+    return np.clip(eta, 0.95, 0.99)
+
+
 def power_model(
     V_ground,
     V_air,
@@ -19,6 +36,7 @@ def power_model(
     eta: float = ETA_DEFAULT,
     include_bearings: bool = True,
     include_wheel_inertia: bool = True,
+    variable_eta: bool = True,
 ):
     """Modelled measured power (W). Vectorised, per Martin et al. 1998.
 
@@ -29,9 +47,9 @@ def power_model(
       P_accel     = (m + I/r²) × a × V_ground         [I/r² ≈ 0.14 kg]
       P_bearings  = V × (91 + 8.7·V) × 1e-3           [wheel-bearing losses]
 
-    η defaults to 0.977 (Martin 1998). The wheel-inertia correction and
-    bearing-loss term are Martin's explicit additions; both can be turned
-    off for backward compatibility.
+    When ``variable_eta`` is True (default), η is power-dependent per
+    Spicer et al. (2001) rather than a fixed constant. This better
+    models the chain's actual behaviour at low vs high loads.
     """
     V_ground = np.asarray(V_ground, dtype=float)
     V_air = np.asarray(V_air, dtype=float)
@@ -52,7 +70,11 @@ def power_model(
     else:
         P_bearings = 0.0
 
-    return (P_aero + P_roll + P_grav + P_accel + P_bearings) / eta
+    P_total = P_aero + P_roll + P_grav + P_accel + P_bearings
+
+    if variable_eta:
+        return P_total / eta_variable(P_total, eta)
+    return P_total / eta
 
 
 def residual_power(

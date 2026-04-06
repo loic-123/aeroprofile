@@ -14,7 +14,7 @@ from aeroprofile.parsers.auto_parser import parse_file, validate_ride
 from aeroprofile.parsers.models import RideData
 from aeroprofile.physics.air_density import compute_rho
 from aeroprofile.physics.constants import ETA_DEFAULT
-from aeroprofile.physics.wind import compute_bearing_series, compute_v_air
+from aeroprofile.physics.wind import compute_bearing_series, compute_v_air, compute_yaw_angle, cda_yaw_correction
 from aeroprofile.weather.open_meteo import fetch_weather
 from aeroprofile.weather.interpolation import interpolate_weather
 from aeroprofile.weather.tiled import fetch_weather_tiled, interpolate_tiled_weather
@@ -119,7 +119,8 @@ def _compute_derivatives(df: pd.DataFrame) -> pd.DataFrame:
         poly = min(3, win - 1)
         alt_smooth = savgol_filter(df["altitude"].to_numpy(), window_length=win, polyorder=poly)
     else:
-        alt_smooth = df["altitude"].to_numpy()
+        alt_smooth = df["altitude"].to_numpy().copy()
+
     df["altitude_smooth"] = alt_smooth
 
     # Gradient = dalt / ddist
@@ -229,9 +230,19 @@ async def analyze(
         df["surface_pressure_hpa"].to_numpy(),
     )
 
+    # Yaw angle and CdA yaw correction factor (Crouch et al. 2014)
+    df["yaw_deg"] = compute_yaw_angle(
+        df["v_ground"].to_numpy(),
+        df["bearing"].to_numpy(),
+        df["wind_speed_ms"].to_numpy(),
+        df["wind_dir_deg"].to_numpy(),
+    )
+    df["cda_yaw_factor"] = cda_yaw_correction(df["yaw_deg"].to_numpy())
+
     # Filters
     df = apply_filters(
         df,
+        mass=mass_kg,
         min_block_seconds=min_block_seconds,
         drop_descents=drop_descents,
     )

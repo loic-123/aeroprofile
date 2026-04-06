@@ -69,3 +69,55 @@ def compute_v_air(
     headwind = wind_at_rider * np.cos(np.radians(np.asarray(wind_dir_deg) - np.asarray(bearing_deg)))
     v_air = np.asarray(v_ground, dtype=float) + headwind
     return v_air
+
+
+def compute_yaw_angle(
+    v_ground,
+    bearing_deg,
+    wind_speed_ms,
+    wind_dir_deg,
+    wind_height_factor: float | None = None,
+    z0: float = 0.03,
+) -> np.ndarray:
+    """Yaw angle of the apparent wind relative to the rider's heading (degrees).
+
+    Yaw = 0 means pure headwind or tailwind. Yaw = 90 means pure crosswind.
+    Returned as absolute value in [0, 90].
+
+    Used to correct CdA for yaw dependence (Crouch et al. 2014):
+    CdA increases by ~5-10% at 10° yaw due to asymmetric flow separation.
+    """
+    if wind_height_factor is None:
+        wind_height_factor = wind_log_law_scale(z0=z0)
+    wind_at_rider = np.asarray(wind_speed_ms, dtype=float) * wind_height_factor
+    bearing = np.asarray(bearing_deg, dtype=float)
+    wind_dir = np.asarray(wind_dir_deg, dtype=float)
+    v_g = np.asarray(v_ground, dtype=float)
+
+    # Wind components in the rider's frame
+    # crosswind = wind perpendicular to rider heading
+    crosswind = wind_at_rider * np.sin(np.radians(wind_dir - bearing))
+    # headwind component
+    headwind = wind_at_rider * np.cos(np.radians(wind_dir - bearing))
+    # Apparent wind: ground speed + headwind along heading, crosswind perpendicular
+    v_along = v_g + headwind
+    v_cross = crosswind
+    # Yaw = angle between apparent wind vector and rider heading
+    yaw = np.degrees(np.arctan2(np.abs(v_cross), np.abs(v_along)))
+    return np.clip(yaw, 0.0, 90.0)
+
+
+def cda_yaw_correction(yaw_deg: np.ndarray, k: float = 0.0035) -> np.ndarray:
+    """Multiplicative correction to CdA from yaw angle.
+
+    CdA_effective = CdA_0 × (1 + k × yaw²)
+
+    Per Crouch, Burton et al. (2014), CdA increases roughly quadratically
+    with yaw angle. k ≈ 0.0035 gives ~3.5% increase at 10° yaw and ~14%
+    at 20° yaw, consistent with wind-tunnel measurements.
+
+    The solver estimates CdA_0 (zero-yaw CdA) and this function converts
+    to the effective CdA at each point.
+    """
+    yaw = np.asarray(yaw_deg, dtype=float)
+    return 1.0 + k * yaw * yaw

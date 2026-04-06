@@ -18,6 +18,7 @@ FILTER_NAMES = (
     "filter_gps_jump",
     "filter_power_spike",
     "filter_unsteady",
+    "filter_drafting",
 )
 
 
@@ -28,6 +29,7 @@ def _arr(s) -> np.ndarray:
 
 def apply_filters(
     df: pd.DataFrame,
+    mass: float = 75.0,
     min_block_seconds: int = 30,
     drop_descents: bool = False,
     max_gradient: float = 0.08,
@@ -36,6 +38,7 @@ def apply_filters(
     steady_speed_cv_max: float = 0.15,
     min_power_w: float = 50.0,
     max_accel: float = 0.3,
+    drafting_cda_threshold: float = 0.12,
 ) -> pd.DataFrame:
     """Adds one boolean column per filter plus ``filter_valid``. Mutates df.
 
@@ -105,6 +108,29 @@ def apply_filters(
     v_roll_std = pd.Series(v).rolling(window=window, center=True, min_periods=window // 2).std()
     cv = (v_roll_std / v_roll_mean.replace(0, np.nan)).fillna(1.0).to_numpy()
     df["filter_unsteady"] = cv > steady_speed_cv_max
+
+    # Drafting detection: compute instantaneous CdA and flag points where
+    # it's impossibly low (< 0.18 m² at speed > 8 m/s on flat).
+    # CdA_inst = (P×η - P_roll - P_grav - P_accel) / (0.5×ρ×V_air²×V)
+    # If CdA_inst < threshold → rider is in a draft (or data is broken).
+    if "rho" in df.columns:
+        rho = _arr(df["rho"])
+        from aeroprofile.physics.constants import G as _G, ETA_DEFAULT as _eta
+        theta = np.arctan(grad)
+        P_roll_est = 0.004 * mass * _G * np.cos(theta) * v  # Crr~0.004 guess
+        P_grav_est = mass * _G * np.sin(theta) * v
+        P_accel_est = mass * a * v
+        numerator = p * _eta - P_roll_est - P_grav_est - P_accel_est
+        denominator = 0.5 * rho * np.sign(v_air) * v_air * v_air * v
+        with np.errstate(divide="ignore", invalid="ignore"):
+            cda_inst = np.where(np.abs(denominator) > 1.0, numerator / denominator, 0.5)
+        # Only flag at sufficient speed AND power on flat terrain.
+        # CdA < 0.12 at 30+ km/h while pedalling hard = physically impossible
+        # solo (even pro TT is ~0.17). Below that = certain drafting or data error.
+        fast_flat_pedalling = (v > 8.0) & (np.abs(grad) < 0.02) & (p > 100.0)
+        df["filter_drafting"] = fast_flat_pedalling & (cda_inst < drafting_cda_threshold) & (cda_inst > 0)
+    else:
+        df["filter_drafting"] = np.zeros(n, dtype=bool)
 
     any_filter = np.zeros(n, dtype=bool)
     for name in FILTER_NAMES:

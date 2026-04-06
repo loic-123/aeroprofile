@@ -26,6 +26,7 @@ from aeroprofile.solver.optimizer import (
 )
 from aeroprofile.solver.chung_ve import solve_chung_ve, ChungResult
 from aeroprofile.solver.virtual_elevation import virtual_elevation
+from aeroprofile.solver.wind_inverse import solve_with_wind
 from aeroprofile.anomaly.calibration_check import detect_anomalies, Anomaly
 from aeroprofile.physics.power_model import power_model
 
@@ -245,12 +246,46 @@ async def analyze(
         "Moindres carrés de Martin et al. (1998) avec prior faible sur Crr."
     )
 
-    # If the Martin fit is poor (noisy ride, descents, wind), try Chung's
-    # Virtual-Elevation method, which integrates the energy balance and is
-    # dramatically more robust on mountain rides. But ONLY swap if Chung's
-    # own R² is better than Martin's.
-    martin_r2 = sol.r_squared
-    if sol.r_squared < 0.3:
+    # --- Try wind-inverse solver when heading varies enough ---
+    # This jointly estimates (CdA, Crr, wind_per_segment) and typically
+    # halves the RMSE because the wind is fitted to the data, not taken
+    # from a 10 km weather grid. Requires heading_variance > 0.25.
+    best_r2 = sol.r_squared
+    try:
+        wi = solve_with_wind(
+            df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
+        )
+        if wi is not None and wi["r_squared"] > best_r2 and 0.15 <= wi["cda"] <= 0.55:
+            # Overwrite df's v_air with the wind-solved values for
+            # downstream decomposition / virtual elevation.
+            valid_mask = df["filter_valid"].to_numpy()
+            v_air_full = df["v_air"].to_numpy().copy()
+            v_air_full[valid_mask] = wi["v_air_solved"]
+            df["v_air"] = v_air_full
+
+            sol = SolverResult(
+                cda=wi["cda"],
+                crr=wi["crr"],
+                cda_ci=(float("nan"), float("nan")),
+                crr_ci=(float("nan"), float("nan")),
+                r_squared=wi["r_squared"],
+                residuals=wi["residuals"],
+                n_points=wi["n_points"],
+                crr_was_fixed=(effective_crr_fixed is not None),
+            )
+            n_seg = wi["n_segments"]
+            solver_method = "wind_inverse"
+            solver_note = (
+                f"Vent estimé conjointement avec CdA/Crr ({n_seg} segments "
+                f"de vent). Le vent Open-Meteo servait de prior ; le solveur "
+                f"l'a ajusté aux données (heading variance={wi['heading_variance']:.2f})."
+            )
+            best_r2 = wi["r_squared"]
+    except Exception:
+        pass
+
+    # --- Chung VE fallback when both Martin and wind-inverse are poor ---
+    if best_r2 < 0.3:
         try:
             chung = solve_chung_ve(
                 df,
@@ -258,7 +293,7 @@ async def analyze(
                 eta=eta,
                 crr_fixed=effective_crr_fixed,
             )
-            if 0.15 <= chung.cda <= 0.55 and chung.r_squared_elev > max(martin_r2, 0.0):
+            if 0.15 <= chung.cda <= 0.55 and chung.r_squared_elev > max(best_r2, 0.0):
                 sol = SolverResult(
                     cda=chung.cda,
                     crr=chung.crr,
@@ -271,8 +306,8 @@ async def analyze(
                 )
                 solver_method = "chung_ve"
                 solver_note = (
-                    "Méthode Chung (Virtual Elevation) utilisée : Martin LS "
-                    f"avait R²={martin_r2:.2f}. R² reporté ici = qualité "
+                    "Méthode Chung (Virtual Elevation) utilisée : les autres "
+                    f"solveurs avaient R² < 0.3. R² reporté ici = qualité "
                     "de la reconstruction d'altitude."
                 )
         except Exception:

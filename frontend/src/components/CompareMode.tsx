@@ -33,6 +33,7 @@ interface RiderAgg {
   avgPower: number;
   nRides: number;
   nPoints: number;
+  nExcluded: number;
 }
 
 function emptyRider(n: number): RiderEntry {
@@ -44,13 +45,33 @@ function emptyRider(n: number): RiderEntry {
   };
 }
 
-/* Weighted average of rider results, weighted by valid_points */
+/**
+ * Weighted average of rider results, weighted by valid_points.
+ * Rides with R² < 0 or RMSE > 150 W are excluded from the average —
+ * their data quality is too poor to contribute meaningful signal.
+ * If ALL rides are excluded, fall back to including everything so the
+ * rider still appears in the comparison (with a warning via low R²).
+ */
+const MIN_R2 = 0.0;
+const MAX_RMSE = 150;
+
 function aggregate(r: RiderEntry): RiderAgg | null {
   const done = r.rides.filter((rd) => rd.status === "done" && rd.result);
   if (done.length === 0) return null;
+
+  // Filter to "good" rides only
+  let good = done.filter((rd) => {
+    const res = rd.result!;
+    return res.r_squared >= MIN_R2 && (res.rmse_w || 0) <= MAX_RMSE;
+  });
+  const nExcluded = done.length - good.length;
+
+  // If all rides excluded, fall back to all (user sees bad R² as warning)
+  if (good.length === 0) good = done;
+
   let totalW = 0;
   let sumCda = 0, sumCrr = 0, sumR2 = 0, sumRmse = 0, sumSpeed = 0, sumPower = 0;
-  for (const rd of done) {
+  for (const rd of good) {
     const res = rd.result!;
     const w = Math.max(res.valid_points, 1);
     totalW += w;
@@ -69,8 +90,9 @@ function aggregate(r: RiderEntry): RiderAgg | null {
     rmse: sumRmse / totalW,
     avgSpeed: sumSpeed / totalW,
     avgPower: sumPower / totalW,
-    nRides: done.length,
+    nRides: good.length,
     nPoints: totalW,
+    nExcluded,
   };
 }
 
@@ -323,7 +345,14 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                 {aggs.map((a) => (
                   <tr key={a.rider.id} className="border-b border-border/50">
                     <td className="py-2">{a.rider.name}</td>
-                    <td className="text-right">{a.nRides}</td>
+                    <td className="text-right">
+                      {a.nRides}
+                      {a.nExcluded > 0 && (
+                        <span className="text-coral text-xs ml-1" title={`${a.nExcluded} sortie(s) exclue(s) (R² < 0 ou RMSE > 150W)`}>
+                          (-{a.nExcluded})
+                        </span>
+                      )}
+                    </td>
                     <td className="text-right">{a.rider.mass.toFixed(0)} kg</td>
                     <td className="text-right text-teal">{a.cda.toFixed(3)}</td>
                     <td className="text-right text-teal">{a.crr.toFixed(4)}</td>
@@ -336,10 +365,16 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                 ))}
               </tbody>
             </table>
-            {aggs.some((a) => a.nRides > 1) && (
+            {aggs.some((a) => a.nRides > 1 || a.nExcluded > 0) && (
               <p className="text-xs text-muted mt-2">
                 CdA/Crr/R²/RMSE = moyenne pondérée par le nombre de points
                 valides sur l'ensemble des sorties de chaque cycliste.
+                {aggs.some((a) => a.nExcluded > 0) && (
+                  <span className="text-coral">
+                    {" "}Sorties avec R² &lt; 0 ou RMSE &gt; 150 W exclues de
+                    la moyenne (données trop bruitées).
+                  </span>
+                )}
               </p>
             )}
           </div>

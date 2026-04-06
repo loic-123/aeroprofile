@@ -4,6 +4,7 @@ import { analyze } from "../api/client";
 import type { AnalysisResult } from "../types";
 import PositionSchematic from "./PositionSchematic";
 import InfoTooltip from "./InfoTooltip";
+import CdAEvolutionChart from "./CdAEvolutionChart";
 
 /* ---------- types ---------- */
 
@@ -342,6 +343,26 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
               </p>
             )}
           </div>
+
+          {/* CdA evolution over time */}
+          <CdAEvolutionChart
+            riders={riders
+              .filter((r) => r.rides.some((rd) => rd.status === "done" && rd.result))
+              .map((r) => ({
+                name: r.name,
+                points: r.rides
+                  .filter((rd): rd is RideResult & { result: AnalysisResult } =>
+                    rd.status === "done" && rd.result != null,
+                  )
+                  .map((rd) => ({
+                    date: rd.result.ride_date,
+                    cda: rd.result.cda,
+                    r2: rd.result.r_squared,
+                    fileName: rd.file.name,
+                  }))
+                  .sort((a, b) => a.date.localeCompare(b.date)),
+              }))}
+          />
 
           <div>
             <h3 className="text-sm font-semibold mb-3">Positions estimées</h3>

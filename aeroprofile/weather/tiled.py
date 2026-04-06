@@ -58,16 +58,16 @@ async def fetch_weather_tiled(
     lats: np.ndarray,
     lons: np.ndarray,
     ride_date: date | str,
-    tile_km: float = 10.0,
-    max_tiles: int = 3,
+    tile_km: float = 5.0,
+    max_tiles: int = 20,
 ) -> list[tuple[int, dict]]:
     """Return a list of (first_point_index, hourly_weather_dict) tiles.
 
-    Open-Meteo's free tier rate-limits parallel requests (HTTP 429), so
-    tiles are fetched SEQUENTIALLY with a small inter-request delay.
-    Defaults are conservative: 3 tiles max (start / middle / end), 10 km
-    spacing. For a 100 km mountain ride that's still enough to catch the
-    main wind gradient.
+    Open-Meteo's free tier allows 10 calls/second and 10 000/day. Tiles
+    are fetched SEQUENTIALLY with a 300 ms inter-request delay (≤ 3.3
+    calls/s, well under the limit). With 5 km spacing and up to 20 tiles,
+    a 100 km ride gets a weather point every 5 km — enough to capture
+    valley/ridge wind gradients that a single centroid would miss.
     """
     anchors = _pick_tile_anchors(lats, lons, tile_km, max_tiles)
     tiles: list[tuple[int, dict]] = []

@@ -117,7 +117,9 @@ Multi-format parser (FIT, GPX with power extensions, TCX with Garmin namespaces)
 
 ### 2. Weather
 
-For each ride we fetch **tiled historical weather** from Open-Meteo: 5 km tiles along the route (up to 6 tiles) to capture spatial variation in wind. Temperature, humidity, surface pressure and wind are interpolated onto each sample (u/v-vector blending so the 359°→1° wrap doesn't alias). Wind at 10 m is rescaled to rider height (1.3 m) with a logarithmic profile `v(z) = v_ref · ln(z/z₀) / ln(10/z₀)`, z₀ = 0.03 m in open terrain.
+For each ride we fetch **tiled historical weather** from Open-Meteo: one tile every **5 km** along the route (up to **20 tiles**, fetched sequentially with 300 ms delay to stay under rate limits). A 100 km ride gets ~20 weather anchor points — enough to capture valley/ridge wind gradients that a single centroid would miss. Temperature, humidity, surface pressure and wind are interpolated onto each sample via u/v-vector blending (so the 359°→1° wrap doesn't alias to 180°). Wind at 10 m is rescaled to rider height (1.3 m) with a logarithmic profile `v(z) = v_ref · ln(z/z₀) / ln(10/z₀)`, z₀ = 0.03 m in open terrain.
+
+**Important**: even with tiled weather, Open-Meteo's ~10 km grid resolution means the wind at the rider can differ by 2-5 m/s from the API value — which is why the wind-inverse solver (see below) is so impactful.
 
 ### 3. Physics
 
@@ -151,12 +153,15 @@ Only **contiguous blocks of ≥ 30 s** of valid samples are kept. Mid-grade desc
 
 ### 5. Solver
 
-Two independent estimators:
+Three estimators, tried in cascade (best R² wins):
 
-- **Martin LS** — `scipy.optimize.least_squares` on per-point power residuals, multi-start (3 seeds), trust-region reflective, with weak Gaussian priors on Crr ~ N(0.004, 0.0015²) and CdA ~ N(0.30, 0.12²) to stabilise ill-conditioned fits.
-- **Chung VE** — minimises `Σ(altitude_real − altitude_virtual)²` from the integrated energy balance, per-block aligned so gaps don't drift. The same priors are applied.
+1. **Wind-Inverse** (preferred) — jointly estimates **(CdA, Crr, wind speed, wind direction)** per 30-minute segment inside a Chung VE objective. The Open-Meteo wind serves as a Gaussian prior (σ = 2 m/s per component) so the solver adjusts the wind to what the data actually says rather than trusting a 10 km grid cell. Requires heading variance > 0.25 (the rider changed direction enough for wind to be identifiable separately from CdA). On rides with heading variety this typically **doubles the R²** (e.g. 0.50 → 0.98) by removing the dominant error source.
 
-Pipeline runs Martin first and falls back to Chung when Martin's R² < 0.3 and Chung's R² is better. Confidence intervals come from the Jacobian at the MAP estimate (prior rows excluded).
+2. **Chung VE** (fallback) — minimises `Σ(altitude_real − altitude_virtual)²` from the integrated energy balance, per-block aligned so gaps don't drift. Wind is taken from the API (not estimated). Used when heading variance is too low (linear climbs, straight roads) or when wind-inverse doesn't improve on it.
+
+3. **Martin LS** (baseline) — `scipy.optimize.least_squares` on per-point power residuals, multi-start (3 seeds), trust-region reflective.
+
+All three share weak Gaussian priors on Crr ~ N(0.004, 0.0015²) and CdA ~ N(0.30, 0.12²) to stabilise ill-conditioned fits. Confidence intervals come from the Jacobian at the MAP estimate (prior rows excluded).
 
 ### 6. Reporting
 

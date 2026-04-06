@@ -99,9 +99,17 @@ def solve_with_wind(
     seg_idx = ((ts - t0) / seg_dur).astype(int)
     n_seg = int(seg_idx.max()) + 1
 
-    # Prior centres per segment
-    u_prior = np.array([u_api[seg_idx == s].mean() for s in range(n_seg)])
-    v_prior = np.array([v_api[seg_idx == s].mean() for s in range(n_seg)])
+    # Prior centres per segment (guard against empty segments from gaps)
+    u_prior = np.zeros(n_seg)
+    v_prior = np.zeros(n_seg)
+    for s in range(n_seg):
+        mask = seg_idx == s
+        if mask.any():
+            u_prior[s] = u_api[mask].mean()
+            v_prior[s] = v_api[mask].mean()
+        else:
+            u_prior[s] = u_api.mean()
+            v_prior[s] = v_api.mean()
 
     # Parameter layout: [CdA, (Crr), u_0, v_0, ..., u_{n_seg-1}, v_{n_seg-1}]
     has_crr = crr_fixed is None

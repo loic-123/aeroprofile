@@ -12,3 +12,9 @@ node_modules/
 frontend/dist/
 .DS_Store
 *.log
+
+# Activity files at root (only keep those in tests/fixtures/)
+/*.fit
+/*.gpx
+/*.tcx
+/*.zip

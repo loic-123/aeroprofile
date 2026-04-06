@@ -27,6 +27,8 @@ interface RiderAgg {
   rider: RiderEntry;
   cda: number;
   crr: number;
+  cdaLow: number;   // IC95 lower bound (from inter-ride variance)
+  cdaHigh: number;   // IC95 upper bound
   r2: number;
   rmse: number;
   avgSpeed: number;
@@ -82,10 +84,41 @@ function aggregate(r: RiderEntry): RiderAgg | null {
     sumSpeed += res.avg_speed_kmh * w;
     sumPower += res.avg_power_w * w;
   }
+  const meanCda = sumCda / totalW;
+  const meanCrr = sumCrr / totalW;
+
+  // IC95 from inter-ride variance: treat each ride's CdA as an independent
+  // estimate, compute the standard error of the weighted mean, then ±1.96·SE.
+  // With only 1 ride, fall back to the per-ride CI if available.
+  let cdaLow = meanCda;
+  let cdaHigh = meanCda;
+  if (good.length >= 2) {
+    const cdas = good.map((rd) => rd.result!.cda);
+    const weights = good.map((rd) => Math.max(rd.result!.valid_points, 1));
+    const wSum = weights.reduce((a, b) => a + b, 0);
+    // Weighted variance
+    let wVar = 0;
+    for (let i = 0; i < cdas.length; i++) {
+      wVar += weights[i] * (cdas[i] - meanCda) ** 2;
+    }
+    wVar /= wSum;
+    const se = Math.sqrt(wVar / good.length);
+    cdaLow = meanCda - 1.96 * se;
+    cdaHigh = meanCda + 1.96 * se;
+  } else if (good.length === 1) {
+    const res = good[0].result!;
+    if (res.cda_ci_low && res.cda_ci_high && res.cda_ci_low > 0) {
+      cdaLow = res.cda_ci_low;
+      cdaHigh = res.cda_ci_high;
+    }
+  }
+
   return {
     rider: r,
-    cda: sumCda / totalW,
-    crr: sumCrr / totalW,
+    cda: meanCda,
+    crr: meanCrr,
+    cdaLow,
+    cdaHigh,
     r2: sumR2 / totalW,
     rmse: sumRmse / totalW,
     avgSpeed: sumSpeed / totalW,
@@ -303,7 +336,11 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                 tooltip="CdA le plus bas (moyenne pondérée sur toutes les sorties)."
                 winner={bestAero.rider.name}
                 metric={`CdA = ${bestAero.cda.toFixed(3)} m²`}
-                sub={bestAero.nRides > 1 ? `${bestAero.nRides} sorties, ${bestAero.nPoints.toLocaleString()} pts` : undefined}
+                sub={
+                  bestAero.nRides > 1
+                    ? `IC95 [${bestAero.cdaLow.toFixed(3)} – ${bestAero.cdaHigh.toFixed(3)}] • ${bestAero.nRides} sorties`
+                    : undefined
+                }
               />
             )}
             {bestRolling && (
@@ -334,7 +371,10 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                   <th className="text-left py-2 font-normal">Cycliste</th>
                   <th className="text-right font-normal">Sorties</th>
                   <th className="text-right font-normal">Masse</th>
-                  <th className="text-right font-normal">CdA</th>
+                  <th className="text-right font-normal">
+                    CdA
+                    <InfoTooltip text="CdA moyen pondéré sur toutes les sorties retenues. Avec ≥2 sorties, l'IC95 est calculé à partir de la dispersion inter-rides (pas intra-ride) : il reflète la reproductibilité de la mesure à travers les conditions." />
+                  </th>
                   <th className="text-right font-normal">Crr</th>
                   <th className="text-right font-normal">Traînée @ 40</th>
                   <th className="text-right font-normal">RMSE</th>
@@ -354,7 +394,14 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                       )}
                     </td>
                     <td className="text-right">{a.rider.mass.toFixed(0)} kg</td>
-                    <td className="text-right text-teal">{a.cda.toFixed(3)}</td>
+                    <td className="text-right text-teal">
+                      {a.cda.toFixed(3)}
+                      {a.nRides >= 2 && (
+                        <div className="text-xs text-muted font-mono">
+                          [{a.cdaLow.toFixed(3)} – {a.cdaHigh.toFixed(3)}]
+                        </div>
+                      )}
+                    </td>
                     <td className="text-right text-teal">{a.crr.toFixed(4)}</td>
                     <td className="text-right">{drag(a).toFixed(1)} N</td>
                     <td className="text-right">±{a.rmse.toFixed(0)} W</td>

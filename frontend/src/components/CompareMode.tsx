@@ -86,11 +86,28 @@ function aggregate(r: RiderEntry): RiderAgg | null {
   // If all rides excluded, fall back to all (user sees bad R² as warning)
   if (good.length === 0) good = done;
 
+  // Quality-weighted average: rides with lower nRMSE count more.
+  // The quality multiplier is linearly mapped so the best ride (lowest
+  // nRMSE) gets weight 3× and the worst retained ride gets weight 1×.
+  // This avoids the extreme ratios of 1/nRMSE² while still rewarding
+  // clean data.
+  const nrmses = good.map((rd) => {
+    const avgP = Math.max(rd.result!.avg_power_w, 1);
+    return Math.max((rd.result!.rmse_w || 0) / avgP, 0.01);
+  });
+  const bestNrmse = Math.min(...nrmses);
+  const worstNrmse = Math.max(...nrmses);
+  const nrmseSpan = worstNrmse - bestNrmse;
+
   let totalW = 0;
   let sumCda = 0, sumCrr = 0, sumRmse = 0, sumSpeed = 0, sumPower = 0;
-  for (const rd of good) {
-    const res = rd.result!;
-    const w = Math.max(res.valid_points, 1);
+  for (let j = 0; j < good.length; j++) {
+    const res = good[j].result!;
+    // Linear quality: best → 3.0, worst → 1.0
+    const qualityW = nrmseSpan > 0.001
+      ? 3.0 - 2.0 * (nrmses[j] - bestNrmse) / nrmseSpan
+      : 2.0;
+    const w = Math.max(res.valid_points, 1) * qualityW;
     totalW += w;
     sumCda += res.cda * w;
     sumCrr += res.crr * w;

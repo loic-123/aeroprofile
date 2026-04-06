@@ -27,9 +27,9 @@ interface RiderAgg {
   rider: RiderEntry;
   cda: number;
   crr: number;
-  cdaLow: number;   // IC95 lower bound (from inter-ride variance)
-  cdaHigh: number;   // IC95 upper bound
-  r2: number;
+  cdaLow: number;
+  cdaHigh: number;
+  nrmse: number;     // normalised RMSE = RMSE / avg_power (0–1)
   rmse: number;
   avgSpeed: number;
   avgPower: number;
@@ -54,17 +54,29 @@ function emptyRider(n: number): RiderEntry {
  * If ALL rides are excluded, fall back to including everything so the
  * rider still appears in the comparison (with a warning via low R²).
  */
-const MIN_R2 = 0.0;
-const MAX_RMSE = 150;
+/**
+ * Quality gate: exclude rides where nRMSE (= RMSE / avg_power) > 25%.
+ * nRMSE is a better metric than R² because it doesn't depend on the
+ * ride's power variance. A steady endurance ride at 150W ± 10W can have
+ * low R² even with a perfect model; nRMSE stays meaningful.
+ *
+ * Thresholds:
+ *   nRMSE < 15%  → excellent fit
+ *   15–25%       → acceptable
+ *   > 25%        → the model error is a quarter of the power signal → exclude
+ */
+const MAX_NRMSE = 0.25;
 
 function aggregate(r: RiderEntry): RiderAgg | null {
   const done = r.rides.filter((rd) => rd.status === "done" && rd.result);
   if (done.length === 0) return null;
 
-  // Filter to "good" rides only
+  // Filter to "good" rides only — using nRMSE (= RMSE / avg_power)
   let good = done.filter((rd) => {
     const res = rd.result!;
-    return res.r_squared >= MIN_R2 && (res.rmse_w || 0) <= MAX_RMSE;
+    const avgP = res.avg_power_w || 1;
+    const nrmse = (res.rmse_w || 0) / avgP;
+    return nrmse <= MAX_NRMSE;
   });
   const nExcluded = done.length - good.length;
 
@@ -72,14 +84,13 @@ function aggregate(r: RiderEntry): RiderAgg | null {
   if (good.length === 0) good = done;
 
   let totalW = 0;
-  let sumCda = 0, sumCrr = 0, sumR2 = 0, sumRmse = 0, sumSpeed = 0, sumPower = 0;
+  let sumCda = 0, sumCrr = 0, sumRmse = 0, sumSpeed = 0, sumPower = 0;
   for (const rd of good) {
     const res = rd.result!;
     const w = Math.max(res.valid_points, 1);
     totalW += w;
     sumCda += res.cda * w;
     sumCrr += res.crr * w;
-    sumR2 += res.r_squared * w;
     sumRmse += (res.rmse_w || 0) * w;
     sumSpeed += res.avg_speed_kmh * w;
     sumPower += res.avg_power_w * w;
@@ -113,16 +124,20 @@ function aggregate(r: RiderEntry): RiderAgg | null {
     }
   }
 
+  const meanRmse = sumRmse / totalW;
+  const meanPower = sumPower / totalW;
+  const nrmse = meanPower > 0 ? meanRmse / meanPower : 0;
+
   return {
     rider: r,
     cda: meanCda,
     crr: meanCrr,
     cdaLow,
     cdaHigh,
-    r2: sumR2 / totalW,
-    rmse: sumRmse / totalW,
+    nrmse,
+    rmse: meanRmse,
     avgSpeed: sumSpeed / totalW,
-    avgPower: sumPower / totalW,
+    avgPower: meanPower,
     nRides: good.length,
     nPoints: totalW,
     nExcluded,
@@ -377,8 +392,10 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                   </th>
                   <th className="text-right font-normal">Crr</th>
                   <th className="text-right font-normal">Traînée @ 40</th>
-                  <th className="text-right font-normal">RMSE</th>
-                  <th className="text-right font-normal">R²</th>
+                  <th className="text-right font-normal">
+                    Qualité
+                    <InfoTooltip text="nRMSE = RMSE / puissance moyenne. Mesure l'erreur relative du modèle, indépendante de la variabilité de la sortie. < 15% = excellent, 15-25% = correct, > 25% = mauvais (ride exclue de la moyenne)." />
+                  </th>
                 </tr>
               </thead>
               <tbody className="font-mono">
@@ -404,9 +421,17 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                     </td>
                     <td className="text-right text-teal">{a.crr.toFixed(4)}</td>
                     <td className="text-right">{drag(a).toFixed(1)} N</td>
-                    <td className="text-right">±{a.rmse.toFixed(0)} W</td>
-                    <td className={`text-right ${a.r2 < 0.3 ? "text-coral" : ""}`}>
-                      {a.r2.toFixed(2)}
+                    <td className="text-right">
+                      <span className={
+                        a.nrmse < 0.15
+                          ? "text-teal"
+                          : a.nrmse < 0.25
+                            ? "text-text"
+                            : "text-coral"
+                      }>
+                        {(a.nrmse * 100).toFixed(0)}%
+                      </span>
+                      <div className="text-xs text-muted">±{a.rmse.toFixed(0)} W</div>
                     </td>
                   </tr>
                 ))}
@@ -418,8 +443,8 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                 valides sur l'ensemble des sorties de chaque cycliste.
                 {aggs.some((a) => a.nExcluded > 0) && (
                   <span className="text-coral">
-                    {" "}Sorties avec R² &lt; 0 ou RMSE &gt; 150 W exclues de
-                    la moyenne (données trop bruitées).
+                    {" "}Sorties avec nRMSE &gt; 25% exclues de la moyenne
+                    et des graphes (modèle non fiable sur ces rides).
                   </span>
                 )}
               </p>
@@ -433,9 +458,13 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
               .map((r) => ({
                 name: r.name,
                 points: r.rides
-                  .filter((rd): rd is RideResult & { result: AnalysisResult } =>
-                    rd.status === "done" && rd.result != null,
-                  )
+                  .filter((rd): rd is RideResult & { result: AnalysisResult } => {
+                    if (rd.status !== "done" || !rd.result) return false;
+                    // Exclude bad rides from the chart too
+                    const avgP = rd.result.avg_power_w || 1;
+                    const nrmse = (rd.result.rmse_w || 0) / avgP;
+                    return nrmse <= MAX_NRMSE;
+                  })
                   .map((rd) => ({
                     date: rd.result.ride_date,
                     cda: rd.result.cda,

@@ -7,6 +7,12 @@ import PowerScatter from "./PowerScatter";
 import ResidualsHistogram from "./ResidualsHistogram";
 import SpeedCdAScatter from "./SpeedCdAScatter";
 import MapView from "./MapView";
+import ReferenceTable from "./ReferenceTable";
+import FilterSummary from "./FilterSummary";
+import WindChart from "./WindChart";
+import SpeedPowerChart from "./SpeedPowerChart";
+import EnergyPieChart from "./EnergyPieChart";
+import AirDensityChart from "./AirDensityChart";
 import InfoTooltip from "./InfoTooltip";
 import PositionSchematic from "./PositionSchematic";
 import { AlertCircle } from "lucide-react";
@@ -316,7 +322,11 @@ export default function ResultsDashboard({ result }: Props) {
         </div>
       )}
 
+      {!unreliable && <ReferenceTable cda={result.cda} crr={result.crr} />}
+
       <AnomalyAlerts anomalies={result.anomalies} />
+
+      <FilterSummary result={result} />
 
       <div className="grid grid-cols-1 gap-6">
         <ChartSection
@@ -355,12 +365,42 @@ export default function ResultsDashboard({ result }: Props) {
           </ChartSection>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <ChartSection
+            title="Vitesse vs Puissance"
+            description="Relation entre la vitesse au sol et la puissance mesurée. La dispersion vient du gradient, du vent et de l'accélération. Un nuage compact = conditions homogènes. Très dispersé = sortie variée (montagne, vent changeant)."
+          >
+            <SpeedPowerChart profile={result.profile} />
+          </ChartSection>
+          <ChartSection
+            title="Répartition de l'énergie"
+            description="Part de l'énergie totale dépensée contre l'air (aéro), le frottement (roulement), la gravité (montées), et l'accélération. Sur le plat à 30+ km/h, l'aéro domine (~70-80%). En montagne, la gravité prend le dessus."
+          >
+            <EnergyPieChart profile={result.profile} />
+          </ChartSection>
+        </div>
+
         <ChartSection
           title="CdA glissant vs puissance"
           description="Relation entre le CdA instantané et la puissance mesurée. Si une forte corrélation apparaît, cela suggère un biais (capteur ou Crr mal estimé) qui dépend du régime de puissance."
         >
           <SpeedCdAScatter profile={result.profile} />
         </ChartSection>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <ChartSection
+            title="Vent le long du parcours"
+            description="Vitesse du vent (bleu, en km/h) et direction de provenance (rouge pointillé, en degrés : 0°=Nord, 90°=Est, 180°=Sud, 270°=Ouest) le long du parcours. Montre si le vent est resté constant ou a varié, ce qui impacte directement la qualité du modèle."
+          >
+            <WindChart profile={result.profile} />
+          </ChartSection>
+          <ChartSection
+            title="Densité de l'air (ρ)"
+            description="Variation de la densité de l'air au fil du parcours. ρ baisse avec l'altitude et augmente avec le froid. Même CdA produit moins de traînée à ρ bas (altitude). Sur une sortie de 0 à 1500 m, ρ peut varier de 15% — c'est pourquoi on le calcule par point."
+          >
+            <AirDensityChart profile={result.profile} />
+          </ChartSection>
+        </div>
 
         <ChartSection
           title="Parcours"

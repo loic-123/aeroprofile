@@ -55,17 +55,20 @@ function emptyRider(n: number): RiderEntry {
  * rider still appears in the comparison (with a warning via low R²).
  */
 /**
- * Quality gate: exclude rides where nRMSE (= RMSE / avg_power) > 25%.
- * nRMSE is a better metric than R² because it doesn't depend on the
- * ride's power variance. A steady endurance ride at 150W ± 10W can have
- * low R² even with a perfect model; nRMSE stays meaningful.
+ * Quality gate: exclude rides where nRMSE (= RMSE / avg_power) > 60%.
  *
- * Thresholds:
- *   nRMSE < 15%  → excellent fit
- *   15–25%       → acceptable
- *   > 25%        → the model error is a quarter of the power signal → exclude
+ * nRMSE is variance-independent unlike R². However, the RMSE is computed
+ * from power residuals even when the solver optimises altitude (Chung VE
+ * or wind-inverse). A well-fit ride (R² altitude = 0.98) can still have
+ * RMSE ~60W because per-second power is noisy. So the threshold must be
+ * generous — we only exclude truly broken rides, not noisy-but-valid ones.
+ *
+ * Thresholds for display:
+ *   nRMSE < 30%  → good (green)
+ *   30–60%       → acceptable (white)
+ *   > 60%        → excluded from average (model fundamentally doesn't fit)
  */
-const MAX_NRMSE = 0.25;
+const MAX_NRMSE = 0.60;
 
 function aggregate(r: RiderEntry): RiderAgg | null {
   const done = r.rides.filter((rd) => rd.status === "done" && rd.result);
@@ -423,9 +426,9 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                     <td className="text-right">{drag(a).toFixed(1)} N</td>
                     <td className="text-right">
                       <span className={
-                        a.nrmse < 0.15
+                        a.nrmse < 0.30
                           ? "text-teal"
-                          : a.nrmse < 0.25
+                          : a.nrmse < 0.60
                             ? "text-text"
                             : "text-coral"
                       }>
@@ -443,8 +446,8 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                 valides sur l'ensemble des sorties de chaque cycliste.
                 {aggs.some((a) => a.nExcluded > 0) && (
                   <span className="text-coral">
-                    {" "}Sorties avec nRMSE &gt; 25% exclues de la moyenne
-                    et des graphes (modèle non fiable sur ces rides).
+                    {" "}Sorties avec nRMSE &gt; 60% exclues de la moyenne
+                    et des graphes (modèle non fiable — drafting, vent extrême, ou capteur défectueux).
                   </span>
                 )}
               </p>
@@ -460,7 +463,6 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                 points: r.rides
                   .filter((rd): rd is RideResult & { result: AnalysisResult } => {
                     if (rd.status !== "done" || !rd.result) return false;
-                    // Exclude bad rides from the chart too
                     const avgP = rd.result.avg_power_w || 1;
                     const nrmse = (rd.result.rmse_w || 0) / avgP;
                     return nrmse <= MAX_NRMSE;
@@ -617,17 +619,30 @@ function RiderRow({
           {/* File chips */}
           {rider.rides.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {rider.rides.map((rd, i) => (
+              {rider.rides.map((rd, i) => {
+                // Determine if this ride would be excluded by quality gate
+                const isExcluded =
+                  rd.status === "done" &&
+                  rd.result &&
+                  (rd.result.rmse_w || 0) / Math.max(rd.result.avg_power_w, 1) > MAX_NRMSE;
+                return (
                 <span
                   key={i}
+                  title={
+                    isExcluded
+                      ? `Exclue de la moyenne (nRMSE ${((rd.result!.rmse_w / Math.max(rd.result!.avg_power_w, 1)) * 100).toFixed(0)}% > 60%)`
+                      : undefined
+                  }
                   className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-mono ${
-                    rd.status === "done"
-                      ? "bg-teal/10 text-teal"
-                      : rd.status === "error"
-                        ? "bg-coral/10 text-coral"
-                        : rd.status === "loading"
-                          ? "bg-info/10 text-info"
-                          : "bg-bg text-muted"
+                    rd.status === "error"
+                      ? "bg-coral/10 text-coral"
+                      : isExcluded
+                        ? "bg-coral/10 text-coral line-through opacity-60"
+                        : rd.status === "done"
+                          ? "bg-teal/10 text-teal"
+                          : rd.status === "loading"
+                            ? "bg-info/10 text-info"
+                            : "bg-bg text-muted"
                   }`}
                 >
                   <FileText size={11} />
@@ -649,7 +664,8 @@ function RiderRow({
                     <X size={11} />
                   </button>
                 </span>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

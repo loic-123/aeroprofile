@@ -13,3 +13,7 @@ services:
         value: 3.12.3
       - key: NODE_VERSION
         value: 20.11.0
+      - key: AEROPROFILE_MAX_TILES
+        value: "3"
+      - key: AEROPROFILE_TILE_KM
+        value: "15"

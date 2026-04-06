@@ -65,9 +65,10 @@ async def fetch_weather_tiled(
 
     Open-Meteo's free tier allows 10 calls/second and 10 000/day. Tiles
     are fetched SEQUENTIALLY with a 300 ms inter-request delay (≤ 3.3
-    calls/s, well under the limit). With 5 km spacing and up to 20 tiles,
-    a 100 km ride gets a weather point every 5 km — enough to capture
-    valley/ridge wind gradients that a single centroid would miss.
+    calls/s). Default: 20 tiles at 5 km spacing. A 100 km ride gets
+    ~20 weather anchor points — enough to capture valley/ridge wind
+    gradients. Total latency ~6-10s for a long ride, acceptable when
+    running locally.
     """
     anchors = _pick_tile_anchors(lats, lons, tile_km, max_tiles)
     tiles: list[tuple[int, dict]] = []

@@ -185,14 +185,16 @@ async def analyze(
 
     if fetch_wx:
         wx = None
-        # Use tiled weather for rides > 15 km. One tile every 5 km (up to
-        # 20) to capture spatial wind variation along the route. Sequential
-        # fetching with 300 ms delay stays under Open-Meteo's rate limit.
+        # Tiled weather: configurable via env. Local = 20 tiles / 5 km
+        # (full precision). Render free = 3 tiles / 15 km (avoids 502).
+        import os
+        _max_tiles = int(os.environ.get("AEROPROFILE_MAX_TILES", "20"))
+        _tile_km = float(os.environ.get("AEROPROFILE_TILE_KM", "5.0"))
         if tiled_weather and total_km > 15.0:
             try:
                 tiles = await fetch_weather_tiled(
                     df["lat"].to_numpy(), df["lon"].to_numpy(), ride_date,
-                    tile_km=5.0, max_tiles=20,
+                    tile_km=_tile_km, max_tiles=_max_tiles,
                 )
                 if tiles:
                     wx = interpolate_tiled_weather(tiles, df["timestamp"].tolist())

@@ -27,9 +27,16 @@ def _df_to_profile(df) -> ProfileData:
     else:
         idx = np.arange(n)
 
+    def _safe(v):
+        """Convert to JSON-safe float: NaN and Inf become None."""
+        f = float(v)
+        if np.isnan(f) or np.isinf(f):
+            return None
+        return f
+
     def col(name):
         a = df[name].to_numpy()
-        return [None if (isinstance(v, float) and np.isnan(v)) else float(v) for v in a[idx]]
+        return [_safe(v) for v in a[idx]]
 
     def colb(name):
         a = df[name].to_numpy()
@@ -108,23 +115,30 @@ async def analyze_endpoint(
         except OSError:
             pass
 
+    def _f(v, default=0.0):
+        """NaN/Inf-safe float for JSON."""
+        f = float(v) if v is not None else default
+        if np.isnan(f) or np.isinf(f):
+            return default
+        return f
+
     return AnalysisResultOut(
-        cda=result.cda,
-        cda_ci_low=result.cda_ci[0],
-        cda_ci_high=result.cda_ci[1],
-        crr=result.crr,
-        crr_ci_low=result.crr_ci[0],
-        crr_ci_high=result.crr_ci[1],
-        r_squared=result.r_squared,
+        cda=_f(result.cda),
+        cda_ci_low=_f(result.cda_ci[0]),
+        cda_ci_high=_f(result.cda_ci[1]),
+        crr=_f(result.crr),
+        crr_ci_low=_f(result.crr_ci[0]),
+        crr_ci_high=_f(result.crr_ci[1]),
+        r_squared=_f(result.r_squared),
         crr_was_fixed=result.crr_was_fixed,
         solver_method=result.solver_method,
         solver_note=result.solver_note,
-        cda_climb=result.cda_climb,
-        cda_descent=result.cda_descent,
-        cda_flat=result.cda_flat,
-        heading_variance=result.heading_variance,
-        rmse_w=result.rmse_w,
-        mae_w=result.mae_w,
+        cda_climb=_f(result.cda_climb) if result.cda_climb is not None else None,
+        cda_descent=_f(result.cda_descent) if result.cda_descent is not None else None,
+        cda_flat=_f(result.cda_flat) if result.cda_flat is not None else None,
+        heading_variance=_f(result.heading_variance),
+        rmse_w=_f(result.rmse_w),
+        mae_w=_f(result.mae_w),
         ride_date=result.ride_date,
         ride_distance_km=result.ride_distance_km,
         ride_duration_s=result.ride_duration_s,

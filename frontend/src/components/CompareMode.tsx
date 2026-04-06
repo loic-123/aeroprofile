@@ -1,105 +1,220 @@
-import { useState } from "react";
-import { Upload, Trash2, Loader2, Trophy, Wind, Activity, User, AlertTriangle } from "lucide-react";
+import { useState, useRef, useCallback } from "react";
+import { Upload, Trash2, Loader2, Trophy, Wind, Activity, User, AlertTriangle, X, FileText } from "lucide-react";
 import { analyze } from "../api/client";
 import type { AnalysisResult } from "../types";
 import PositionSchematic from "./PositionSchematic";
 import InfoTooltip from "./InfoTooltip";
 
+/* ---------- types ---------- */
+
+interface RideResult {
+  file: File;
+  result?: AnalysisResult;
+  status: "pending" | "loading" | "done" | "error";
+  error?: string;
+}
+
 interface RiderEntry {
   id: string;
   name: string;
-  file: File | null;
   mass: number;
-  status: "idle" | "loading" | "done" | "error";
-  result?: AnalysisResult;
-  error?: string;
+  rides: RideResult[];
+}
+
+/* Aggregated stats for a rider with multiple rides */
+interface RiderAgg {
+  rider: RiderEntry;
+  cda: number;
+  crr: number;
+  r2: number;
+  rmse: number;
+  avgSpeed: number;
+  avgPower: number;
+  nRides: number;
+  nPoints: number;
 }
 
 function emptyRider(n: number): RiderEntry {
   return {
     id: `r${Date.now()}-${n}`,
     name: `Cycliste ${n}`,
-    file: null,
     mass: 75,
-    status: "idle",
+    rides: [],
   };
 }
 
+/* Weighted average of rider results, weighted by valid_points */
+function aggregate(r: RiderEntry): RiderAgg | null {
+  const done = r.rides.filter((rd) => rd.status === "done" && rd.result);
+  if (done.length === 0) return null;
+  let totalW = 0;
+  let sumCda = 0, sumCrr = 0, sumR2 = 0, sumRmse = 0, sumSpeed = 0, sumPower = 0;
+  for (const rd of done) {
+    const res = rd.result!;
+    const w = Math.max(res.valid_points, 1);
+    totalW += w;
+    sumCda += res.cda * w;
+    sumCrr += res.crr * w;
+    sumR2 += res.r_squared * w;
+    sumRmse += (res.rmse_w || 0) * w;
+    sumSpeed += res.avg_speed_kmh * w;
+    sumPower += res.avg_power_w * w;
+  }
+  return {
+    rider: r,
+    cda: sumCda / totalW,
+    crr: sumCrr / totalW,
+    r2: sumR2 / totalW,
+    rmse: sumRmse / totalW,
+    avgSpeed: sumSpeed / totalW,
+    avgPower: sumPower / totalW,
+    nRides: done.length,
+    nPoints: totalW,
+  };
+}
+
+/* ---------- main component ---------- */
+
 export default function CompareMode({ onBack }: { onBack: () => void }) {
   const [riders, setRiders] = useState<RiderEntry[]>([emptyRider(1), emptyRider(2)]);
+  const [running, setRunning] = useState(false);
 
-  const update = (id: string, patch: Partial<RiderEntry>) =>
+  const updateRider = (id: string, patch: Partial<RiderEntry>) =>
     setRiders((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
-  const add = () => setRiders((rs) => [...rs, emptyRider(rs.length + 1)]);
-  const remove = (id: string) => setRiders((rs) => rs.filter((r) => r.id !== id));
+  const addRider = () => setRiders((rs) => [...rs, emptyRider(rs.length + 1)]);
+  const removeRider = (id: string) => setRiders((rs) => rs.filter((r) => r.id !== id));
 
-  const runAll = async () => {
-    const ready = riders.filter((r) => r.file && r.mass > 0);
-    if (ready.length < 2) return;
-    await Promise.all(
-      ready.map(async (r) => {
-        update(r.id, { status: "loading", error: undefined });
-        try {
-          const res = await analyze({ file: r.file!, mass_kg: r.mass });
-          update(r.id, { status: "done", result: res });
-        } catch (e: any) {
-          update(r.id, { status: "error", error: e.message || String(e) });
-        }
-      }),
+  const addFiles = (riderId: string, files: File[]) => {
+    const accepted = files.filter((f) => /\.(fit|gpx|tcx)$/i.test(f.name));
+    if (accepted.length === 0) return;
+    setRiders((rs) =>
+      rs.map((r) =>
+        r.id === riderId
+          ? { ...r, rides: [...r.rides, ...accepted.map((f) => ({ file: f, status: "pending" as const }))] }
+          : r,
+      ),
     );
   };
 
-  const done = riders.filter((r) => r.status === "done" && r.result);
-  const running = riders.some((r) => r.status === "loading");
+  const removeFile = (riderId: string, idx: number) => {
+    setRiders((rs) =>
+      rs.map((r) =>
+        r.id === riderId ? { ...r, rides: r.rides.filter((_, i) => i !== idx) } : r,
+      ),
+    );
+  };
+
+  const runAll = async () => {
+    setRunning(true);
+    // Mark all pending rides as loading
+    setRiders((rs) =>
+      rs.map((r) => ({
+        ...r,
+        rides: r.rides.map((rd) =>
+          rd.status === "pending" || rd.status === "error"
+            ? { ...rd, status: "loading" as const, error: undefined }
+            : rd,
+        ),
+      })),
+    );
+
+    // Process sequentially to avoid rate-limits
+    for (const rider of riders) {
+      for (let i = 0; i < rider.rides.length; i++) {
+        const rd = rider.rides[i];
+        if (rd.status !== "pending" && rd.status !== "loading" && rd.status !== "error") continue;
+        // Update status to loading
+        setRiders((rs) =>
+          rs.map((r) =>
+            r.id === rider.id
+              ? {
+                  ...r,
+                  rides: r.rides.map((x, j) =>
+                    j === i ? { ...x, status: "loading" as const } : x,
+                  ),
+                }
+              : r,
+          ),
+        );
+        try {
+          const res = await analyze({ file: rd.file, mass_kg: rider.mass });
+          setRiders((rs) =>
+            rs.map((r) =>
+              r.id === rider.id
+                ? {
+                    ...r,
+                    rides: r.rides.map((x, j) =>
+                      j === i ? { ...x, status: "done" as const, result: res } : x,
+                    ),
+                  }
+                : r,
+            ),
+          );
+        } catch (e: any) {
+          setRiders((rs) =>
+            rs.map((r) =>
+              r.id === rider.id
+                ? {
+                    ...r,
+                    rides: r.rides.map((x, j) =>
+                      j === i
+                        ? { ...x, status: "error" as const, error: e.message || String(e) }
+                        : x,
+                    ),
+                  }
+                : r,
+            ),
+          );
+        }
+      }
+    }
+    setRunning(false);
+  };
+
+  const aggs = riders
+    .map((r) => aggregate(r))
+    .filter((a): a is RiderAgg => a !== null);
+
+  const canRun = riders.filter((r) => r.rides.length > 0 && r.mass > 0).length >= 2;
 
   // Rankings
-  const bestAero = [...done].sort((a, b) => a.result!.cda - b.result!.cda)[0];
-  const bestRolling = [...done].sort((a, b) => a.result!.crr - b.result!.crr)[0];
-  // Composite efficiency score: lower CdA + lower Crr at a reference speed 40 km/h, 80 kg
-  const drag = (r: RiderEntry) => {
-    const v = 11.11; // 40 km/h in m/s
-    return 0.5 * r.result!.cda * 1.2 * v * v + r.result!.crr * r.mass * 9.80665;
+  const bestAero = aggs.length >= 2 ? [...aggs].sort((a, b) => a.cda - b.cda)[0] : null;
+  const bestRolling = aggs.length >= 2 ? [...aggs].sort((a, b) => a.crr - b.crr)[0] : null;
+  const drag = (a: RiderAgg) => {
+    const v = 11.11;
+    return 0.5 * a.cda * 1.2 * v * v + a.crr * a.rider.mass * 9.80665;
   };
-  const mostEfficient = [...done].sort((a, b) => drag(a) - drag(b))[0];
+  const mostEfficient = aggs.length >= 2 ? [...aggs].sort((a, b) => drag(a) - drag(b))[0] : null;
 
-  // Drafting suspicion: if riders have similar avg speed (±5%) but very
-  // different CdA (>15%), the lower-CdA rider was probably drafting behind
-  // the higher-CdA one (taking less wind while matching pace).
+  // Drafting warning
   let draftWarning: { drafter: string; puller: string; cdaGap: number } | null = null;
-  if (done.length >= 2) {
-    const speeds = done.map((r) => r.result!.avg_speed_kmh);
+  if (aggs.length >= 2) {
+    const speeds = aggs.map((a) => a.avgSpeed);
     const minS = Math.min(...speeds);
     const maxS = Math.max(...speeds);
     if (maxS > 0 && (maxS - minS) / maxS < 0.05) {
-      const byCda = [...done].sort((a, b) => a.result!.cda - b.result!.cda);
+      const byCda = [...aggs].sort((a, b) => a.cda - b.cda);
       const low = byCda[0];
       const high = byCda[byCda.length - 1];
-      const gap = (high.result!.cda - low.result!.cda) / high.result!.cda;
+      const gap = (high.cda - low.cda) / high.cda;
       if (gap > 0.15) {
-        draftWarning = {
-          drafter: low.name,
-          puller: high.name,
-          cdaGap: gap,
-        };
+        draftWarning = { drafter: low.rider.name, puller: high.rider.name, cdaGap: gap };
       }
     }
   }
 
   return (
     <div className="space-y-6">
-      <button
-        onClick={onBack}
-        className="text-sm text-muted hover:text-text"
-      >
+      <button onClick={onBack} className="text-sm text-muted hover:text-text">
         ← Mode analyse unique
       </button>
 
       <div>
         <h2 className="text-xl font-bold">Comparaison multi-cyclistes</h2>
         <p className="text-sm text-muted mt-1">
-          Ajoutez une sortie par cycliste (formats différents acceptés). AeroProfile
-          analyse chaque fichier séparément et produit un classement.
+          Glissez-déposez <strong>plusieurs fichiers</strong> par cycliste pour des
+          résultats moyennés plus précis. Formats : .FIT, .GPX, .TCX.
         </p>
       </div>
 
@@ -109,30 +224,30 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
             key={r.id}
             rider={r}
             index={i}
-            onUpdate={(patch) => update(r.id, patch)}
-            onRemove={riders.length > 2 ? () => remove(r.id) : undefined}
+            agg={aggregate(r)}
+            onUpdate={(patch) => updateRider(r.id, patch)}
+            onAddFiles={(files) => addFiles(r.id, files)}
+            onRemoveFile={(idx) => removeFile(r.id, idx)}
+            onRemove={riders.length > 2 ? () => removeRider(r.id) : undefined}
           />
         ))}
       </div>
 
       <div className="flex items-center gap-3">
         <button
-          onClick={add}
+          onClick={addRider}
           className="px-4 py-2 border border-border rounded hover:border-muted text-sm"
         >
           + Ajouter un cycliste
         </button>
         <button
           onClick={runAll}
-          disabled={
-            running ||
-            riders.filter((r) => r.file && r.mass > 0).length < 2
-          }
+          disabled={running || !canRun}
           className="px-5 py-2 bg-teal hover:bg-teal/90 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded flex items-center gap-2"
         >
           {running ? (
             <>
-              <Loader2 className="animate-spin" size={16} /> Analyse…
+              <Loader2 className="animate-spin" size={16} /> Analyse en cours…
             </>
           ) : (
             "Comparer"
@@ -140,57 +255,52 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
         </button>
       </div>
 
-      {done.length >= 2 && draftWarning && (
+      {aggs.length >= 2 && draftWarning && (
         <div className="bg-orange-500/10 border border-orange-500 rounded-lg p-4 flex gap-3">
           <AlertTriangle className="text-orange-400 flex-shrink-0" size={20} />
           <div className="text-sm">
-            <div className="font-semibold text-orange-400">
-              Drafting probable entre cyclistes
-            </div>
+            <div className="font-semibold text-orange-400">Drafting probable</div>
             <p className="mt-1">
               <strong>{draftWarning.drafter}</strong> a un CdA{" "}
               {(draftWarning.cdaGap * 100).toFixed(0)}% plus bas que{" "}
-              <strong>{draftWarning.puller}</strong> alors qu'ils roulent à la
-              même vitesse moyenne. La cause la plus probable : ils étaient
-              ensemble et <strong>{draftWarning.drafter}</strong> a été en
-              abri derrière <strong>{draftWarning.puller}</strong> la plupart
-              du temps. Conséquence : les CdA individuels ne sont pas
-              comparables tels quels.
-            </p>
-            <p className="mt-2 text-xs text-muted">
-              Pour comparer vraiment leurs positions aéro, regardez le « CdA
-              plat » de chacun pendant des périodes solo, ou utilisez le W/kg
-              : celui qui tire plus de relais produit plus de watts à la
-              même vitesse.
+              <strong>{draftWarning.puller}</strong> à vitesse similaire.
+              Probable que {draftWarning.drafter} a suivi les roues.
             </p>
           </div>
         </div>
       )}
 
-      {done.length >= 2 && (
+      {aggs.length >= 2 && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <RankCard
-              icon={<Wind className="text-teal" size={18} />}
-              title="Meilleur aéro"
-              tooltip="Cycliste avec le CdA le plus bas — celui qui offre le moins de résistance à l'air."
-              winner={bestAero!}
-              metric={`CdA = ${bestAero!.result!.cda.toFixed(3)} m²`}
-            />
-            <RankCard
-              icon={<Activity className="text-teal" size={18} />}
-              title="Meilleur rendement roulement"
-              tooltip="Cycliste avec le Crr le plus bas — pneus/revêtement offrant le moins de résistance au roulement."
-              winner={bestRolling!}
-              metric={`Crr = ${bestRolling!.result!.crr.toFixed(4)}`}
-            />
-            <RankCard
-              icon={<Trophy className="text-teal" size={18} />}
-              title="Ensemble le plus efficient"
-              tooltip="Force de traînée totale (aéro + roulement) estimée à 40 km/h sur le plat, avec le poids saisi. Plus c'est bas, moins il faut de watts pour rouler vite."
-              winner={mostEfficient!}
-              metric={`${drag(mostEfficient!).toFixed(1)} N @ 40 km/h`}
-            />
+            {bestAero && (
+              <RankCard
+                icon={<Wind className="text-teal" size={18} />}
+                title="Meilleur aéro"
+                tooltip="CdA le plus bas (moyenne pondérée sur toutes les sorties)."
+                winner={bestAero.rider.name}
+                metric={`CdA = ${bestAero.cda.toFixed(3)} m²`}
+                sub={bestAero.nRides > 1 ? `${bestAero.nRides} sorties, ${bestAero.nPoints.toLocaleString()} pts` : undefined}
+              />
+            )}
+            {bestRolling && (
+              <RankCard
+                icon={<Activity className="text-teal" size={18} />}
+                title="Meilleur roulement"
+                tooltip="Crr le plus bas."
+                winner={bestRolling.rider.name}
+                metric={`Crr = ${bestRolling.crr.toFixed(4)}`}
+              />
+            )}
+            {mostEfficient && (
+              <RankCard
+                icon={<Trophy className="text-teal" size={18} />}
+                title="Plus efficient"
+                tooltip="Force de traînée totale (aéro + roulement) à 40 km/h la plus basse."
+                winner={mostEfficient.rider.name}
+                metric={`${drag(mostEfficient).toFixed(1)} N @ 40 km/h`}
+              />
+            )}
           </div>
 
           <div className="bg-panel border border-border rounded-lg p-4 overflow-x-auto">
@@ -199,58 +309,46 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
               <thead>
                 <tr className="text-muted text-xs uppercase border-b border-border">
                   <th className="text-left py-2 font-normal">Cycliste</th>
+                  <th className="text-right font-normal">Sorties</th>
                   <th className="text-right font-normal">Masse</th>
                   <th className="text-right font-normal">CdA</th>
                   <th className="text-right font-normal">Crr</th>
-                  <th className="text-right font-normal">
-                    Traînée @ 40 km/h
-                    <InfoTooltip text="Force totale (aéro+roulement) en Newtons à 40 km/h sur le plat, avec la masse saisie." />
-                  </th>
-                  <th className="text-right font-normal">
-                    W/kg
-                    <InfoTooltip text="Puissance moyenne divisée par la masse. Indicateur d'intensité/forme, pas d'aéro." />
-                  </th>
+                  <th className="text-right font-normal">Traînée @ 40</th>
+                  <th className="text-right font-normal">RMSE</th>
                   <th className="text-right font-normal">R²</th>
                 </tr>
               </thead>
               <tbody className="font-mono">
-                {done.map((r) => (
-                  <tr key={r.id} className="border-b border-border/50">
-                    <td className="py-2">{r.name}</td>
-                    <td className="text-right">{r.mass.toFixed(1)} kg</td>
-                    <td className="text-right text-teal">
-                      {r.result!.cda.toFixed(3)}
-                    </td>
-                    <td className="text-right text-teal">
-                      {r.result!.crr.toFixed(4)}
-                    </td>
-                    <td className="text-right">{drag(r).toFixed(1)} N</td>
-                    <td className="text-right">
-                      {(r.result!.avg_power_w / r.mass).toFixed(2)}
-                    </td>
-                    <td
-                      className={`text-right ${
-                        r.result!.r_squared < 0.3 ? "text-coral" : ""
-                      }`}
-                    >
-                      {r.result!.r_squared.toFixed(2)}
+                {aggs.map((a) => (
+                  <tr key={a.rider.id} className="border-b border-border/50">
+                    <td className="py-2">{a.rider.name}</td>
+                    <td className="text-right">{a.nRides}</td>
+                    <td className="text-right">{a.rider.mass.toFixed(0)} kg</td>
+                    <td className="text-right text-teal">{a.cda.toFixed(3)}</td>
+                    <td className="text-right text-teal">{a.crr.toFixed(4)}</td>
+                    <td className="text-right">{drag(a).toFixed(1)} N</td>
+                    <td className="text-right">±{a.rmse.toFixed(0)} W</td>
+                    <td className={`text-right ${a.r2 < 0.3 ? "text-coral" : ""}`}>
+                      {a.r2.toFixed(2)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            {aggs.some((a) => a.nRides > 1) && (
+              <p className="text-xs text-muted mt-2">
+                CdA/Crr/R²/RMSE = moyenne pondérée par le nombre de points
+                valides sur l'ensemble des sorties de chaque cycliste.
+              </p>
+            )}
           </div>
 
           <div>
             <h3 className="text-sm font-semibold mb-3">Positions estimées</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {done.map((r) => (
-                <div key={r.id} className="bg-panel border border-border rounded-lg p-3">
-                  <PositionSchematic
-                    cda={r.result!.cda}
-                    label={r.name}
-                    size={220}
-                  />
+              {aggs.map((a) => (
+                <div key={a.rider.id} className="bg-panel border border-border rounded-lg p-3">
+                  <PositionSchematic cda={a.cda} label={a.rider.name} size={220} />
                 </div>
               ))}
             </div>
@@ -261,18 +359,22 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
   );
 }
 
+/* ---------- sub-components ---------- */
+
 function RankCard({
   icon,
   title,
   tooltip,
   winner,
   metric,
+  sub,
 }: {
   icon: React.ReactNode;
   title: string;
   tooltip: string;
-  winner: RiderEntry;
+  winner: string;
   metric: string;
+  sub?: string;
 }) {
   return (
     <div className="bg-panel border border-teal rounded-lg p-4">
@@ -280,8 +382,9 @@ function RankCard({
         {icon} {title}
         <InfoTooltip text={tooltip} />
       </div>
-      <div className="text-lg font-semibold mt-2">{winner.name}</div>
+      <div className="text-lg font-semibold mt-2">{winner}</div>
       <div className="text-sm text-teal font-mono mt-1">{metric}</div>
+      {sub && <div className="text-xs text-muted mt-1">{sub}</div>}
     </div>
   );
 }
@@ -289,17 +392,43 @@ function RankCard({
 function RiderRow({
   rider,
   index,
+  agg,
   onUpdate,
+  onAddFiles,
+  onRemoveFile,
   onRemove,
 }: {
   rider: RiderEntry;
   index: number;
+  agg: RiderAgg | null;
   onUpdate: (p: Partial<RiderEntry>) => void;
+  onAddFiles: (files: File[]) => void;
+  onRemoveFile: (idx: number) => void;
   onRemove?: () => void;
 }) {
-  const format = rider.file
-    ? rider.file.name.split(".").pop()?.toUpperCase()
-    : null;
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      const files = Array.from(e.dataTransfer.files);
+      onAddFiles(files);
+    },
+    [onAddFiles],
+  );
+
+  const onSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      onAddFiles(Array.from(e.target.files));
+    }
+    e.target.value = "";
+  };
+
+  const doneCount = rider.rides.filter((r) => r.status === "done").length;
+  const loadingCount = rider.rides.filter((r) => r.status === "loading").length;
+
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
       <div className="flex items-center gap-2 mb-3">
@@ -312,6 +441,14 @@ function RiderRow({
           placeholder={`Cycliste ${index + 1}`}
         />
         <div className="flex-1" />
+        {agg && (
+          <span className="text-xs text-teal font-mono">
+            CdA {agg.cda.toFixed(3)} ({agg.nRides} sortie{agg.nRides > 1 ? "s" : ""})
+          </span>
+        )}
+        {loadingCount > 0 && (
+          <Loader2 className="animate-spin text-info" size={14} />
+        )}
         {onRemove && (
           <button onClick={onRemove} className="text-muted hover:text-coral">
             <Trash2 size={16} />
@@ -319,28 +456,73 @@ function RiderRow({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_120px] gap-3">
-        <label className="cursor-pointer">
-          <input
-            type="file"
-            accept=".fit,.gpx,.tcx"
-            className="hidden"
-            onChange={(e) => onUpdate({ file: e.target.files?.[0] || null })}
-          />
-          <div className="border border-dashed border-border rounded px-3 py-2 hover:border-muted flex items-center gap-2 text-sm">
-            <Upload size={14} className="text-muted" />
-            {rider.file ? (
-              <span className="truncate font-mono text-xs">
-                {rider.file.name}{" "}
-                <span className="text-teal">({format})</span>
-              </span>
-            ) : (
-              <span className="text-muted">
-                Déposez un fichier .FIT / .GPX / .TCX
-              </span>
-            )}
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_120px] gap-3">
+        {/* Drop zone */}
+        <div>
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+            onClick={() => inputRef.current?.click()}
+            className={`border-2 border-dashed rounded-lg p-3 cursor-pointer transition text-center ${
+              dragging ? "border-teal bg-teal/5" : "border-border hover:border-muted"
+            }`}
+          >
+            <Upload size={16} className="mx-auto mb-1 text-muted" />
+            <p className="text-xs text-muted">
+              Glissez-déposez un ou plusieurs .FIT / .GPX / .TCX
+            </p>
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".fit,.gpx,.tcx"
+              multiple
+              className="hidden"
+              onChange={onSelect}
+            />
           </div>
-        </label>
+
+          {/* File chips */}
+          {rider.rides.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {rider.rides.map((rd, i) => (
+                <span
+                  key={i}
+                  className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-mono ${
+                    rd.status === "done"
+                      ? "bg-teal/10 text-teal"
+                      : rd.status === "error"
+                        ? "bg-coral/10 text-coral"
+                        : rd.status === "loading"
+                          ? "bg-info/10 text-info"
+                          : "bg-bg text-muted"
+                  }`}
+                >
+                  <FileText size={11} />
+                  {rd.file.name.length > 25
+                    ? rd.file.name.slice(0, 22) + "…"
+                    : rd.file.name}
+                  {rd.status === "done" && rd.result && (
+                    <span className="opacity-60">
+                      CdA {rd.result.cda.toFixed(3)}
+                    </span>
+                  )}
+                  {rd.status === "loading" && (
+                    <Loader2 className="animate-spin" size={10} />
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onRemoveFile(i); }}
+                    className="hover:text-coral"
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Mass input */}
         <div>
           <label className="block text-xs text-muted mb-1">Masse (kg)</label>
           <input
@@ -352,25 +534,6 @@ function RiderRow({
             min={30}
             max={200}
           />
-        </div>
-        <div>
-          <label className="block text-xs text-muted mb-1">Statut</label>
-          <div className="text-sm h-[30px] flex items-center">
-            {rider.status === "loading" && (
-              <span className="flex items-center gap-1 text-info">
-                <Loader2 className="animate-spin" size={14} /> Analyse
-              </span>
-            )}
-            {rider.status === "done" && (
-              <span className="text-teal">
-                CdA {rider.result!.cda.toFixed(3)}
-              </span>
-            )}
-            {rider.status === "error" && (
-              <span className="text-coral text-xs">{rider.error}</span>
-            )}
-            {rider.status === "idle" && <span className="text-muted">—</span>}
-          </div>
         </div>
       </div>
     </div>

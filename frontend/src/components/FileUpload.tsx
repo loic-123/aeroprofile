@@ -43,7 +43,7 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
 
   const submit = () => {
     if (files.length === 0 || !mass) return;
-    const crr = crrFixed ? parseFloat(crrFixed) : null;
+    const crr = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : null;
     onAnalyze(files, mass, { crr_fixed: crr, eta, wind_height_factor: windFactor });
   };
 

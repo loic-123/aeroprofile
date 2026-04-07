@@ -7,12 +7,22 @@
 import type { AnalysisResult } from "../types";
 
 const CACHE_PREFIX = "aeroprofile_cache_";
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 
-function fileKey(file: File): string {
-  // Deterministic key from file metadata (name + size + lastModified)
-  const raw = `${CACHE_VERSION}:${file.name}:${file.size}:${file.lastModified}`;
-  // Simple hash (djb2)
+export interface CacheOpts {
+  mass_kg: number;
+  crr_fixed?: number | null;
+  eta?: number;
+  wind_height_factor?: number;
+}
+
+function fileKey(file: File, opts?: CacheOpts): string {
+  // Include analysis options in the key so different mass/crr/eta give
+  // different cache entries (not stale results from a previous config).
+  const optsStr = opts
+    ? `:m${opts.mass_kg}:crr${opts.crr_fixed ?? "auto"}:eta${opts.eta ?? "def"}:wf${opts.wind_height_factor ?? "def"}`
+    : "";
+  const raw = `${CACHE_VERSION}:${file.name}:${file.size}:${file.lastModified}${optsStr}`;
   let h = 5381;
   for (let i = 0; i < raw.length; i++) {
     h = ((h << 5) + h + raw.charCodeAt(i)) & 0xffffffff;
@@ -20,9 +30,9 @@ function fileKey(file: File): string {
   return CACHE_PREFIX + h.toString(36);
 }
 
-export function getCached(file: File): AnalysisResult | null {
+export function getCached(file: File, opts?: CacheOpts): AnalysisResult | null {
   try {
-    const key = fileKey(file);
+    const key = fileKey(file, opts);
     const raw = localStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
@@ -36,9 +46,9 @@ export function getCached(file: File): AnalysisResult | null {
   }
 }
 
-export function setCache(file: File, result: AnalysisResult): void {
+export function setCache(file: File, result: AnalysisResult, opts?: CacheOpts): void {
   try {
-    const key = fileKey(file);
+    const key = fileKey(file, opts);
     localStorage.setItem(key, JSON.stringify(result));
   } catch {
     // localStorage full or unavailable — silently ignore

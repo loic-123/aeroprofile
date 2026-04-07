@@ -6,7 +6,7 @@ import BlogIndex from "./pages/BlogIndex";
 import { ARTICLES } from "./pages/articles";
 import { BlogProvider } from "./components/BlogLayout";
 import { analyze } from "./api/client";
-import { getCached, setCache } from "./api/cache";
+import { getCached, setCache, type CacheOpts } from "./api/cache";
 import type { AnalysisResult } from "./types";
 import { Wind, Users, User, FileText, Loader2, BookOpen, Database } from "lucide-react";
 import InfoTooltip from "./components/InfoTooltip";
@@ -46,23 +46,26 @@ export default function App() {
     setTotalFiles(files.length);
     setDoneCount(0);
 
+    const cacheOpts: CacheOpts = {
+      mass_kg,
+      crr_fixed: opts.crr_fixed,
+      eta: opts.eta,
+      wind_height_factor: opts.wind_height_factor,
+    };
     const results: RideAnalysis[] = [];
-    let cached = 0;
     for (let fi = 0; fi < files.length; fi++) {
       const file = files[fi];
-      // Check local cache first (same filename + size + lastModified = same file)
-      const fromCache = getCached(file);
+      // Check local cache (keyed by file + mass + crr + eta + wind)
+      const fromCache = getCached(file, cacheOpts);
       if (fromCache) {
         const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
         results.push({ file, result: fromCache, excluded: nrmse > MAX_NRMSE });
-        cached++;
       } else {
         try {
           const res = await analyze({ file, mass_kg, ...opts });
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
           results.push({ file, result: res, excluded: nrmse > MAX_NRMSE });
-          // Save to local cache for next time
-          setCache(file, res);
+          setCache(file, res, cacheOpts);
         } catch (e: any) {
           results.push({ file, error: e.message || String(e), excluded: true });
         }

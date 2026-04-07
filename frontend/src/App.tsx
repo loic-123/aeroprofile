@@ -342,7 +342,21 @@ export default function App() {
 
                 {/* Detail view of selected ride */}
                 {selectedResult && (
-                  <ResultsDashboard result={selectedResult} />
+                  <>
+                    {isMulti && (
+                      <div className="bg-panel border border-border rounded-lg px-4 py-2 mb-4 flex items-center gap-2 text-sm">
+                        <FileText size={14} className="text-muted" />
+                        <span className="text-muted">Détail de :</span>
+                        <span className="font-mono text-teal">
+                          {rides[selectedIdx]?.file?.name}
+                        </span>
+                        <span className="text-muted text-xs">
+                          — cliquez sur un autre chip ✓ pour changer
+                        </span>
+                      </div>
+                    )}
+                    <ResultsDashboard result={selectedResult} />
+                  </>
                 )}
 
               </>

@@ -1,9 +1,9 @@
 import { useState, useRef } from "react";
-import { Upload, Loader2, ChevronDown, ChevronRight } from "lucide-react";
+import { Upload, Loader2, ChevronDown, ChevronRight, FileText, X } from "lucide-react";
 
 interface Props {
   onAnalyze: (
-    file: File,
+    files: File[],
     mass_kg: number,
     opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number },
   ) => void;
@@ -12,29 +12,40 @@ interface Props {
 }
 
 export default function FileUpload({ onAnalyze, loading, error }: Props) {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [mass, setMass] = useState<number>(80);
   const [advanced, setAdvanced] = useState(false);
-  const [eta, setEta] = useState(0.976);
+  const [eta, setEta] = useState(0.977);
   const [crrFixed, setCrrFixed] = useState<string>("");
   const [windFactor, setWindFactor] = useState(0.7);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const addFiles = (newFiles: File[]) => {
+    const accepted = newFiles.filter((f) => /\.(fit|gpx|tcx)$/i.test(f.name));
+    setFiles((prev) => [...prev, ...accepted]);
+  };
+
+  const removeFile = (idx: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f) setFile(f);
+    addFiles(Array.from(e.dataTransfer.files));
+  };
+
+  const onSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) addFiles(Array.from(e.target.files));
+    e.target.value = "";
   };
 
   const submit = () => {
-    if (!file || !mass) return;
+    if (files.length === 0 || !mass) return;
     const crr = crrFixed ? parseFloat(crrFixed) : null;
-    onAnalyze(file, mass, { crr_fixed: crr, eta, wind_height_factor: windFactor });
+    onAnalyze(files, mass, { crr_fixed: crr, eta, wind_height_factor: windFactor });
   };
-
-  const format = file ? file.name.split(".").pop()?.toUpperCase() : null;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -51,26 +62,45 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
         }`}
       >
         <Upload className="mx-auto mb-3 text-muted" size={32} />
-        {file ? (
-          <div>
-            <p className="font-mono text-sm">{file.name}</p>
-            <p className="text-muted text-xs mt-1">
-              Format détecté : <span className="text-teal">{format}</span>
-            </p>
-          </div>
-        ) : (
-          <p className="text-muted">
-            Déposez un fichier .FIT / .GPX / .TCX ou cliquez pour sélectionner
-          </p>
-        )}
+        <p className="text-muted">
+          Déposez un ou <strong>plusieurs</strong> fichiers .FIT / .GPX / .TCX
+        </p>
+        <p className="text-muted text-xs mt-1">
+          Plusieurs sorties = résultat moyenné plus précis (les mauvaises sont
+          exclues automatiquement)
+        </p>
         <input
           ref={inputRef}
           type="file"
           accept=".fit,.gpx,.tcx"
+          multiple
           className="hidden"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          onChange={onSelect}
         />
       </div>
+
+      {files.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-3">
+          {files.map((f, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-mono bg-panel border border-border text-text"
+            >
+              <FileText size={11} />
+              {f.name.length > 30 ? f.name.slice(0, 27) + "…" : f.name}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeFile(i);
+                }}
+                className="text-muted hover:text-coral ml-1"
+              >
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="mt-6 bg-panel border border-border rounded-lg p-5">
         <label className="block text-sm mb-1">
@@ -143,14 +173,17 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
 
       <button
         onClick={submit}
-        disabled={!file || loading}
+        disabled={files.length === 0 || loading}
         className="mt-6 w-full bg-teal hover:bg-teal/90 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2"
       >
         {loading ? (
           <>
             <Loader2 className="animate-spin" size={18} />
-            Analyse en cours…
+            Analyse en cours…{" "}
+            {files.length > 1 && `(${files.length} fichiers)`}
           </>
+        ) : files.length > 1 ? (
+          `Analyser ${files.length} sorties`
         ) : (
           "Analyser"
         )}

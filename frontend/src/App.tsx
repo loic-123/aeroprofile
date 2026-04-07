@@ -37,7 +37,7 @@ export default function App() {
   const handleAnalyze = async (
     files: File[],
     mass_kg: number,
-    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number },
+    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean },
   ) => {
     setLoading(true);
     setError(null);
@@ -56,7 +56,7 @@ export default function App() {
     for (let fi = 0; fi < files.length; fi++) {
       const file = files[fi];
       // Check local cache (keyed by file + mass + crr + eta + wind)
-      const fromCache = getCached(file, cacheOpts);
+      const fromCache = opts.useCache !== false ? getCached(file, cacheOpts) : null;
       if (fromCache) {
         const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
         results.push({ file, result: fromCache, excluded: nrmse > MAX_NRMSE });

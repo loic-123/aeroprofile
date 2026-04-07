@@ -5,7 +5,7 @@ interface Props {
   onAnalyze: (
     files: File[],
     mass_kg: number,
-    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number },
+    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean },
   ) => void;
   loading: boolean;
   error: string | null;
@@ -18,6 +18,7 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
   const [eta, setEta] = useState(0.977);
   const [crrFixed, setCrrFixed] = useState<string>("");
   const [windFactor, setWindFactor] = useState(0.7);
+  const [useCache, setUseCache] = useState(true);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -44,7 +45,7 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
   const submit = () => {
     if (files.length === 0 || !mass) return;
     const crr = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : null;
-    onAnalyze(files, mass, { crr_fixed: crr, eta, wind_height_factor: windFactor });
+    onAnalyze(files, mass, { crr_fixed: crr, eta, wind_height_factor: windFactor, useCache });
   };
 
   return (
@@ -160,6 +161,24 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
                 min={0.3}
                 max={1.0}
               />
+            </div>
+            <div className="col-span-3 flex items-center gap-2 mt-1">
+              <button
+                type="button"
+                onClick={() => setUseCache(!useCache)}
+                className={`relative w-9 h-5 rounded-full transition-colors ${
+                  useCache ? "bg-teal" : "bg-border"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                    useCache ? "translate-x-4" : ""
+                  }`}
+                />
+              </button>
+              <label className="text-xs text-muted">
+                Cache local {useCache ? "(activé — résultats instantanés si déjà analysé)" : "(désactivé — re-analyse tout)"}
+              </label>
             </div>
           </div>
         )}

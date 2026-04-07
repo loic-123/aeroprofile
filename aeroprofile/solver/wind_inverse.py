@@ -57,8 +57,8 @@ def solve_with_wind(
     segment_minutes: float = 30.0,
     min_heading_variance: float = 0.25,
     wind_prior_sigma_ms: float = 2.0,
-    crr_prior_mean: float = 0.004,
-    crr_prior_sigma: float = 0.0015,
+    crr_prior_mean: float = 0.0035,
+    crr_prior_sigma: float = 0.0012,
 ):
     """Jointly estimate (CdA, Crr, wind_per_segment) via Chung VE.
 

@@ -110,8 +110,8 @@ def solve_chung_ve(
     mass: float,
     eta: float = ETA_DEFAULT,
     crr_fixed: float | None = None,
-    crr_prior_mean: float | None = 0.004,
-    crr_prior_sigma: float | None = 0.0015,
+    crr_prior_mean: float | None = 0.0035,
+    crr_prior_sigma: float | None = 0.0012,
     cda_prior_mean: float | None = 0.30,
     cda_prior_sigma: float | None = 0.12,
 ) -> ChungResult:

@@ -277,6 +277,9 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
     return 0.5 * a.cda * 1.2 * v * v + a.crr * a.rider.mass * 9.80665;
   };
   const mostEfficient = aggs.length >= 2 ? [...aggs].sort((a, b) => drag(a) - drag(b))[0] : null;
+  const bestWCda = aggs.length >= 2
+    ? [...aggs].sort((a, b) => b.avgPower / b.cda - a.avgPower / a.cda)[0]
+    : null;
 
   // Drafting warning
   let draftWarning: { drafter: string; puller: string; cdaGap: number } | null = null;
@@ -363,7 +366,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
 
       {aggs.length >= 2 && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             {bestAero && (
               <RankCard
                 icon={<Wind className="text-teal" size={18} />}
@@ -385,6 +388,16 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                 tooltip="Crr le plus bas."
                 winner={bestRolling.rider.name}
                 metric={`Crr = ${bestRolling.crr.toFixed(4)}`}
+              />
+            )}
+            {bestWCda && (
+              <RankCard
+                icon={<Wind className="text-teal" size={18} />}
+                title="Meilleur W/CdA"
+                tooltip="W/CdA = puissance moyenne / CdA. Le rouleur le plus rapide sur le plat : combine fitness (watts) et aéro (CdA bas). Analogue du W/kg pour le plat."
+                winner={bestWCda.rider.name}
+                metric={`${(bestWCda.avgPower / bestWCda.cda).toFixed(0)} W/CdA`}
+                sub={`→ ${(Math.pow(2 * bestWCda.avgPower / (bestWCda.cda * 1.2), 1/3) * 3.6).toFixed(1)} km/h théorique`}
               />
             )}
             {mostEfficient && (
@@ -412,6 +425,14 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                   </th>
                   <th className="text-right font-normal">Crr</th>
                   <th className="text-right font-normal">Traînée @ 40</th>
+                  <th className="text-right font-normal">
+                    W/CdA
+                    <InfoTooltip text="Puissance moyenne / CdA = capacité à aller vite sur le plat. L'analogue aéro du W/kg pour la montagne. Plus c'est haut, plus le cycliste va vite à plat. 300 ≈ 33 km/h, 500 ≈ 39 km/h, 700 ≈ 44 km/h (plat, sans vent, ρ=1.2)." />
+                  </th>
+                  <th className="text-right font-normal">
+                    V_plat
+                    <InfoTooltip text="Vitesse théorique sur le plat sans vent, calculée depuis W/CdA : V = (2 × P / (CdA × ρ))^(1/3). Utilise ρ = 1.2 kg/m³ (niveau de la mer, 15°C)." />
+                  </th>
                   <th className="text-right font-normal">
                     Qualité
                     <InfoTooltip text="nRMSE = RMSE / puissance moyenne. Mesure l'erreur relative du modèle, indépendante de la variabilité de la sortie. < 15% = excellent, 15-25% = correct, > 25% = mauvais (ride exclue de la moyenne)." />
@@ -441,6 +462,12 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                     </td>
                     <td className="text-right text-teal">{a.crr.toFixed(4)}</td>
                     <td className="text-right">{drag(a).toFixed(1)} N</td>
+                    <td className="text-right text-info">
+                      {(a.avgPower / a.cda).toFixed(0)}
+                    </td>
+                    <td className="text-right text-info">
+                      {(Math.pow(2 * a.avgPower / (a.cda * 1.2), 1/3) * 3.6).toFixed(1)} km/h
+                    </td>
                     <td className="text-right">
                       <span className={
                         a.nrmse < 0.30

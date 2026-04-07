@@ -24,7 +24,7 @@ import numpy as np
 from scipy.optimize import least_squares
 
 from aeroprofile.physics.constants import G, ETA_DEFAULT
-from aeroprofile.physics.wind import compute_v_air
+from aeroprofile.physics.wind import compute_v_air, cda_yaw_correction
 
 
 def _heading_variance(bearing_deg: np.ndarray) -> float:
@@ -34,9 +34,10 @@ def _heading_variance(bearing_deg: np.ndarray) -> float:
 
 
 def _virtual_elevation_vec(V, V_air, rho, P, dt, CdA, Crr, mass, eta,
-                           block_starts):
+                           block_starts, cda_yaw_factor=None):
+    CdA_eff = CdA * cda_yaw_factor if cda_yaw_factor is not None else CdA
     E_in = P * eta * dt
-    E_aero = 0.5 * CdA * rho * np.sign(V_air) * V_air * V_air * V * dt
+    E_aero = 0.5 * CdA_eff * rho * np.sign(V_air) * V_air * V_air * V * dt
     E_roll = Crr * mass * G * V * dt
     v_prev = np.concatenate(([V[0]], V[:-1]))
     E_kin = 0.5 * mass * (V * V - v_prev * v_prev)
@@ -125,7 +126,8 @@ def solve_with_wind(
         wind_uv = x[idx:].reshape(n_seg, 2)
         return cda, crr, wind_uv
 
-    def _v_air_from_uv(wind_uv):
+    def _wind_from_uv(wind_uv):
+        """Return (v_air, yaw_factor) from per-segment wind u/v."""
         u_pts = np.empty(n)
         v_pts = np.empty(n)
         for s in range(n_seg):
@@ -134,7 +136,15 @@ def solve_with_wind(
             v_pts[mask] = wind_uv[s, 1]
         ws = np.sqrt(u_pts ** 2 + v_pts ** 2)
         wd = (np.degrees(np.arctan2(-u_pts, -v_pts)) + 360.0) % 360.0
-        return compute_v_air(V, bearing, ws, wd, wind_height_factor=1.0)
+        v_air = compute_v_air(V, bearing, ws, wd, wind_height_factor=1.0)
+        # Yaw angle: crosswind / apparent wind
+        crosswind = ws * np.sin(np.radians(wd - bearing))
+        headwind = ws * np.cos(np.radians(wd - bearing))
+        v_along = V + headwind
+        yaw_deg = np.degrees(np.arctan2(np.abs(crosswind), np.abs(v_along)))
+        yaw_deg = np.clip(yaw_deg, 0.0, 90.0)
+        yaw_fac = cda_yaw_correction(yaw_deg)
+        return v_air, yaw_fac
 
     def _block_aligned_residuals(ve, target, block_starts):
         """Per-block baseline alignment so cross-gap drift isn't penalised."""
@@ -153,9 +163,9 @@ def solve_with_wind(
 
     def residuals(x):
         cda, crr, wind_uv = _unpack(x)
-        v_air = _v_air_from_uv(wind_uv)
+        v_air, yaw_fac = _wind_from_uv(wind_uv)
         ve = _virtual_elevation_vec(V, v_air, rho, P, dt, cda, crr, mass, eta,
-                                    block_starts)
+                                    block_starts, cda_yaw_factor=yaw_fac)
         target = alt_real - alt_real[0]
         res_alt = _block_aligned_residuals(ve, target, block_starts)
 
@@ -210,11 +220,12 @@ def solve_with_wind(
         return None
 
     cda, crr, wind_uv = _unpack(best.x)
-    v_air_solved = _v_air_from_uv(wind_uv)
+    v_air_solved, yaw_fac_final = _wind_from_uv(wind_uv)
 
     # R² on altitude reconstruction
     ve_final = _virtual_elevation_vec(V, v_air_solved, rho, P, dt,
-                                      cda, crr, mass, eta, block_starts)
+                                      cda, crr, mass, eta, block_starts,
+                                      cda_yaw_factor=yaw_fac_final)
     target = alt_real - alt_real[0]
     res_alt = _block_aligned_residuals(ve_final, target, block_starts)
     ss_res = float(np.sum(res_alt ** 2))

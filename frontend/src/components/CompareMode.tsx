@@ -670,44 +670,41 @@ function RiderRow({
                     ? (rd.result.rmse_w || 0) / Math.max(rd.result.avg_power_w, 1)
                     : 0;
                 const isExcluded = rd.status === "done" && rd.result && nrmse > MAX_NRMSE;
-                // Debug: log chip state
-                if (rd.status === "done") {
-                  console.log(`[chip] ${rd.file.name}: status=${rd.status} nrmse=${(nrmse*100).toFixed(0)}% excluded=${isExcluded} cda=${rd.result?.cda?.toFixed(3)}`);
-                }
+                const isBad = rd.status === "error" || isExcluded;
+                const tooltip = rd.status === "error"
+                  ? `Erreur : ${rd.error || "analyse échouée"}`
+                  : isExcluded && rd.result
+                    ? `Exclue (nRMSE ${(nrmse * 100).toFixed(0)}% > 60% — modèle non fiable)`
+                    : rd.status === "done" && rd.result
+                      ? `CdA ${rd.result.cda.toFixed(3)} • nRMSE ${(nrmse * 100).toFixed(0)}%`
+                      : undefined;
                 return (
                 <span
                   key={i}
-                  title={
-                    isExcluded
-                      ? `Exclue de la moyenne (nRMSE ${((rd.result!.rmse_w / Math.max(rd.result!.avg_power_w, 1)) * 100).toFixed(0)}% > 60%)`
-                      : undefined
-                  }
+                  title={tooltip}
                   className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-mono ${
-                    rd.status === "error"
-                      ? "bg-red-900/30 text-red-400 border border-red-800"
-                      : isExcluded
-                        ? "bg-red-900/20 text-red-400/60 line-through border border-red-900/40"
-                        : rd.status === "done"
-                          ? "bg-emerald-900/30 text-emerald-400 border border-emerald-800"
-                          : rd.status === "loading"
-                            ? "bg-blue-900/30 text-blue-400 border border-blue-800"
-                            : "bg-bg text-muted border border-border"
+                    isBad
+                      ? "bg-red-900/20 text-red-400/60 line-through border border-red-900/40"
+                      : rd.status === "done"
+                        ? "bg-emerald-900/30 text-emerald-400 border border-emerald-800"
+                        : rd.status === "loading"
+                          ? "bg-blue-900/30 text-blue-400 border border-blue-800"
+                          : "bg-bg text-muted border border-border"
                   }`}
                 >
-                  {rd.status === "done" && !isExcluded && <span className="text-emerald-400">✓</span>}
-                  {isExcluded && <span className="text-red-400">✗</span>}
-                  {rd.status === "error" && <span className="text-red-400">⚠</span>}
+                  {rd.status === "done" && !isBad && <span>✓</span>}
+                  {isBad && <span>✗</span>}
                   {rd.status === "loading" && <Loader2 className="animate-spin text-blue-400" size={10} />}
                   <FileText size={11} />
                   {rd.file.name.length > 25
                     ? rd.file.name.slice(0, 22) + "…"
                     : rd.file.name}
-                  {rd.status === "done" && rd.result && !isExcluded && (
+                  {rd.status === "done" && rd.result && !isBad && (
                     <span className="opacity-70">
                       CdA {rd.result.cda.toFixed(3)}
                     </span>
                   )}
-                  {isExcluded && rd.result && (
+                  {isBad && (
                     <span className="opacity-40">excl.</span>
                   )}
                   <button
@@ -723,13 +720,13 @@ function RiderRow({
               {rider.rides.some((r) => r.status === "done") && (
                 <div className="w-full flex gap-4 mt-1.5 text-[10px] text-muted">
                   <span className="flex items-center gap-1">
-                    <span className="inline-block w-2 h-2 rounded-full bg-teal" /> Retenue
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> ✓ Retenue
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="inline-block w-2 h-2 rounded-full bg-coral" /> Exclue (nRMSE &gt; 60%)
+                    <span className="inline-block w-2 h-2 rounded-full bg-red-500" /> ✗ Exclue (erreur ou nRMSE &gt; 60%)
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="inline-block w-2 h-2 rounded-full bg-info" /> En cours
+                    <span className="inline-block w-2 h-2 rounded-full bg-blue-500" /> En cours
                   </span>
                 </div>
               )}

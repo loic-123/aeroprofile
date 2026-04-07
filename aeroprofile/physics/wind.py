@@ -107,17 +107,16 @@ def compute_yaw_angle(
     return np.clip(yaw, 0.0, 90.0)
 
 
-def cda_yaw_correction(yaw_deg: np.ndarray, k: float = 0.0035) -> np.ndarray:
+def cda_yaw_correction(yaw_deg: np.ndarray, k: float = 0.0005) -> np.ndarray:
     """Multiplicative correction to CdA from yaw angle.
 
     CdA_effective = CdA_0 × (1 + k × yaw²)
 
     Per Crouch, Burton et al. (2014), CdA increases roughly quadratically
-    with yaw angle. k ≈ 0.0035 gives ~3.5% increase at 10° yaw and ~14%
-    at 20° yaw, consistent with wind-tunnel measurements.
-
-    The solver estimates CdA_0 (zero-yaw CdA) and this function converts
-    to the effective CdA at each point.
+    with yaw angle up to ~15°. At 10° yaw the increase is ~5%, at 20°
+    about ~20%. k = 0.0005 matches wind-tunnel data:
+      10° → 1 + 0.0005 × 100 = 1.05 (+5%)
+      20° → 1 + 0.0005 × 400 = 1.20 (+20%)
     """
     yaw = np.asarray(yaw_deg, dtype=float)
     return 1.0 + k * yaw * yaw

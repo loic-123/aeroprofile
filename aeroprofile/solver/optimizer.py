@@ -100,6 +100,7 @@ def solve_cda_crr(
     accel = valid["acceleration"].to_numpy()
     rho = valid["rho"].to_numpy()
     P = valid["power"].to_numpy()
+    yaw_factor = valid["cda_yaw_factor"].to_numpy() if "cda_yaw_factor" in valid.columns else None
     n_data = len(P)
 
     use_crr_prior = (
@@ -118,7 +119,8 @@ def solve_cda_crr(
         # 1D optimisation over CdA only
         def res1(x):
             return residual_power(
-                (x[0], crr_fixed), V_ground, V_air, gradient, accel, mass, rho, P, eta
+                (x[0], crr_fixed), V_ground, V_air, gradient, accel, mass, rho, P, eta,
+                cda_yaw_factor=yaw_factor,
             )
 
         starts = [(0.25,), (0.35,), (0.45,)]
@@ -165,7 +167,8 @@ def solve_cda_crr(
     prior_weight_w = 3.0  # ~3 W of "prior uncertainty"
 
     def residuals_with_prior(x):
-        base = residual_power(x, V_ground, V_air, gradient, accel, mass, rho, P, eta)
+        base = residual_power(x, V_ground, V_air, gradient, accel, mass, rho, P, eta,
+                              cda_yaw_factor=yaw_factor)
         extras = []
         if use_crr_prior:
             extras.append(prior_weight_w * crr_arm * (x[1] - crr_prior_mean) / crr_prior_sigma)

@@ -37,6 +37,7 @@ def power_model(
     include_bearings: bool = True,
     include_wheel_inertia: bool = True,
     variable_eta: bool = True,
+    cda_yaw_factor=None,
 ):
     """Modelled measured power (W). Vectorised, per Martin et al. 1998.
 
@@ -58,7 +59,13 @@ def power_model(
     rho = np.asarray(rho, dtype=float)
 
     theta = np.arctan(gradient)
-    P_aero = 0.5 * CdA * rho * np.sign(V_air) * V_air * V_air * V_ground
+    # If yaw correction factors are provided, CdA becomes per-point:
+    # CdA_eff = CdA_0 × yaw_factor (where CdA_0 is the solver's estimate
+    # and yaw_factor accounts for crosswind-induced drag increase).
+    CdA_eff = CdA
+    if cda_yaw_factor is not None:
+        CdA_eff = CdA * np.asarray(cda_yaw_factor, dtype=float)
+    P_aero = 0.5 * CdA_eff * rho * np.sign(V_air) * V_air * V_air * V_ground
     P_roll = Crr * mass * G * np.cos(theta) * V_ground
     P_grav = mass * G * np.sin(theta) * V_ground
 
@@ -87,8 +94,10 @@ def residual_power(
     rho,
     P_measured,
     eta: float = ETA_DEFAULT,
+    cda_yaw_factor=None,
 ):
     """Residuals vector (P_model − P_measured) for scipy.optimize.least_squares."""
     CdA, Crr = params
-    P_model = power_model(V_ground, V_air, gradient, acceleration, mass, CdA, Crr, rho, eta)
+    P_model = power_model(V_ground, V_air, gradient, acceleration, mass, CdA, Crr, rho, eta,
+                          cda_yaw_factor=cda_yaw_factor)
     return P_model - np.asarray(P_measured, dtype=float)

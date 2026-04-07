@@ -128,7 +128,24 @@ def apply_filters(
         # CdA < 0.12 at 30+ km/h while pedalling hard = physically impossible
         # solo (even pro TT is ~0.17). Below that = certain drafting or data error.
         fast_flat_pedalling = (v > 8.0) & (np.abs(grad) < 0.02) & (p > 100.0)
-        df["filter_drafting"] = fast_flat_pedalling & (cda_inst < drafting_cda_threshold) & (cda_inst > 0)
+        raw_draft = fast_flat_pedalling & (cda_inst < drafting_cda_threshold) & (cda_inst > 0)
+        # A real drafting stint lasts at least 30 seconds — isolated low-CdA
+        # points are noise, not drafting. Keep only contiguous blocks ≥ 30 s.
+        draft_clean = np.array(raw_draft, dtype=bool, copy=True)
+        i = 0
+        while i < n:
+            if not draft_clean[i]:
+                i += 1
+                continue
+            j = i
+            block_dur = 0.0
+            while j < n and draft_clean[j]:
+                block_dur += dt[j] if dt[j] > 0 else 0.0
+                j += 1
+            if block_dur < 30.0:
+                draft_clean[i:j] = False
+            i = j
+        df["filter_drafting"] = draft_clean
     else:
         df["filter_drafting"] = np.zeros(n, dtype=bool)
 

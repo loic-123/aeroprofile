@@ -6,10 +6,12 @@ import BlogIndex from "./pages/BlogIndex";
 import { ARTICLES } from "./pages/articles";
 import { BlogProvider } from "./components/BlogLayout";
 import { analyze } from "./api/client";
+import { getCached, setCache } from "./api/cache";
 import type { AnalysisResult } from "./types";
-import { Wind, Users, User, FileText, Loader2, BookOpen } from "lucide-react";
+import { Wind, Users, User, FileText, Loader2, BookOpen, Database } from "lucide-react";
 import InfoTooltip from "./components/InfoTooltip";
 import CdAEvolutionChart from "./components/CdAEvolutionChart";
+import CdARunningAvgChart from "./components/CdARunningAvgChart";
 
 type Mode = "single" | "compare" | "blog";
 
@@ -45,14 +47,25 @@ export default function App() {
     setDoneCount(0);
 
     const results: RideAnalysis[] = [];
+    let cached = 0;
     for (let fi = 0; fi < files.length; fi++) {
       const file = files[fi];
-      try {
-        const res = await analyze({ file, mass_kg, ...opts });
-        const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
-        results.push({ file, result: res, excluded: nrmse > MAX_NRMSE });
-      } catch (e: any) {
-        results.push({ file, error: e.message || String(e), excluded: true });
+      // Check local cache first (same filename + size + lastModified = same file)
+      const fromCache = getCached(file);
+      if (fromCache) {
+        const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
+        results.push({ file, result: fromCache, excluded: nrmse > MAX_NRMSE });
+        cached++;
+      } else {
+        try {
+          const res = await analyze({ file, mass_kg, ...opts });
+          const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
+          results.push({ file, result: res, excluded: nrmse > MAX_NRMSE });
+          // Save to local cache for next time
+          setCache(file, res);
+        } catch (e: any) {
+          results.push({ file, error: e.message || String(e), excluded: true });
+        }
       }
       setDoneCount(fi + 1);
       setRides([...results]);
@@ -220,7 +233,7 @@ export default function App() {
                     </div>
                     <p className="text-xs text-muted mt-1.5">
                       {doneCount < totalFiles
-                        ? `Fichier en cours : ${totalFiles - doneCount} restant${totalFiles - doneCount > 1 ? "s" : ""}`
+                        ? `${totalFiles - doneCount} restant${totalFiles - doneCount > 1 ? "s" : ""}…`
                         : "Finalisation…"
                       }
                     </p>
@@ -323,9 +336,18 @@ export default function App() {
                   </div>
                 )}
 
-                {/* CdA evolution over time (multi-ride) */}
+                {/* CdA convergence + evolution (multi-ride) */}
                 {isMulti && goodRides.length >= 2 && (
-                  <div className="mb-6">
+                  <div className="mb-6 space-y-4">
+                    <CdARunningAvgChart
+                      rides={goodRides.map((r) => ({
+                        date: r.result!.ride_date,
+                        cda: r.result!.cda,
+                        nrmse: (r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1),
+                        fileName: r.file.name,
+                      }))}
+                      aggCda={aggCda}
+                    />
                     <CdAEvolutionChart
                       riders={[{
                         name: "CdA",

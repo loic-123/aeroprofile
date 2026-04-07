@@ -2,12 +2,15 @@ import { useState } from "react";
 import FileUpload from "./components/FileUpload";
 import ResultsDashboard from "./components/ResultsDashboard";
 import CompareMode from "./components/CompareMode";
+import BlogIndex from "./pages/BlogIndex";
+import { ARTICLES } from "./pages/articles";
+import { BlogProvider } from "./components/BlogLayout";
 import { analyze } from "./api/client";
 import type { AnalysisResult } from "./types";
-import { Wind, Users, User, FileText, Loader2 } from "lucide-react";
+import { Wind, Users, User, FileText, Loader2, BookOpen } from "lucide-react";
 import InfoTooltip from "./components/InfoTooltip";
 
-type Mode = "single" | "compare";
+type Mode = "single" | "compare" | "blog";
 
 const MAX_NRMSE = 0.60;
 
@@ -24,6 +27,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIdx, setSelectedIdx] = useState<number>(0);
+  const [blogSlug, setBlogSlug] = useState<string | null>(null);
 
   const handleAnalyze = async (
     files: File[],
@@ -137,11 +141,30 @@ export default function App() {
           >
             <Users size={14} /> Comparer
           </button>
+          <button
+            onClick={() => {
+              setMode("blog");
+              setBlogSlug(null);
+            }}
+            className={`px-3 py-1.5 text-sm flex items-center gap-2 ${
+              mode === "blog" ? "bg-teal text-white" : "text-muted"
+            }`}
+          >
+            <BookOpen size={14} /> Méthodo
+          </button>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-6">
-        {mode === "compare" ? (
+        {mode === "blog" ? (
+          <BlogProvider value={{ slug: blogSlug, go: setBlogSlug }}>
+            {blogSlug && ARTICLES[blogSlug] ? (
+              (() => { const Comp = ARTICLES[blogSlug]; return <Comp />; })()
+            ) : (
+              <BlogIndex />
+            )}
+          </BlogProvider>
+        ) : mode === "compare" ? (
           <CompareMode onBack={() => setMode("single")} />
         ) : (
           <>

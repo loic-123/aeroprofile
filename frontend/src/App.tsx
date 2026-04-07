@@ -9,6 +9,7 @@ import { analyze } from "./api/client";
 import type { AnalysisResult } from "./types";
 import { Wind, Users, User, FileText, Loader2, BookOpen } from "lucide-react";
 import InfoTooltip from "./components/InfoTooltip";
+import CdAEvolutionChart from "./components/CdAEvolutionChart";
 
 type Mode = "single" | "compare" | "blog";
 
@@ -76,6 +77,7 @@ export default function App() {
   let aggCrr: number | null = null;
   let aggCdaLow: number | null = null;
   let aggCdaHigh: number | null = null;
+  let aggPower: number | null = null;
   if (goodRides.length >= 1) {
     const nrmses = goodRides.map((r) =>
       Math.max((r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1), 0.01)
@@ -83,7 +85,7 @@ export default function App() {
     const bestN = Math.min(...nrmses);
     const worstN = Math.max(...nrmses);
     const span = worstN - bestN;
-    let totalW = 0, sumCda = 0, sumCrr = 0;
+    let totalW = 0, sumCda = 0, sumCrr = 0, sumPow = 0;
     for (let j = 0; j < goodRides.length; j++) {
       const res = goodRides[j].result!;
       const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
@@ -91,9 +93,11 @@ export default function App() {
       totalW += w;
       sumCda += res.cda * w;
       sumCrr += res.crr * w;
+      sumPow += res.avg_power_w * w;
     }
     aggCda = sumCda / totalW;
     aggCrr = sumCrr / totalW;
+    aggPower = sumPow / totalW;
     if (goodRides.length >= 2) {
       const cdas = goodRides.map((r) => r.result!.cda);
       let wVar = 0;
@@ -209,12 +213,33 @@ export default function App() {
                           )}
                         </div>
                       </div>
-                      {aggCrr !== null && (
-                        <div className="ml-auto text-right">
-                          <div className="text-xs text-muted">Crr moyen</div>
-                          <div className="text-xl font-mono text-teal">{aggCrr.toFixed(4)}</div>
-                        </div>
-                      )}
+                      <div className="ml-auto flex gap-6 text-right">
+                        {aggCrr !== null && (
+                          <div>
+                            <div className="text-xs text-muted">Crr moyen</div>
+                            <div className="text-xl font-mono text-teal">{aggCrr.toFixed(4)}</div>
+                          </div>
+                        )}
+                        {aggPower !== null && aggCda !== null && aggCda > 0 && (
+                          <div>
+                            <div className="text-xs text-muted flex items-center justify-end">
+                              W/CdA
+                              <InfoTooltip text="Puissance moyenne / CdA = capacité à aller vite sur le plat. Plus c'est haut, plus vous êtes rapide. 300 ≈ 33 km/h, 500 ≈ 39 km/h, 700 ≈ 44 km/h." />
+                            </div>
+                            <div className="text-xl font-mono text-info">
+                              {(aggPower / aggCda).toFixed(0)}
+                            </div>
+                          </div>
+                        )}
+                        {aggPower !== null && aggCda !== null && aggCda > 0 && (
+                          <div>
+                            <div className="text-xs text-muted">V plat théorique</div>
+                            <div className="text-xl font-mono text-info">
+                              {(Math.pow(2 * aggPower / (aggCda * 1.2), 1/3) * 3.6).toFixed(1)} km/h
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Ride chips */}
@@ -263,6 +288,23 @@ export default function App() {
                         <span className="inline-block w-2 h-2 rounded-full bg-red-500" /> Exclue (nRMSE &gt; 60%)
                       </span>
                     </div>
+                  </div>
+                )}
+
+                {/* CdA evolution over time (multi-ride) */}
+                {isMulti && goodRides.length >= 2 && (
+                  <div className="mb-6">
+                    <CdAEvolutionChart
+                      riders={[{
+                        name: "CdA",
+                        points: goodRides.map((r) => ({
+                          date: r.result!.ride_date,
+                          cda: r.result!.cda,
+                          r2: r.result!.r_squared,
+                          fileName: r.file.name,
+                        })).sort((a, b) => a.date.localeCompare(b.date)),
+                      }]}
+                    />
                   </div>
                 )}
 

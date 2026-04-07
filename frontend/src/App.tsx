@@ -29,6 +29,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [selectedIdx, setSelectedIdx] = useState<number>(0);
   const [blogSlug, setBlogSlug] = useState<string | null>(null);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [doneCount, setDoneCount] = useState(0);
 
   const handleAnalyze = async (
     files: File[],
@@ -39,9 +41,12 @@ export default function App() {
     setError(null);
     setRides([]);
     setSelectedIdx(0);
+    setTotalFiles(files.length);
+    setDoneCount(0);
 
     const results: RideAnalysis[] = [];
-    for (const file of files) {
+    for (let fi = 0; fi < files.length; fi++) {
+      const file = files[fi];
       try {
         const res = await analyze({ file, mass_kg, ...opts });
         const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
@@ -49,7 +54,7 @@ export default function App() {
       } catch (e: any) {
         results.push({ file, error: e.message || String(e), excluded: true });
       }
-      // Update progressively so the user sees results appearing
+      setDoneCount(fi + 1);
       setRides([...results]);
     }
 
@@ -195,6 +200,33 @@ export default function App() {
                   ← Nouvelle analyse
                 </button>
 
+                {/* Progress bar while still analyzing */}
+                {loading && totalFiles > 1 && (
+                  <div className="mb-4 bg-panel border border-border rounded-lg p-3">
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="animate-spin text-teal" size={14} />
+                        Analyse en cours…
+                      </span>
+                      <span className="font-mono text-teal">
+                        {doneCount} / {totalFiles}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-bg rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-teal rounded-full transition-all duration-500"
+                        style={{ width: `${(doneCount / totalFiles) * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted mt-1.5">
+                      {doneCount < totalFiles
+                        ? `Fichier en cours : ${totalFiles - doneCount} restant${totalFiles - doneCount > 1 ? "s" : ""}`
+                        : "Finalisation…"
+                      }
+                    </p>
+                  </div>
+                )}
+
                 {/* Multi-ride aggregate banner */}
                 {isMulti && aggCda !== null && (
                   <div className="bg-panel border border-teal rounded-lg p-4 mb-6">
@@ -313,14 +345,6 @@ export default function App() {
                   <ResultsDashboard result={selectedResult} />
                 )}
 
-                {loading && (
-                  <div className="text-center py-4">
-                    <Loader2 className="animate-spin mx-auto text-info" size={20} />
-                    <p className="text-xs text-muted mt-1">
-                      Analyse des fichiers restants…
-                    </p>
-                  </div>
-                )}
               </>
             )}
           </>

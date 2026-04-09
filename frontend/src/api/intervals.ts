@@ -90,8 +90,8 @@ export async function analyzeRide(
   fd.append("mass_kg", String(massKg));
   if (crrFixed != null) fd.append("crr_fixed", String(crrFixed));
   if (bikeType) fd.append("bike_type", bikeType);
-  if (cdaPriorMean != null) fd.append("cda_prior_mean", String(cdaPriorMean));
-  if (cdaPriorSigma != null) fd.append("cda_prior_sigma", String(cdaPriorSigma));
+  if (cdaPriorMean && cdaPriorMean > 0) fd.append("cda_prior_mean", String(cdaPriorMean));
+  if (cdaPriorSigma && cdaPriorSigma > 0) fd.append("cda_prior_sigma", String(cdaPriorSigma));
   const res = await fetch(`${API}/analyze-ride`, { method: "POST", body: fd });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));

@@ -16,14 +16,13 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [mass, setMass] = useState<number>(80);
   const [bikeType, setBikeType] = useState<BikeType>("road");
-  const [positionIdx, setPositionIdx] = useState(1); // default: "Aéro (drops)"
+  const [positionIdx, setPositionIdx] = useState(2); // default: "Aéro (drops)"
   const [advanced, setAdvanced] = useState(false);
   const [eta, setEta] = useState(0.977);
-  const [crrFixed, setCrrFixed] = useState<string>(String(BIKE_TYPE_CONFIG["road"].defaultCrr));
+  const [crrFixed, setCrrFixed] = useState<string>("");
 
   const handleBikeType = (bt: BikeType) => {
     setBikeType(bt);
-    setCrrFixed(String(BIKE_TYPE_CONFIG[bt].defaultCrr));
   };
   const [windFactor, setWindFactor] = useState(0.7);
   const [useCache, setUseCache] = useState(true);
@@ -112,24 +111,28 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
         </div>
       )}
 
-      <div className="mt-6 bg-panel border border-border rounded-lg p-5">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div className="mt-6 bg-panel border border-border rounded-lg p-5 space-y-5">
+        <h3 className="text-sm font-semibold">Paramètres</h3>
+
+        {/* Row 1: Mass + Bike type */}
+        <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4">
           <div>
-            <label className="block text-sm mb-1">
-              Masse totale (cycliste + vélo) en kg
-            </label>
-            <input
-              type="number"
-              value={mass}
-              onChange={(e) => setMass(parseFloat(e.target.value))}
-              className="w-full bg-bg border border-border rounded px-3 py-2 font-mono focus:outline-none focus:border-teal"
-              min={30}
-              max={200}
-              step={0.1}
-            />
+            <label className="block text-xs text-muted mb-1">Masse totale (cycliste + vélo)</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={mass}
+                onChange={(e) => setMass(parseFloat(e.target.value))}
+                className="w-full bg-bg border border-border rounded px-3 py-2 font-mono focus:outline-none focus:border-teal"
+                min={30}
+                max={200}
+                step={0.1}
+              />
+              <span className="text-muted text-sm">kg</span>
+            </div>
           </div>
           <div>
-            <label className="block text-sm mb-1">Type de vélo</label>
+            <label className="block text-xs text-muted mb-1">Type de vélo</label>
             <div className="flex gap-1">
               {(Object.entries(BIKE_TYPE_CONFIG) as [BikeType, typeof BIKE_TYPE_CONFIG[BikeType]][]).map(([key, cfg]) => (
                 <button
@@ -147,97 +150,96 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
                 </button>
               ))}
             </div>
-            <p className="text-xs text-muted mt-1">
-              CdA attendu : {BIKE_TYPE_CONFIG[bikeType].minCda} – {BIKE_TYPE_CONFIG[bikeType].maxCda} m² · Crr : {BIKE_TYPE_CONFIG[bikeType].defaultCrr} ({BIKE_TYPE_CONFIG[bikeType].crrHint})
-            </p>
           </div>
         </div>
 
-        {/* Position slider */}
-        {bikeType === "road" && (
-          <div className="mb-4">
-            <label className="block text-sm mb-2">
-              Position sur le vélo
-              <span className="text-teal font-semibold ml-2">{POSITION_PRESETS[positionIdx].label}</span>
-              <span className="text-muted text-xs ml-2">
-                (prior CdA ≈ {POSITION_PRESETS[positionIdx].cdaPrior})
-              </span>
+        {/* Row 2: Crr preset + Position slider */}
+        <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4">
+          <div>
+            <label className="block text-xs text-muted mb-1">Pneus (Crr)</label>
+            <select
+              value={crrFixed}
+              onChange={(e) => setCrrFixed(e.target.value)}
+              className="w-full bg-bg border border-border rounded px-2 py-2 font-mono text-sm"
+            >
+              {CRR_PRESETS.map((p) => (
+                <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
+                  {p.crr === 0 ? "Auto (estimé)" : `${p.crr.toFixed(4)} — ${p.label}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-muted mb-1">
+              Position sur le vélo :
+              <span className="text-teal font-semibold ml-1">{POSITION_PRESETS[positionIdx].label}</span>
+              {POSITION_PRESETS[positionIdx].cdaPrior > 0 ? (
+                <span className="ml-1">(prior CdA ≈ {POSITION_PRESETS[positionIdx].cdaPrior})</span>
+              ) : (
+                <span className="ml-1">(pas de prior — estimation libre)</span>
+              )}
             </label>
-            <div className="relative">
-              <input
-                type="range"
-                min={0}
-                max={POSITION_PRESETS.length - 1}
-                step={1}
-                value={positionIdx}
-                onChange={(e) => setPositionIdx(parseInt(e.target.value))}
-                className="w-full accent-teal"
-              />
-              <div className="flex justify-between text-[10px] text-muted mt-1 px-0.5">
-                {POSITION_PRESETS.map((p, i) => (
-                  <span
-                    key={i}
-                    className={`cursor-pointer ${i === positionIdx ? "text-teal font-semibold" : ""}`}
-                    onClick={() => setPositionIdx(i)}
-                  >
-                    {p.label}
-                  </span>
-                ))}
-              </div>
+            <input
+              type="range"
+              min={0}
+              max={POSITION_PRESETS.length - 1}
+              step={1}
+              value={positionIdx}
+              onChange={(e) => setPositionIdx(parseInt(e.target.value))}
+              className="w-full accent-teal"
+            />
+            <div className="flex justify-between text-[10px] text-muted mt-0.5">
+              {POSITION_PRESETS.map((p, i) => (
+                <span
+                  key={i}
+                  className={`cursor-pointer ${i === positionIdx ? "text-teal font-semibold" : ""}`}
+                  onClick={() => setPositionIdx(i)}
+                >
+                  {p.label}
+                </span>
+              ))}
             </div>
           </div>
-        )}
+        </div>
 
         <button
           type="button"
           onClick={() => setAdvanced(!advanced)}
-          className="mt-4 flex items-center text-sm text-muted hover:text-text"
+          className="flex items-center text-sm text-muted hover:text-text"
         >
           {advanced ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           Options avancées
         </button>
 
         {advanced && (
-          <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
-            <div>
-              <label className="block text-xs text-muted mb-1">η transmission</label>
-              <input
-                type="number"
-                value={eta}
-                onChange={(e) => setEta(parseFloat(e.target.value))}
-                className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
-                step={0.001}
-                min={0.9}
-                max={1.0}
-              />
+          <div className="mt-3 space-y-3 text-sm">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-muted mb-1">η transmission</label>
+                <input
+                  type="number"
+                  value={eta}
+                  onChange={(e) => setEta(parseFloat(e.target.value))}
+                  className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
+                  step={0.001}
+                  min={0.9}
+                  max={1.0}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-muted mb-1">Facteur vent 10m→1m</label>
+                <input
+                  type="number"
+                  value={windFactor}
+                  onChange={(e) => setWindFactor(parseFloat(e.target.value))}
+                  className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
+                  step={0.05}
+                  min={0.3}
+                  max={1.0}
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs text-muted mb-1">Crr (résistance au roulement)</label>
-              <select
-                value={crrFixed}
-                onChange={(e) => setCrrFixed(e.target.value)}
-                className="w-full bg-bg border border-border rounded px-2 py-1 font-mono text-sm"
-              >
-                {CRR_PRESETS.map((p) => (
-                  <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
-                    {p.crr === 0 ? "⚙ Auto (estimé par le solveur)" : `${p.crr.toFixed(4)} — ${p.label}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-muted mb-1">Facteur vent 10m→1m</label>
-              <input
-                type="number"
-                value={windFactor}
-                onChange={(e) => setWindFactor(parseFloat(e.target.value))}
-                className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
-                step={0.05}
-                min={0.3}
-                max={1.0}
-              />
-            </div>
-            <div className="col-span-3 flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setUseCache(!useCache)}

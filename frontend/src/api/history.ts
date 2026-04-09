@@ -26,6 +26,8 @@ export interface HistoryEntry {
   positionLabel: string;
   massKg: number;
   crrFixed: number | null;
+  cdaPriorMean: number | null;
+  cdaPriorSigma: number | null;
 
   // Stats
   nRides: number;
@@ -33,7 +35,7 @@ export interface HistoryEntry {
   nTotalPoints: number;
 
   // Per-ride CdA values (for sparkline / evolution)
-  rideCdas: { date: string; cda: number }[];
+  rideCdas: { date: string; cda: number; nrmse: number }[];
 }
 
 export function getHistory(): HistoryEntry[] {

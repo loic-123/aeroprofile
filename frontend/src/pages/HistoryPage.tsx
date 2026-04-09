@@ -110,11 +110,15 @@ export default function HistoryPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-xs text-muted">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 mt-3 text-xs text-muted">
                     <div>RMSE : <span className="text-text font-mono">±{e.rmseW.toFixed(0)} W</span> (nRMSE {nrmse}%)</div>
                     <div>Masse : <span className="text-text font-mono">{e.massKg} kg</span></div>
-                    <div>Vélo : <span className="text-text">{e.bikeType}</span> · <span className="text-text">{e.positionLabel}</span></div>
                     <div>Rides : <span className="text-text font-mono">{e.nRides}</span> retenues, <span className="text-text font-mono">{e.nExcluded}</span> exclues</div>
+                    <div>Vélo : <span className="text-text">{e.bikeType}</span> · <span className="text-text">{e.positionLabel}</span></div>
+                    <div>Crr : <span className="text-text font-mono">{e.crrFixed != null ? `${e.crrFixed} (fixé)` : "auto"}</span></div>
+                    <div>Prior CdA : <span className="text-text font-mono">
+                      {e.cdaPriorMean != null ? `${e.cdaPriorMean} ± ${e.cdaPriorSigma}` : "défaut"}
+                    </span></div>
                   </div>
 
                   {/* Mini CdA evolution */}

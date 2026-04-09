@@ -45,7 +45,7 @@ function emptyRider(n: number): RiderEntry {
     id: `r${Date.now()}-${n}`,
     name: `Cycliste ${n}`,
     mass: 75,
-    positionIdx: 1,
+    positionIdx: 2,
     rides: [],
   };
 }
@@ -58,7 +58,7 @@ function emptyRider(n: number): RiderEntry {
  * rider still appears in the comparison (with a warning via low R²).
  */
 /**
- * Quality gate: exclude rides where nRMSE (= RMSE / avg_power) > 60%.
+ * Quality gate: exclude rides where nRMSE (= RMSE / avg_power) > 45%.
  *
  * nRMSE is variance-independent unlike R². However, the RMSE is computed
  * from power residuals even when the solver optimises altitude (Chung VE
@@ -68,10 +68,10 @@ function emptyRider(n: number): RiderEntry {
  *
  * Thresholds for display:
  *   nRMSE < 30%  → good (green)
- *   30–60%       → acceptable (white)
- *   > 60%        → excluded from average (model fundamentally doesn't fit)
+ *   30–45%       → acceptable (white)
+ *   > 45%        → excluded from average (model fundamentally doesn't fit)
  */
-const MAX_NRMSE = 0.60;
+const MAX_NRMSE = 0.45;
 
 function aggregate(r: RiderEntry, bikeType: BikeType = "road"): RiderAgg | null {
   const { minCda: MIN_CDA, maxCda: MAX_CDA } = BIKE_TYPE_CONFIG[bikeType];
@@ -507,7 +507,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                       <span className={
                         a.nrmse < 0.30
                           ? "text-teal"
-                          : a.nrmse < 0.60
+                          : a.nrmse < 0.45
                             ? "text-text"
                             : "text-coral"
                       }>
@@ -525,7 +525,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                 valides sur l'ensemble des sorties de chaque cycliste.
                 {aggs.some((a) => a.nExcluded > 0) && (
                   <span className="text-coral">
-                    {" "}Sorties avec nRMSE &gt; 60% exclues de la moyenne
+                    {" "}Sorties avec nRMSE &gt; 45% exclues de la moyenne
                     et des graphes (modèle non fiable — drafting, vent extrême, ou capteur défectueux).
                   </span>
                 )}
@@ -737,7 +737,7 @@ function RiderRow({
                 const tooltip = rd.status === "error"
                   ? `Erreur : ${rd.error || "analyse échouée"}`
                   : isExcluded && rd.result
-                    ? `Exclue (nRMSE ${(nrmse * 100).toFixed(0)}% > 60% — modèle non fiable)`
+                    ? `Exclue (nRMSE ${(nrmse * 100).toFixed(0)}% > 45% — modèle non fiable)`
                     : rd.status === "done" && rd.result
                       ? `CdA ${rd.result.cda.toFixed(3)} • nRMSE ${(nrmse * 100).toFixed(0)}%`
                       : undefined;
@@ -786,7 +786,7 @@ function RiderRow({
                     <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> ✓ Retenue
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="inline-block w-2 h-2 rounded-full bg-red-500" /> ✗ Exclue (erreur ou nRMSE &gt; 60%)
+                    <span className="inline-block w-2 h-2 rounded-full bg-red-500" /> ✗ Exclue (erreur ou nRMSE &gt; 45%)
                   </span>
                   <span className="flex items-center gap-1">
                     <span className="inline-block w-2 h-2 rounded-full bg-blue-500" /> En cours

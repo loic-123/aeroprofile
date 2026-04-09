@@ -20,8 +20,10 @@ export async function analyze(params: AnalyzeParams): Promise<AnalysisResult> {
   if (params.wind_height_factor != null)
     fd.append("wind_height_factor", String(params.wind_height_factor));
   if (params.bike_type) fd.append("bike_type", params.bike_type);
-  if (params.cda_prior_mean != null) fd.append("cda_prior_mean", String(params.cda_prior_mean));
-  if (params.cda_prior_sigma != null) fd.append("cda_prior_sigma", String(params.cda_prior_sigma));
+  if (params.cda_prior_mean && params.cda_prior_mean > 0)
+    fd.append("cda_prior_mean", String(params.cda_prior_mean));
+  if (params.cda_prior_sigma && params.cda_prior_sigma > 0)
+    fd.append("cda_prior_sigma", String(params.cda_prior_sigma));
 
   const res = await fetch("/api/analyze", { method: "POST", body: fd });
   if (!res.ok) {

@@ -143,7 +143,7 @@ export default function Filters() {
       <Section title="Filtrage multi-rides (mode Intervals / multi-fichiers)">
         <P>
           Quand plusieurs sorties sont analysées, un dernier filtre exclut
-          les rides entières dont le nRMSE dépasse 60%, ou dont le CdA
+          les rides entières dont le nRMSE dépasse 45%, ou dont le CdA
           tombe hors de la plage du type de vélo sélectionné. La moyenne
           CdA est pondérée par qualité (les bonnes rides pèsent 3× plus
           que les médiocres).

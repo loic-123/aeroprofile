@@ -29,10 +29,11 @@ export interface PositionPreset {
 }
 
 export const POSITION_PRESETS: PositionPreset[] = [
-  { label: "Très aéro",   cdaPrior: 0.24, cdaSigma: 0.04 },
-  { label: "Aéro (drops)", cdaPrior: 0.30, cdaSigma: 0.04 },
-  { label: "Modérée (cocottes)", cdaPrior: 0.34, cdaSigma: 0.06 },
-  { label: "Relâchée (tops)", cdaPrior: 0.40, cdaSigma: 0.06 },
+  { label: "Je ne sais pas", cdaPrior: 0, cdaSigma: 0 },
+  { label: "Très aéro",   cdaPrior: 0.24, cdaSigma: 0.06 },
+  { label: "Aéro (drops)", cdaPrior: 0.30, cdaSigma: 0.08 },
+  { label: "Modérée (cocottes)", cdaPrior: 0.34, cdaSigma: 0.08 },
+  { label: "Relâchée (tops)", cdaPrior: 0.40, cdaSigma: 0.10 },
 ];
 
 export interface Anomaly {

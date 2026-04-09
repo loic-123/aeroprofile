@@ -23,7 +23,7 @@ import PositionSchematic from "./components/PositionSchematic";
 
 type Mode = "single" | "compare" | "intervals" | "blog" | "history";
 
-const MAX_NRMSE = 0.60;
+const MAX_NRMSE = 0.45;
 
 interface RideAnalysis {
   file: File;
@@ -141,10 +141,16 @@ export default function App() {
         positionLabel: posPreset?.label || BIKE_TYPE_CONFIG[bt].label,
         massKg: mass_kg,
         crrFixed: opts.crr_fixed ?? null,
+        cdaPriorMean: posPreset?.cdaPrior ?? null,
+        cdaPriorSigma: posPreset?.cdaSigma ?? null,
         nRides: goodForHistory.length,
         nExcluded: results.length - goodForHistory.length,
         nTotalPoints: goodForHistory.reduce((a, r) => a + (r.result?.valid_points || 0), 0),
-        rideCdas: goodForHistory.map((r) => ({ date: r.result!.ride_date, cda: r.result!.cda })),
+        rideCdas: goodForHistory.map((r) => ({
+          date: r.result!.ride_date,
+          cda: r.result!.cda,
+          nrmse: (r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1),
+        })),
       });
     }
 
@@ -356,7 +362,7 @@ export default function App() {
                             <div>
                               <div className="text-xs text-muted uppercase tracking-wide flex items-center">
                                 CdA moyen ({goodRides.length} sortie{goodRides.length > 1 ? "s" : ""} retenue{goodRides.length > 1 ? "s" : ""} sur {rides.length})
-                                <InfoTooltip text="Moyenne pondérée par le nombre de points valides × qualité (1/nRMSE). Les sorties avec nRMSE > 60% sont exclues. L'IC95 reflète la dispersion entre rides." />
+                                <InfoTooltip text="Moyenne pondérée par le nombre de points valides × qualité (1/nRMSE). Les sorties avec nRMSE > 45% sont exclues. L'IC95 reflète la dispersion entre rides." />
                               </div>
                               <div className="text-3xl font-mono font-bold text-teal mt-1">
                                 CdA = {aggCda.toFixed(3)}
@@ -489,6 +495,10 @@ export default function App() {
                               <span className="inline-block w-2 h-2 rounded-full bg-red-500" /> Exclue
                             </span>
                           </div>
+                          <p className="text-[10px] text-muted mt-2 leading-relaxed">
+                            Exclusion : nRMSE &gt; 45% ou CdA hors [{BIKE_TYPE_CONFIG[bikeType].minCda}–{BIKE_TYPE_CONFIG[bikeType].maxCda}] m².
+                            Les rides bruitées (nRMSE élevé) sont trop sensibles aux paramètres pour être fiables.
+                          </p>
                         </div>
                       </div>
                     )}

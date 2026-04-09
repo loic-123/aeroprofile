@@ -35,7 +35,7 @@ export default function IntervalsIntegration() {
             capteur de puissance requis, outdoor uniquement (exclut Zwift, home trainer)</li>
           <li><strong>Niveau 2 — Sliders utilisateur (temps réel)</strong> : Distance 30–500 km,
             D+ max 2000 m, durée min 60 min</li>
-          <li><strong>Niveau 3 — Post-analyse (automatique)</strong> : nRMSE &gt; 60% → ride exclue
+          <li><strong>Niveau 3 — Post-analyse (automatique)</strong> : nRMSE &gt; 45% → ride exclue
             de la moyenne. CdA hors de la plage du type de vélo sélectionné → ride exclue.</li>
           <li><strong>Niveau 4 — Par point dans chaque ride</strong> : 13 filtres (freinage,
             virage, drafting, etc.) + passe 2 itérative (dérive VE hybride)</li>
@@ -99,7 +99,7 @@ export default function IntervalsIntegration() {
         </Formula>
         <P>
           La meilleure ride (nRMSE le plus bas) a un multiplicateur de 3×,
-          la pire retenue a 1×. Les rides catastrophiques (nRMSE &gt; 60%)
+          la pire retenue a 1×. Les rides catastrophiques (nRMSE &gt; 45%)
           sont exclues entièrement.
         </P>
       </Section>

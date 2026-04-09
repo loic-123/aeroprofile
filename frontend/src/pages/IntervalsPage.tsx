@@ -280,33 +280,39 @@ export default function IntervalsPage() {
                 <label className="block text-xs text-muted mb-2">
                   Distance : <span className="text-teal font-mono">{filters.min_distance_km}</span> – <span className="text-teal font-mono">{filters.max_distance_km}</span> km
                 </label>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-muted w-8">0</span>
-                  <div className="flex-1 relative h-6">
-                    {/* Min slider */}
-                    <input
-                      type="range"
-                      min={0} max={500} step={5}
-                      value={filters.min_distance_km}
-                      onChange={(e) => {
-                        const v = parseFloat(e.target.value);
-                        setFilters({ ...filters, min_distance_km: Math.min(v, filters.max_distance_km - 5) });
-                      }}
-                      className="absolute w-full h-1 top-2.5 appearance-none bg-border rounded pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-teal [&::-webkit-slider-thumb]:cursor-pointer"
-                    />
-                    {/* Max slider */}
-                    <input
-                      type="range"
-                      min={0} max={500} step={5}
-                      value={filters.max_distance_km}
-                      onChange={(e) => {
-                        const v = parseFloat(e.target.value);
-                        setFilters({ ...filters, max_distance_km: Math.max(v, filters.min_distance_km + 5) });
-                      }}
-                      className="absolute w-full h-1 top-2.5 appearance-none bg-transparent rounded pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-info [&::-webkit-slider-thumb]:cursor-pointer"
-                    />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-muted mb-1">Min</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min={0} max={500} step={5}
+                        value={filters.min_distance_km}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value);
+                          setFilters({ ...filters, min_distance_km: Math.min(v, filters.max_distance_km - 5) });
+                        }}
+                        className="flex-1 accent-teal"
+                      />
+                      <span className="font-mono text-xs w-12 text-right">{filters.min_distance_km}</span>
+                    </div>
                   </div>
-                  <span className="text-xs text-muted w-10">500</span>
+                  <div>
+                    <label className="block text-xs text-muted mb-1">Max</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min={0} max={500} step={5}
+                        value={filters.max_distance_km}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value);
+                          setFilters({ ...filters, max_distance_km: Math.max(v, filters.min_distance_km + 5) });
+                        }}
+                        className="flex-1 accent-info"
+                      />
+                      <span className="font-mono text-xs w-12 text-right">{filters.max_distance_km}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 

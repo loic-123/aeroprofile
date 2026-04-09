@@ -86,33 +86,21 @@ async def list_activities(
     athlete_id: str = Form("0"),
     oldest: str = Form(...),
     newest: str = Form(...),
-    min_distance_km: float = Form(30.0),
-    max_distance_km: float = Form(300.0),
-    max_elevation_m: float = Form(2000.0),
-    min_duration_h: float = Form(1.0),
-    require_power: bool = Form(True),
-    exclude_indoor: bool = Form(True),
+    min_distance_km: float = Form(0),
+    max_distance_km: float = Form(99999),
+    max_elevation_m: float = Form(99999),
+    min_duration_h: float = Form(0),
 ):
-    """List activities with filters applied."""
+    """List ALL activities in date range. Filtering is done client-side."""
     client = IntervalsClient(api_key, athlete_id)
     try:
         all_acts = await client.list_activities(oldest, newest)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur API Intervals : {e}")
 
-    filtered = client.filter_activities(
-        all_acts,
-        min_distance_km=min_distance_km,
-        max_distance_km=max_distance_km,
-        max_elevation_m=max_elevation_m,
-        min_duration_h=min_duration_h,
-        require_power=require_power,
-        exclude_indoor=exclude_indoor,
-    )
-
     return ListActivitiesResponse(
         total=len(all_acts),
-        filtered=len(filtered),
+        filtered=len(all_acts),
         activities=[
             ActivityOut(
                 id=a.id,
@@ -126,7 +114,7 @@ async def list_activities(
                 has_power=a.has_power,
                 indoor=a.indoor,
             )
-            for a in filtered
+            for a in all_acts
         ],
     )
 

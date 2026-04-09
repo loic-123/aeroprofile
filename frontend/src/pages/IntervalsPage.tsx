@@ -48,8 +48,9 @@ export default function IntervalsPage() {
   const [mass, setMass] = useState(75);
   const [crrFixed, setCrrFixed] = useState("");
 
-  // Activities list — allActivities = everything from API, filtered in real-time
+  // Activities list — allActivities = outdoor rides with power from API
   const [allActivities, setAllActivities] = useState<ActivitySummary[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [listing, setListing] = useState(false);
   const [listed, setListed] = useState(false);
 
@@ -95,6 +96,7 @@ export default function IntervalsPage() {
         min_duration_h: 0,
       });
       setAllActivities(r.activities);
+      setTotalCount(r.total);
       setListed(true);
     } catch (e: any) {
       setConnError(e.message);
@@ -362,7 +364,8 @@ export default function IntervalsPage() {
             </button>
             {listed && (
               <span className="text-sm text-muted">
-                {allActivities.length} activités sur Intervals (tous types)
+                <span className="text-teal font-mono">{allActivities.length}</span> rides vélo
+                sur <span className="font-mono">{totalCount}</span> activités
               </span>
             )}
           </div>

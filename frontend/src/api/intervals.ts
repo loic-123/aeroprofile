@@ -31,7 +31,7 @@ export interface RideFilters {
 
 export const DEFAULT_FILTERS: RideFilters = {
   min_distance_km: 30,
-  max_distance_km: 300,
+  max_distance_km: 500,
   max_elevation_m: 2000,
   min_duration_h: 1.0,
 };

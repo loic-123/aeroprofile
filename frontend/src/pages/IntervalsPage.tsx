@@ -286,7 +286,7 @@ export default function IntervalsPage() {
                     {/* Min slider */}
                     <input
                       type="range"
-                      min={0} max={300} step={5}
+                      min={0} max={500} step={5}
                       value={filters.min_distance_km}
                       onChange={(e) => {
                         const v = parseFloat(e.target.value);
@@ -297,7 +297,7 @@ export default function IntervalsPage() {
                     {/* Max slider */}
                     <input
                       type="range"
-                      min={0} max={300} step={5}
+                      min={0} max={500} step={5}
                       value={filters.max_distance_km}
                       onChange={(e) => {
                         const v = parseFloat(e.target.value);
@@ -306,7 +306,7 @@ export default function IntervalsPage() {
                       className="absolute w-full h-1 top-2.5 appearance-none bg-transparent rounded pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-info [&::-webkit-slider-thumb]:cursor-pointer"
                     />
                   </div>
-                  <span className="text-xs text-muted w-10">300</span>
+                  <span className="text-xs text-muted w-10">500</span>
                 </div>
               </div>
 

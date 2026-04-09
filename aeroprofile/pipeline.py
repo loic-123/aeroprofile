@@ -326,7 +326,78 @@ async def analyze(
         except Exception:
             pass
 
-    # Modelled power on full df for decomposition
+    # Virtual elevation (pass 1)
+    df["altitude_virtual"] = virtual_elevation(df, sol.cda, sol.crr, mass_kg, eta)
+
+    # --- Iterative refinement: exclude points where VE diverges from GPS ---
+    # Where alt_virtual drifts far from alt_real, the model is wrong at those
+    # points (bad wind, drafting, braking). Excluding them and re-solving
+    # gives a cleaner CdA/Crr based only on "well-modelled" segments.
+    try:
+        alt_real = df["altitude_smooth"].to_numpy()
+        alt_virt = df["altitude_virtual"].to_numpy()
+        # Offset virtual to start at the same value as real
+        alt_virt_aligned = alt_virt + (alt_real[0] - alt_virt[0])
+        # Rolling drift: smoothed absolute difference over a 60s window
+        drift = np.abs(alt_virt_aligned - alt_real)
+        drift_smooth = pd.Series(drift).rolling(window=60, center=True, min_periods=10).mean().to_numpy()
+        drift_smooth = np.nan_to_num(drift_smooth, nan=0.0)
+        # Threshold: points with > 30m of smoothed drift are suspect
+        drift_threshold = 30.0
+        filter_ve_ok = drift_smooth <= drift_threshold
+        # Combine with existing filter_valid
+        valid_pass1 = df["filter_valid"].to_numpy()
+        valid_pass2 = valid_pass1 & filter_ve_ok
+        # Only re-solve if we still have enough points AND we actually excluded some
+        n_excluded_by_ve = int(valid_pass1.sum() - valid_pass2.sum())
+        n_valid_pass2 = int(valid_pass2.sum())
+        if n_excluded_by_ve > 20 and n_valid_pass2 >= 100:
+            # Temporarily swap filter_valid for the re-solve
+            df["filter_valid_original"] = df["filter_valid"].copy()
+            df["filter_valid"] = valid_pass2
+            try:
+                # Re-run the best solver from pass 1
+                if solver_method == "wind_inverse":
+                    wi2 = solve_with_wind(df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed)
+                    if wi2 is not None and 0.15 <= wi2["cda"] <= 0.55:
+                        sol = SolverResult(
+                            cda=wi2["cda"], crr=wi2["crr"],
+                            cda_ci=(float("nan"), float("nan")),
+                            crr_ci=(float("nan"), float("nan")),
+                            r_squared=wi2["r_squared"],
+                            residuals=wi2["residuals"],
+                            n_points=wi2["n_points"],
+                            crr_was_fixed=(effective_crr_fixed is not None),
+                        )
+                        solver_note += f" Passe 2 itérative : {n_excluded_by_ve} points exclus (dérive VE > {drift_threshold:.0f}m)."
+                elif solver_method == "chung_ve":
+                    chung2 = solve_chung_ve(df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed)
+                    if 0.15 <= chung2.cda <= 0.55:
+                        sol = SolverResult(
+                            cda=chung2.cda, crr=chung2.crr,
+                            cda_ci=chung2.cda_ci, crr_ci=chung2.crr_ci,
+                            r_squared=chung2.r_squared_elev,
+                            residuals=chung2.residuals,
+                            n_points=chung2.n_points,
+                            crr_was_fixed=(effective_crr_fixed is not None),
+                        )
+                        solver_note += f" Passe 2 : {n_excluded_by_ve} pts exclus (dérive > {drift_threshold:.0f}m)."
+                else:
+                    sol2 = solve_cda_crr(df, mass_kg, eta=eta, crr_fixed=effective_crr_fixed)
+                    if 0.15 <= sol2.cda <= 0.55:
+                        sol = sol2
+                        solver_note += f" Passe 2 : {n_excluded_by_ve} pts exclus (dérive > {drift_threshold:.0f}m)."
+            except Exception:
+                pass
+            # Restore original filter_valid (keep pass-2 sol but show all points in charts)
+            df["filter_valid"] = df["filter_valid_original"]
+            del df["filter_valid_original"]
+            # Recompute virtual elevation with refined CdA/Crr
+            df["altitude_virtual"] = virtual_elevation(df, sol.cda, sol.crr, mass_kg, eta)
+    except Exception:
+        pass
+
+    # Recompute modelled power with final CdA/Crr (may have changed in pass 2)
     df["power_modeled"] = power_model(
         df["v_ground"].to_numpy(),
         df["v_air"].to_numpy(),
@@ -339,7 +410,6 @@ async def analyze(
         eta,
     )
     from aeroprofile.physics.constants import G as G_
-
     theta = np.arctan(df["gradient"].to_numpy())
     V = df["v_ground"].to_numpy()
     Va = df["v_air"].to_numpy()
@@ -347,9 +417,6 @@ async def analyze(
     df["p_rolling"] = sol.crr * mass_kg * G_ * np.cos(theta) * V
     df["p_gravity"] = mass_kg * G_ * np.sin(theta) * V
     df["p_accel"] = mass_kg * df["acceleration"].to_numpy() * V
-
-    # Virtual elevation
-    df["altitude_virtual"] = virtual_elevation(df, sol.cda, sol.crr, mass_kg, eta)
 
     # CdA climb / descent / flat (diagnostic: big asymmetry hints at wind error)
     cda_climb = _subset_cda(df, mass_kg, eta, sol.crr, lambda g: g > 0.02)

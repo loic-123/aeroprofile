@@ -1,0 +1,169 @@
+"""Intervals.icu API client.
+
+Wraps the Intervals.icu REST API for fetching athlete profile, listing
+activities, and downloading .FIT files. Uses httpx for async HTTP.
+
+Auth: Basic Auth with username='API_KEY', password=<user's API key>.
+Athlete ID '0' means 'the authenticated user'.
+
+Docs: https://forum.intervals.icu/t/intervals-icu-api-integration-cookbook/80090
+"""
+
+from __future__ import annotations
+
+import asyncio
+import gzip
+from dataclasses import dataclass, field
+from datetime import date, datetime
+from io import BytesIO
+from typing import Optional
+
+import httpx
+
+BASE_URL = "https://intervals.icu/api/v1"
+
+
+@dataclass
+class AthleteProfile:
+    id: str
+    name: str
+    weight_kg: float
+    ftp: int
+    email: str = ""
+
+
+@dataclass
+class ActivitySummary:
+    id: str
+    name: str
+    activity_type: str
+    start_date: str  # ISO date
+    distance_m: float
+    moving_time_s: float
+    elapsed_time_s: float
+    total_elevation_gain_m: float
+    average_watts: float
+    has_power: bool
+    indoor: bool
+
+
+class IntervalsClient:
+    """Async client for the Intervals.icu API."""
+
+    def __init__(self, api_key: str, athlete_id: str = "0"):
+        self.api_key = api_key
+        self.athlete_id = athlete_id
+        self._auth = httpx.BasicAuth(username="API_KEY", password=api_key)
+
+    async def _get(self, path: str, **kwargs) -> httpx.Response:
+        """GET request with retry on 429."""
+        async with httpx.AsyncClient(timeout=30.0, auth=self._auth) as client:
+            for attempt in range(4):
+                r = await client.get(f"{BASE_URL}{path}", **kwargs)
+                if r.status_code == 429:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                return r
+            return r
+
+    async def get_athlete(self) -> AthleteProfile:
+        """Fetch athlete profile (name, weight, FTP)."""
+        r = await self._get(f"/athlete/{self.athlete_id}")
+        r.raise_for_status()
+        d = r.json()
+        return AthleteProfile(
+            id=str(d.get("id", self.athlete_id)),
+            name=d.get("name", d.get("firstname", "Athlete")),
+            weight_kg=float(d.get("weight", 75) or 75),
+            ftp=int(d.get("icu_ftp", 0) or 0),
+            email=d.get("email", ""),
+        )
+
+    async def list_activities(
+        self,
+        oldest: date | str,
+        newest: date | str,
+    ) -> list[ActivitySummary]:
+        """List activities in a date range. Returns all types (Ride, Run, etc.)."""
+        if isinstance(oldest, date):
+            oldest = oldest.isoformat()
+        if isinstance(newest, date):
+            newest = newest.isoformat()
+        r = await self._get(
+            f"/athlete/{self.athlete_id}/activities",
+            params={"oldest": oldest, "newest": newest},
+        )
+        r.raise_for_status()
+        activities = []
+        for a in r.json():
+            # Parse fields with safe defaults
+            act_type = a.get("type", "Ride")
+            distance = float(a.get("distance", 0) or 0)
+            moving = float(a.get("moving_time", 0) or 0)
+            elapsed = float(a.get("elapsed_time", 0) or 0)
+            elev = float(a.get("total_elevation_gain", 0) or 0)
+            watts = float(a.get("icu_weighted_avg_watts", 0) or a.get("average_watts", 0) or 0)
+            has_power = watts > 0 or "watts" in (a.get("stream_types") or [])
+            indoor = bool(a.get("icu_indoor", False) or a.get("trainer", False))
+            start = a.get("start_date_local", a.get("start_date", ""))[:10]
+
+            activities.append(ActivitySummary(
+                id=str(a.get("id", "")),
+                name=a.get("name", "Untitled"),
+                activity_type=act_type,
+                start_date=start,
+                distance_m=distance,
+                moving_time_s=moving,
+                elapsed_time_s=elapsed,
+                total_elevation_gain_m=elev,
+                average_watts=watts,
+                has_power=has_power,
+                indoor=indoor,
+            ))
+        return activities
+
+    def filter_activities(
+        self,
+        activities: list[ActivitySummary],
+        min_distance_km: float = 30.0,
+        max_distance_km: float = 300.0,
+        max_elevation_m: float = 2000.0,
+        min_duration_h: float = 1.0,
+        require_power: bool = True,
+        exclude_indoor: bool = True,
+        activity_type: str = "Ride",
+    ) -> list[ActivitySummary]:
+        """Apply user-configurable filters to an activity list."""
+        result = []
+        for a in activities:
+            if activity_type and a.activity_type != activity_type:
+                continue
+            dist_km = a.distance_m / 1000.0
+            if dist_km < min_distance_km or dist_km > max_distance_km:
+                continue
+            if a.total_elevation_gain_m > max_elevation_m:
+                continue
+            dur_h = a.moving_time_s / 3600.0
+            if dur_h < min_duration_h:
+                continue
+            if require_power and not a.has_power:
+                continue
+            if exclude_indoor and a.indoor:
+                continue
+            result.append(a)
+        return result
+
+    async def download_fit(self, activity_id: str) -> bytes:
+        """Download the .FIT file for an activity.
+
+        Uses the /fit-file endpoint which returns an Intervals.icu-generated
+        FIT file (includes any edits made in the platform). The response
+        may be gzip-compressed.
+        """
+        r = await self._get(f"/activity/{activity_id}/fit-file")
+        r.raise_for_status()
+        data = r.content
+        # Decompress if gzipped
+        if data[:2] == b"\x1f\x8b":
+            data = gzip.decompress(data)
+        return data

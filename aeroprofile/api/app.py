@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from aeroprofile.api.routes import router
+from aeroprofile.api.intervals_routes import router as intervals_router
 
 app = FastAPI(
     title="AeroProfile API",
@@ -26,6 +27,7 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api")
+app.include_router(intervals_router, prefix="/api/intervals")
 
 # Serve built frontend if available (single-service deployment).
 # Expected layout: frontend/dist/ at the repo root, sitting next to the package.

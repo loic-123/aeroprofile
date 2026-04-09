@@ -3,17 +3,18 @@ import FileUpload from "./components/FileUpload";
 import ResultsDashboard from "./components/ResultsDashboard";
 import CompareMode from "./components/CompareMode";
 import BlogIndex from "./pages/BlogIndex";
+import IntervalsPage from "./pages/IntervalsPage";
 import { ARTICLES } from "./pages/articles";
 import { BlogProvider } from "./components/BlogLayout";
 import { analyze } from "./api/client";
 import { getCached, setCache, type CacheOpts } from "./api/cache";
 import type { AnalysisResult } from "./types";
-import { Wind, Users, User, FileText, Loader2, BookOpen, Database } from "lucide-react";
+import { Wind, Users, User, FileText, Loader2, BookOpen, Link2 } from "lucide-react";
 import InfoTooltip from "./components/InfoTooltip";
 import CdAEvolutionChart from "./components/CdAEvolutionChart";
 import CdARunningAvgChart from "./components/CdARunningAvgChart";
 
-type Mode = "single" | "compare" | "blog";
+type Mode = "single" | "compare" | "intervals" | "blog";
 
 const MAX_NRMSE = 0.60;
 
@@ -167,6 +168,14 @@ export default function App() {
             <Users size={14} /> Comparer
           </button>
           <button
+            onClick={() => setMode("intervals")}
+            className={`px-3 py-1.5 text-sm flex items-center gap-2 ${
+              mode === "intervals" ? "bg-teal text-white" : "text-muted"
+            }`}
+          >
+            <Link2 size={14} /> Intervals
+          </button>
+          <button
             onClick={() => {
               setMode("blog");
               setBlogSlug(null);
@@ -181,7 +190,9 @@ export default function App() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-6">
-        {mode === "blog" ? (
+        {mode === "intervals" ? (
+          <IntervalsPage />
+        ) : mode === "blog" ? (
           <BlogProvider value={{ slug: blogSlug, go: setBlogSlug }}>
             {blogSlug && ARTICLES[blogSlug] ? (
               (() => { const Comp = ARTICLES[blogSlug]; return <Comp />; })()

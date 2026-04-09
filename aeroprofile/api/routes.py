@@ -16,6 +16,14 @@ router = APIRouter()
 MAX_PROFILE_POINTS = 5000
 
 
+def _f(v, default=0.0):
+    """NaN/Inf-safe float for JSON."""
+    f = float(v) if v is not None else default
+    if np.isnan(f) or np.isinf(f):
+        return default
+    return f
+
+
 def _downsample(arr, idx):
     return [None if (isinstance(v, float) and np.isnan(v)) else v for v in arr[idx].tolist()]
 
@@ -114,13 +122,6 @@ async def analyze_endpoint(
             tmp_path.unlink()
         except OSError:
             pass
-
-    def _f(v, default=0.0):
-        """NaN/Inf-safe float for JSON."""
-        f = float(v) if v is not None else default
-        if np.isnan(f) or np.isinf(f):
-            return default
-        return f
 
     return AnalysisResultOut(
         cda=_f(result.cda),

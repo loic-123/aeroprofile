@@ -1,98 +1,219 @@
-import { Article, Section, Formula, Note, Warning, P } from "../../components/BlogLayout";
+import { Article, Section, Formula, Note, Warning, P, Tex } from "../../components/BlogLayout";
 
 export default function BayesianPriors() {
   return (
     <Article title="Priors bayésiens : comment stabiliser le solveur">
       <P>
         Quand les données sont bonnes (sortie variée, vent faible, capteur
-        calibré), le solveur trouve le CdA et le Crr sans aide. Mais quand
-        les données sont insuffisantes (sortie courte, vent fort mal estimé,
-        drafting), le solveur peut "diverger" vers des valeurs absurdes.
-        Les priors bayésiens sont un filet de sécurité mathématique.
+        calibré), le solveur trouve
+        le <Tex>{String.raw`C_dA`}</Tex> et
+        le <Tex>{String.raw`C_{rr}`}</Tex> sans aide. Mais quand les données
+        sont insuffisantes (sortie courte, vent fort mal estimé, drafting),
+        le solveur peut "diverger" vers des valeurs absurdes. Les priors
+        bayésiens sont un filet de sécurité mathématique.
       </P>
 
       <Section title="L'intuition : un avis d'expert doux">
         <P>
           Un prior, c'est une croyance initiale. Avant de voir vos données,
-          on "croit" que votre CdA est probablement autour de 0.30 (position
-          route typique) et votre Crr autour de 0.004 (pneu route asphalte).
-          Plus les données sont abondantes et cohérentes, plus le prior
-          s'efface. Plus les données sont bruitées, plus le prior pèse.
+          on "croit" que votre <Tex>{String.raw`C_dA`}</Tex> est probablement
+          autour de 0.30 (position route typique) et
+          votre <Tex>{String.raw`C_{rr}`}</Tex> autour de 0.0035 (pneu route
+          tubeless sur asphalte). Plus les données sont abondantes et
+          cohérentes, plus le prior s'efface. Plus les données sont bruitées,
+          plus le prior pèse.
         </P>
         <P>
           C'est comme demander à un expert : "d'après votre expérience,
-          quel CdA attendez-vous pour un cycliste sur route ?" L'expert
-          dit "0.30 ± 0.12". Si vos données disent clairement 0.35, on
-          retient 0.35. Si vos données sont contradictoires et confuses,
-          on retient quelque chose proche de 0.30.
+          quel <Tex>{String.raw`C_dA`}</Tex> attendez-vous pour un cycliste
+          sur route ?" L'expert dit{" "}
+          <Tex>{String.raw`0.32 \pm 0.08`}</Tex>. Pour un CLM, il dirait{" "}
+          <Tex>{String.raw`0.22 \pm 0.05`}</Tex>. Si vos données disent
+          clairement 0.35, on retient 0.35. Si vos données sont contradictoires
+          et confuses, on retient quelque chose proche du centre du prior pour
+          votre type de vélo.
         </P>
       </Section>
 
       <Section title="La formulation mathématique">
         <P>
-          Le solveur minimise une somme de résidus carrés. Un prior gaussien
-          ajoute un résidu supplémentaire :
+          Le solveur minimise une somme de résidus carrés (approche moindres
+          carrés non linéaires). Sans prior, la fonction objectif est
+          simplement :
         </P>
-        <Formula>
-          {"Sans prior :\n" +
-           "  minimiser Σᵢ (P_modèle(i) - P_mesuré(i))²\n\n" +
-           "Avec priors :\n" +
-           "  minimiser Σᵢ (P_modèle(i) - P_mesuré(i))²\n" +
-           "           + w_crr × ((Crr - 0.004) / 0.0015)²\n" +
-           "           + w_cda × ((CdA - 0.30) / 0.12)²\n\n" +
-           "w = poids du prior ≈ 3 (calibré pour que le prior\n" +
-           "    pèse comme ~3 bons points de données)"}
-        </Formula>
+        <Formula>{String.raw`\mathcal{L}_{\text{data}} = \sum_{i=1}^{N} \bigl( P_{\text{modele}}(i) - P_{\text{mesure}}(i) \bigr)^2`}</Formula>
         <P>
-          Plus le CdA s'éloigne de 0.30, plus le terme de prior pénalise
-          la solution. Mais comme σ = 0.12 est large, la pénalité est très
-          faible dans la plage normale (0.20 à 0.45). Elle ne devient
-          significative que pour des valeurs extrêmes (CdA = 0.15 ou 0.60).
+          Un prior gaussien ajoute un terme de pénalité quadratique pour chaque
+          paramètre. Cela correspond exactement à l'estimation MAP (Maximum A
+          Posteriori) sous hypothèse de priors gaussiens et de bruit gaussien :
+        </P>
+        <Formula>{String.raw`\mathcal{L}_{\text{MAP}} = \sum_{i=1}^{N} \bigl( P_{\text{modele}}(i) - P_{\text{mesure}}(i) \bigr)^2 + w \cdot \left(\frac{C_{rr} - \mu_{C_{rr}}}{\sigma_{C_{rr}}}\right)^{\!2} + w \cdot \left(\frac{C_dA - \mu_{C_dA}}{\sigma_{C_dA}}\right)^{\!2}`}</Formula>
+        <P>
+          où <Tex>{String.raw`w`}</Tex> est le poids du prior, calibré pour
+          qu'il pèse comme environ 3 bons points de données. Le
+          terme <Tex>{String.raw`w`}</Tex> est adaptatif : il est proportionné
+          à <Tex>{String.raw`\sqrt{N}`}</Tex> et au RMSE des résidus, de sorte
+          que le prior pèse relativement moins quand les données sont
+          abondantes.
+        </P>
+        <P>
+          Plus le <Tex>{String.raw`C_dA`}</Tex> s'éloigne
+          de <Tex>{String.raw`\mu = 0.30`}</Tex>, plus le terme de prior
+          pénalise la solution. Mais
+          comme <Tex>{String.raw`\sigma = 0.12`}</Tex> est large, la pénalité
+          est très faible dans la plage normale (0.20 à 0.45). Elle ne devient
+          significative que pour des valeurs extrêmes
+          (<Tex>{String.raw`C_dA < 0.15`}</Tex>{" "}
+          ou <Tex>{String.raw`C_dA > 0.60`}</Tex>).
         </P>
       </Section>
 
-      <Section title="Les trois priors d'AeroProfile">
+      <Section title="Pourquoi c'est du MAP">
+        <P>
+          En inférence bayésienne, le théorème de Bayes donne :
+        </P>
+        <Formula>{String.raw`p(\theta \mid \text{data}) \propto p(\text{data} \mid \theta) \cdot p(\theta)`}</Formula>
+        <P>
+          Avec un modèle de bruit
+          gaussien, <Tex>{String.raw`-\ln p(\text{data} \mid \theta)`}</Tex>{" "}
+          est proportionnel à la somme des résidus carrés. Avec un prior
+          gaussien <Tex>{String.raw`\theta \sim \mathcal{N}(\mu, \sigma^2)`}</Tex>,{" "}
+          <Tex>{String.raw`-\ln p(\theta)`}</Tex> est proportionnel
+          à <Tex>{String.raw`(\theta - \mu)^2 / \sigma^2`}</Tex>. Maximiser
+          la postériorale (MAP) revient donc exactement à minimiser{" "}
+          <Tex>{String.raw`\mathcal{L}_{\text{MAP}}`}</Tex>. C'est une
+          régularisation de Tikhonov avec une interprétation probabiliste.
+        </P>
+      </Section>
+
+      <Section title="Les priors d'AeroProfile">
+        <P>
+          Les priors sur <Tex>{String.raw`C_{rr}`}</Tex> et le vent sont fixes :
+        </P>
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b border-border text-left text-muted text-xs">
                 <th className="py-2">Paramètre</th>
-                <th className="py-2">μ (centre)</th>
-                <th className="py-2">σ (largeur)</th>
+                <th className="py-2">Distribution</th>
                 <th className="py-2">Rôle</th>
               </tr>
             </thead>
             <tbody>
               <tr className="border-b border-border/30">
-                <td className="py-1.5 font-mono">CdA</td>
-                <td className="font-mono">0.30 m²</td>
-                <td className="font-mono">0.12 m²</td>
-                <td className="text-muted">Empêche CdA de coller aux bornes 0.15/0.60</td>
-              </tr>
-              <tr className="border-b border-border/30">
-                <td className="py-1.5 font-mono">Crr</td>
-                <td className="font-mono">0.004</td>
-                <td className="font-mono">0.0015</td>
-                <td className="text-muted">Empêche Crr d'absorber les erreurs de vent</td>
+                <td className="py-1.5 font-mono"><Tex>{String.raw`C_{rr}`}</Tex></td>
+                <td><Tex>{String.raw`\mathcal{N}(0.0035,\; 0.0012^2)`}</Tex></td>
+                <td className="text-muted">Empêche <Tex>{String.raw`C_{rr}`}</Tex> d'absorber les erreurs de vent</td>
               </tr>
               <tr>
-                <td className="py-1.5 font-mono">Vent (wind-inverse)</td>
-                <td className="font-mono">valeur API</td>
-                <td className="font-mono">2 m/s</td>
+                <td className="py-1.5 font-mono">Vent</td>
+                <td><Tex>{String.raw`\mathcal{N}(V_{\text{API}},\; 2^2)`}</Tex></td>
                 <td className="text-muted">Permet au vent de s'éloigner de l'API de ±4 m/s</td>
               </tr>
             </tbody>
           </table>
         </div>
+        <Note>
+          Le prior <Tex>{String.raw`C_{rr}`}</Tex> a été abaissé
+          de <Tex>{String.raw`\mathcal{N}(0.004,\; 0.0015^2)`}</Tex>{" "}
+          à <Tex>{String.raw`\mathcal{N}(0.0035,\; 0.0012^2)`}</Tex> pour
+          mieux correspondre aux mesures récentes sur pneus tubeless
+          (Silca 2023, BRR 2024).
+        </Note>
+      </Section>
+
+      <Section title="Prior CdA adapté au type de vélo">
+        <P>
+          Contrairement au <Tex>{String.raw`C_{rr}`}</Tex>, le prior
+          sur <Tex>{String.raw`C_dA`}</Tex> <strong>dépend du type de vélo</strong>{" "}
+          sélectionné par l'utilisateur. Un cycliste en position CLM a un{" "}
+          <Tex>{String.raw`C_dA`}</Tex> attendu très différent d'un vététiste.
+          Utiliser le même prior pour les deux serait sous-optimal : trop large
+          pour le CLM (où la plage est étroite), trop centré pour le VTT.
+        </P>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-border text-left text-muted text-xs">
+                <th className="py-2">Type de vélo</th>
+                <th className="py-2">Prior <Tex>{String.raw`C_dA`}</Tex></th>
+                <th className="py-2">Bornes solveur</th>
+                <th className="py-2">Positions typiques</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono">
+              <tr className="border-b border-border/30">
+                <td className="py-1.5 font-sans"><strong>Route</strong></td>
+                <td><Tex>{String.raw`\mathcal{N}(0.32,\; 0.08^2)`}</Tex></td>
+                <td>[0.20, 0.55]</td>
+                <td className="font-sans text-muted">Drops → tops</td>
+              </tr>
+              <tr className="border-b border-border/30">
+                <td className="py-1.5 font-sans"><strong>CLM / Triathlon</strong></td>
+                <td><Tex>{String.raw`\mathcal{N}(0.22,\; 0.05^2)`}</Tex></td>
+                <td>[0.15, 0.35]</td>
+                <td className="font-sans text-muted">Prolongateurs → aéro hoods</td>
+              </tr>
+              <tr>
+                <td className="py-1.5 font-sans"><strong>VTT / Gravel</strong></td>
+                <td><Tex>{String.raw`\mathcal{N}(0.45,\; 0.08^2)`}</Tex></td>
+                <td>[0.30, 0.65]</td>
+                <td className="font-sans text-muted">Position relevée, pneus larges</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <P>
+          Le prior CLM est plus serré (<Tex>{String.raw`\sigma = 0.05`}</Tex>)
+          car la plage de <Tex>{String.raw`C_dA`}</Tex> en position aéro est
+          étroite (0.17–0.30). Les priors Route et VTT sont plus larges
+          (<Tex>{String.raw`\sigma = 0.08`}</Tex>) car les positions varient
+          davantage.
+        </P>
+        <P>
+          Ce prior s'applique aux <strong>trois solveurs</strong> (Martin LS,
+          Chung VE, Wind-Inverse) et influence aussi les bornes du solveur et
+          les points de départ du multi-start. Le résultat : le solveur converge
+          plus vite vers la bonne zone et ne donne pas de{" "}
+          <Tex>{String.raw`C_dA = 0.50`}</Tex> pour un CLM ni{" "}
+          <Tex>{String.raw`C_dA = 0.20`}</Tex> pour un VTT.
+        </P>
+      </Section>
+
+      <Section title="Sensibilité et poids adaptatif">
+        <P>
+          Le poids effectif du prior dans la fonction objectif est :
+        </P>
+        <Formula>{String.raw`w_{\text{eff}} = 0.3 \cdot \sqrt{N} \cdot \max\!\bigl(1,\; \text{RMSE}\bigr)`}</Formula>
+        <P>
+          Ce mécanisme garantit que :
+        </P>
+        <ul className="list-disc ml-6 space-y-1 text-text">
+          <li>
+            Avec <strong>beaucoup de données</strong>{" "}
+            (<Tex>{String.raw`N`}</Tex> grand),{" "}
+            <Tex>{String.raw`w_{\text{eff}}`}</Tex> croît
+            en <Tex>{String.raw`\sqrt{N}`}</Tex>, mais la somme des résidus
+            croît en <Tex>{String.raw`N`}</Tex> — donc le prior pèse
+            relativement <em>moins</em>.
+          </li>
+          <li>
+            Avec <strong>peu de données</strong> ou des données très bruitées
+            (RMSE élevé), le prior pèse <em>davantage</em>, stabilisant le
+            solveur.
+          </li>
+        </ul>
       </Section>
 
       <Section title="Impact mesuré">
         <P>
           Sur les rides bien contraintes (variété de vitesses, heading divers),
-          le prior déplace le CdA de &lt; 0.005 m² — invisible.
-          Sur les rides mal contraintes (montée de col tout droit pendant 2h),
-          le prior peut déplacer le CdA de ~0.03 m² vers 0.30, ce qui évite
-          un résultat aberrant.
+          le prior déplace le <Tex>{String.raw`C_dA`}</Tex>{" "}
+          de <Tex>{String.raw`< 0.005 \;\text{m}^2`}</Tex> — invisible. Sur
+          les rides mal contraintes (montée de col tout droit pendant 2h), le
+          prior peut déplacer le <Tex>{String.raw`C_dA`}</Tex>{" "}
+          de <Tex>{String.raw`\sim 0.03 \;\text{m}^2`}</Tex> vers 0.30, ce
+          qui évite un résultat aberrant.
         </P>
         <P>
           Les IC (intervalles de confiance) sont calculés sur les données
@@ -104,9 +225,12 @@ export default function BayesianPriors() {
       <Section title="Références">
         <P>
           La formulation est celle du MAP (Maximum A Posteriori), cas
-          particulier d'inférence bayésienne avec des priors gaussiens.
+          particulier d'inférence bayésienne avec des priors gaussiens, aussi
+          connue sous le nom de régularisation de Tikhonov en optimisation.
           Les valeurs de référence sont issues de Debraux et al. (2011) pour
-          le CdA et Lim, Homan &amp; Dalbert (2011) pour l'approche bayésienne.
+          le <Tex>{String.raw`C_dA`}</Tex> et Lim, Homan &amp; Dalbert (2011)
+          pour l'approche bayésienne appliquée à l'estimation des paramètres
+          de performance cycliste.
         </P>
       </Section>
     </Article>

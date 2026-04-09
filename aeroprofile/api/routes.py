@@ -50,6 +50,8 @@ def _df_to_profile(df) -> ProfileData:
         a = df[name].to_numpy()
         return [bool(v) for v in a[idx]]
 
+    ve_valid = colb("filter_ve_valid") if "filter_ve_valid" in df.columns else None
+
     return ProfileData(
         distance_km=[float(v / 1000.0) for v in df["distance"].to_numpy()[idx]],
         altitude_real=col("altitude_smooth"),
@@ -65,6 +67,7 @@ def _df_to_profile(df) -> ProfileData:
         wind_dir_deg=col("wind_dir_deg"),
         rho=col("rho"),
         filter_valid=colb("filter_valid"),
+        filter_ve_valid=ve_valid,
         lat=col("lat"),
         lon=col("lon"),
     )
@@ -82,6 +85,9 @@ async def analyze_endpoint(
     crr_fixed: float | None = Form(None),
     eta: float = Form(0.976),
     wind_height_factor: float = Form(0.7),
+    bike_type: str = Form("road"),
+    cda_prior_mean: float | None = Form(None),
+    cda_prior_sigma: float | None = Form(None),
 ):
     ext = Path(file.filename or "").suffix.lower()
     if ext not in (".fit", ".gpx", ".tcx"):
@@ -99,6 +105,8 @@ async def analyze_endpoint(
             crr_fixed=crr_fixed,
             eta=eta,
             wind_height_factor=wind_height_factor,
+            bike_type=bike_type,
+            cda_prior_override=(cda_prior_mean, cda_prior_sigma) if cda_prior_mean is not None else None,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))

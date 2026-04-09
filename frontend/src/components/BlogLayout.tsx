@@ -1,5 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Wind, ArrowLeft } from "lucide-react";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 
 /**
  * Simple client-side "routing" for the blog. No react-router needed —
@@ -88,12 +90,47 @@ export function Section({
   );
 }
 
+/** Block-level LaTeX formula rendered via KaTeX. */
 export function Formula({ children }: { children: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+      try {
+        katex.render(children, ref.current, {
+          displayMode: true,
+          throwOnError: false,
+          trust: true,
+        });
+      } catch {
+        ref.current.textContent = children;
+      }
+    }
+  }, [children]);
   return (
-    <div className="bg-bg border border-border rounded-lg p-4 font-mono text-sm overflow-x-auto my-3">
-      {children}
-    </div>
+    <div
+      ref={ref}
+      className="bg-bg border border-border rounded-lg p-4 overflow-x-auto my-3"
+    />
   );
+}
+
+/** Inline LaTeX rendered via KaTeX. */
+export function Tex({ children }: { children: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+      try {
+        katex.render(children, ref.current, {
+          displayMode: false,
+          throwOnError: false,
+          trust: true,
+        });
+      } catch {
+        ref.current.textContent = children;
+      }
+    }
+  }, [children]);
+  return <span ref={ref} className="inline" />;
 }
 
 export function Note({ children }: { children: ReactNode }) {

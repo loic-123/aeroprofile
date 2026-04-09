@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link2, Loader2, Filter, Play, ChevronDown, ChevronRight, FileText, ExternalLink } from "lucide-react";
+import { Link2, Loader2, Filter, Play, ChevronDown, ChevronRight, FileText } from "lucide-react";
 import {
   connect,
   listActivities,
@@ -10,18 +10,22 @@ import {
   type RideFilters,
 } from "../api/intervals";
 import { getCachedInterval, setCacheInterval, type CacheOpts } from "../api/cache";
+import { saveToHistory } from "../api/history";
 import type { AnalysisResult } from "../types";
+import { BIKE_TYPE_CONFIG, POSITION_PRESETS, CRR_PRESETS, type BikeType } from "../types";
 import InfoTooltip from "../components/InfoTooltip";
 import CdATotem from "../components/CdATotem";
 import CdARunningAvgChart from "../components/CdARunningAvgChart";
 import CdAEvolutionChart from "../components/CdAEvolutionChart";
 import ResultsDashboard from "../components/ResultsDashboard";
+import TabSwitcher from "../components/TabSwitcher";
+import ReferenceTable from "../components/ReferenceTable";
+import PositionSchematic from "../components/PositionSchematic";
 
 const LS_KEY = "aeroprofile_intervals_key";
 const LS_AID = "aeroprofile_intervals_aid";
 
 const MAX_NRMSE = 0.60;
-const MIN_CDA = 0.15;
 
 interface RideResult {
   activity: ActivitySummary;
@@ -48,10 +52,17 @@ export default function IntervalsPage() {
   const [filters, setFilters] = useState<RideFilters>({ ...DEFAULT_FILTERS });
   const [showFilters, setShowFilters] = useState(false);
   const [mass, setMass] = useState(75);
-  const [crrFixed, setCrrFixed] = useState("");
+  const [bikeType, setBikeType] = useState<BikeType>("road");
+  const [crrFixed, setCrrFixed] = useState(String(BIKE_TYPE_CONFIG["road"].defaultCrr));
+  const [positionIdx, setPositionIdx] = useState(1);
   const [useCache, setUseCache] = useState(true);
 
-  // Activities list — allActivities = outdoor rides with power from API
+  const handleBikeType = (bt: BikeType) => {
+    setBikeType(bt);
+    setCrrFixed(String(BIKE_TYPE_CONFIG[bt].defaultCrr));
+  };
+
+  // Activities list
   const [allActivities, setAllActivities] = useState<ActivitySummary[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [listing, setListing] = useState(false);
@@ -62,6 +73,7 @@ export default function IntervalsPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [doneCount, setDoneCount] = useState(0);
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [viewTab, setViewTab] = useState<"overview" | "detail">("overview");
 
   // Persist credentials
   useEffect(() => {
@@ -69,7 +81,6 @@ export default function IntervalsPage() {
     if (athleteId) localStorage.setItem(LS_AID, athleteId);
   }, [apiKey, athleteId]);
 
-  // Update mass from profile: add ~10 kg for the bike
   useEffect(() => {
     if (profile?.weight_kg) setMass(Math.round(profile.weight_kg + 10));
   }, [profile]);
@@ -91,12 +102,9 @@ export default function IntervalsPage() {
     setListing(true);
     setListed(false);
     try {
-      // Fetch ALL activities in the date range (no server-side filtering)
       const r = await listActivities(apiKey, athleteId, oldest, newest, {
-        min_distance_km: 0,
-        max_distance_km: 99999,
-        max_elevation_m: 99999,
-        min_duration_h: 0,
+        min_distance_km: 0, max_distance_km: 99999,
+        max_elevation_m: 99999, min_duration_h: 0,
       });
       setAllActivities(r.activities);
       setTotalCount(r.total);
@@ -107,8 +115,11 @@ export default function IntervalsPage() {
     setListing(false);
   };
 
-  // Client-side filtering — updates live when filters change.
-  // Indoor rides are ALWAYS excluded (no option). Power is ALWAYS required.
+  // Keywords that strongly suggest group riding / drafting → exclude by default
+  const GROUP_KEYWORDS = /\b(group[e]?|peloton|avec|aspi|aspiration|porte[- ]?bagage|roue|draft|à deux|à trois|à [0-9]+|cyclosportive|granfondo|course|compét|critérium|kermesse)\b/i;
+
+  const [excludeGroup, setExcludeGroup] = useState(true);
+
   const filteredActivities = allActivities.filter((a) => {
     if (a.activity_type !== "Ride" && a.activity_type !== "GravelRide") return false;
     if (a.indoor) return false;
@@ -117,6 +128,7 @@ export default function IntervalsPage() {
     if (a.distance_km > filters.max_distance_km) return false;
     if (a.elevation_gain_m > filters.max_elevation_m) return false;
     if (a.moving_time_s / 3600 < filters.min_duration_h) return false;
+    if (excludeGroup && GROUP_KEYWORDS.test(a.name)) return false;
     return true;
   });
 
@@ -125,22 +137,29 @@ export default function IntervalsPage() {
     setDoneCount(0);
     setRides([]);
     setSelectedIdx(0);
+    setViewTab("overview");
     const crr = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : undefined;
-    const cacheOpts: CacheOpts = { mass_kg: mass, crr_fixed: crr };
+    const posPresetForCache = bikeType === "road" ? POSITION_PRESETS[positionIdx] : undefined;
+    const cacheOpts: CacheOpts = {
+      mass_kg: mass, crr_fixed: crr, bike_type: bikeType,
+      cda_prior_mean: posPresetForCache?.cdaPrior,
+      cda_prior_sigma: posPresetForCache?.cdaSigma,
+    };
+    const { minCda: MIN_CDA, maxCda: MAX_CDA } = BIKE_TYPE_CONFIG[bikeType];
 
     const results: RideResult[] = [];
     for (let i = 0; i < filteredActivities.length; i++) {
       const act = filteredActivities[i];
-      // Check cache first
       const fromCache = useCache ? getCachedInterval(act.id, cacheOpts) : null;
       if (fromCache) {
         const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
-        results.push({ activity: act, result: fromCache, excluded: nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA });
+        results.push({ activity: act, result: fromCache, excluded: nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
-          const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr);
+          const posPreset = bikeType === "road" ? POSITION_PRESETS[positionIdx] : undefined;
+          const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, posPreset?.cdaPrior, posPreset?.cdaSigma);
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
-          results.push({ activity: act, result: res, excluded: nrmse > MAX_NRMSE || res.cda < MIN_CDA });
+          results.push({ activity: act, result: res, excluded: nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
           setCacheInterval(act.id, res, cacheOpts);
         } catch (e: any) {
           results.push({ activity: act, error: e.message, excluded: true });
@@ -150,7 +169,6 @@ export default function IntervalsPage() {
       setRides([...results]);
     }
 
-    // Select best ride
     const good = results.filter((r) => !r.excluded && r.result);
     if (good.length > 0) {
       const best = good.sort(
@@ -160,13 +178,58 @@ export default function IntervalsPage() {
       )[0];
       setSelectedIdx(results.indexOf(best));
     }
+
+    // Save to history
+    if (good.length > 0) {
+      const nrmses = good.map((r) => Math.max((r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1), 0.01));
+      const bestN = Math.min(...nrmses), worstN = Math.max(...nrmses), span = worstN - bestN;
+      let tw = 0, sc = 0, sr = 0, sp = 0, sRho = 0, sRmse = 0;
+      for (let j = 0; j < good.length; j++) {
+        const res = good[j].result!;
+        const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
+        const w = Math.max(res.valid_points, 1) * qw;
+        tw += w; sc += res.cda * w; sr += res.crr * w; sp += res.avg_power_w * w; sRho += res.avg_rho * w; sRmse += (res.rmse_w || 0) * w;
+      }
+      const hCda = sc / tw, hCrr = sr / tw;
+      let hLow: number | null = null, hHigh: number | null = null;
+      if (good.length >= 2) {
+        const cdas = good.map((r) => r.result!.cda);
+        const wVar = cdas.reduce((a, c) => a + (c - hCda) ** 2, 0) / cdas.length;
+        const se = Math.sqrt(wVar / cdas.length);
+        hLow = hCda - 1.96 * se; hHigh = hCda + 1.96 * se;
+      }
+      const posP = bikeType === "road" ? POSITION_PRESETS[positionIdx] : undefined;
+      saveToHistory({
+        id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        timestamp: new Date().toISOString(),
+        mode: "intervals",
+        label: `${good.length} sortie${good.length > 1 ? "s" : ""} via Intervals.icu (${profile?.name || athleteId})`,
+        cda: hCda, cdaLow: hLow, cdaHigh: hHigh, crr: hCrr,
+        rmseW: sRmse / tw, avgPowerW: sp / tw, avgRho: sRho / tw,
+        bikeType,
+        positionLabel: posP?.label || BIKE_TYPE_CONFIG[bikeType].label,
+        massKg: mass,
+        crrFixed: crr ?? null,
+        nRides: good.length,
+        nExcluded: results.length - good.length,
+        nTotalPoints: good.reduce((a, r) => a + (r.result?.valid_points || 0), 0),
+        rideCdas: good.map((r) => ({ date: r.result!.ride_date, cda: r.result!.cda })),
+      });
+    }
+
     setAnalyzing(false);
   };
 
   const goodRides = rides.filter((r) => !r.excluded && r.result);
 
-  // Aggregate CdA
+  // Full aggregate computation (matching App.tsx)
   let aggCda: number | null = null;
+  let aggCrr: number | null = null;
+  let aggCdaLow: number | null = null;
+  let aggCdaHigh: number | null = null;
+  let aggPower: number | null = null;
+  let aggRho: number | null = null;
+  let aggRmse: number | null = null;
   if (goodRides.length >= 1) {
     const nrmses = goodRides.map((r) =>
       Math.max((r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1), 0.01),
@@ -174,15 +237,32 @@ export default function IntervalsPage() {
     const bestN = Math.min(...nrmses);
     const worstN = Math.max(...nrmses);
     const span = worstN - bestN;
-    let totalW = 0, sumCda = 0;
+    let totalW = 0, sumCda = 0, sumCrr = 0, sumPow = 0, sumRho = 0, sumRmse = 0;
     for (let j = 0; j < goodRides.length; j++) {
       const res = goodRides[j].result!;
       const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
       const w = Math.max(res.valid_points, 1) * qw;
       totalW += w;
       sumCda += res.cda * w;
+      sumCrr += res.crr * w;
+      sumPow += res.avg_power_w * w;
+      sumRho += res.avg_rho * w;
+      sumRmse += (res.rmse_w || 0) * w;
     }
     aggCda = sumCda / totalW;
+    aggCrr = sumCrr / totalW;
+    aggPower = sumPow / totalW;
+    aggRho = sumRho / totalW;
+    aggRmse = sumRmse / totalW;
+    if (goodRides.length >= 2) {
+      const cdas = goodRides.map((r) => r.result!.cda);
+      let wVar = 0;
+      for (const c of cdas) wVar += (c - aggCda!) ** 2;
+      wVar /= cdas.length;
+      const se = Math.sqrt(wVar / cdas.length);
+      aggCdaLow = aggCda - 1.96 * se;
+      aggCdaHigh = aggCda + 1.96 * se;
+    }
   }
 
   const selectedResult = rides[selectedIdx]?.result || null;
@@ -246,7 +326,7 @@ export default function IntervalsPage() {
         )}
       </div>
 
-      {/* Filters + date range (only after connected) */}
+      {/* Filters + date range */}
       {profile && (
         <div className="bg-panel border border-border rounded-lg p-5">
           <h3 className="text-sm font-semibold mb-3">Paramètres</h3>
@@ -268,11 +348,66 @@ export default function IntervalsPage() {
                 className="w-full bg-bg border border-border rounded px-2 py-1 font-mono" min={30} max={200} step={0.1} />
             </div>
             <div>
-              <label className="block text-xs text-muted mb-1">Crr fixe (vide=auto)</label>
-              <input type="text" value={crrFixed} onChange={(e) => setCrrFixed(e.target.value)} placeholder="auto"
-                className="w-full bg-bg border border-border rounded px-2 py-1 font-mono" />
+              <label className="block text-xs text-muted mb-1">Crr (résistance au roulement)</label>
+              <select
+                value={crrFixed}
+                onChange={(e) => setCrrFixed(e.target.value)}
+                className="w-full bg-bg border border-border rounded px-2 py-1 font-mono text-xs"
+              >
+                {CRR_PRESETS.map((p) => (
+                  <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
+                    {p.crr === 0 ? "Auto (estimé par le solveur)" : `${p.crr.toFixed(4)} — ${p.label}`}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
+
+          <div className="mt-3">
+            <label className="block text-xs text-muted mb-1">Type de vélo</label>
+            <div className="flex gap-1 max-w-sm">
+              {(Object.entries(BIKE_TYPE_CONFIG) as [BikeType, typeof BIKE_TYPE_CONFIG[BikeType]][]).map(([key, cfg]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handleBikeType(key)}
+                  title={cfg.description}
+                  className={`flex-1 px-3 py-1.5 text-sm rounded transition ${
+                    bikeType === key
+                      ? "bg-teal text-white font-semibold"
+                      : "bg-bg border border-border text-muted hover:text-text"
+                  }`}
+                >
+                  {cfg.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted mt-1">
+              CdA attendu : {BIKE_TYPE_CONFIG[bikeType].minCda} – {BIKE_TYPE_CONFIG[bikeType].maxCda} m² · Crr : {BIKE_TYPE_CONFIG[bikeType].defaultCrr} ({BIKE_TYPE_CONFIG[bikeType].crrHint})
+            </p>
+          </div>
+
+          {bikeType === "road" && (
+            <div className="mt-3">
+              <label className="block text-xs text-muted mb-1">
+                Position sur le vélo
+                <span className="text-teal font-semibold ml-2">{POSITION_PRESETS[positionIdx].label}</span>
+                <span className="text-muted text-xs ml-1">(prior CdA ≈ {POSITION_PRESETS[positionIdx].cdaPrior})</span>
+              </label>
+              <input
+                type="range" min={0} max={POSITION_PRESETS.length - 1} step={1}
+                value={positionIdx}
+                onChange={(e) => setPositionIdx(parseInt(e.target.value))}
+                className="w-full accent-teal max-w-sm"
+              />
+              <div className="flex justify-between text-[10px] text-muted mt-0.5 max-w-sm">
+                {POSITION_PRESETS.map((p, i) => (
+                  <span key={i} className={`cursor-pointer ${i === positionIdx ? "text-teal font-semibold" : ""}`}
+                    onClick={() => setPositionIdx(i)}>{p.label}</span>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-2 mt-3">
             <button
@@ -308,7 +443,30 @@ export default function IntervalsPage() {
                 prises en compte (indoor et rides sans puissance sont toujours exclues).
               </p>
 
-              {/* Distance dual slider */}
+              {/* Group ride exclusion toggle */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExcludeGroup(!excludeGroup)}
+                  className={`relative w-9 h-5 rounded-full transition-colors ${
+                    excludeGroup ? "bg-teal" : "bg-border"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                      excludeGroup ? "translate-x-4" : ""
+                    }`}
+                  />
+                </button>
+                <label className="text-xs text-muted">
+                  Exclure les sorties en groupe
+                  {excludeGroup && (
+                    <span className="text-teal ml-1">
+                      (détection par mots-clés : groupe, peloton, avec, aspi, course…)
+                    </span>
+                  )}
+                </label>
+              </div>
               <div>
                 <label className="block text-xs text-muted mb-2">
                   Distance : <span className="text-teal font-mono">{filters.min_distance_km}</span> – <span className="text-teal font-mono">{filters.max_distance_km}</span> km
@@ -317,65 +475,45 @@ export default function IntervalsPage() {
                   <div>
                     <label className="block text-xs text-muted mb-1">Min</label>
                     <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={0} max={500} step={5}
+                      <input type="range" min={0} max={500} step={5}
                         value={filters.min_distance_km}
-                        onChange={(e) => {
-                          const v = parseFloat(e.target.value);
-                          setFilters({ ...filters, min_distance_km: Math.min(v, filters.max_distance_km - 5) });
-                        }}
-                        className="flex-1 accent-teal"
-                      />
+                        onChange={(e) => { const v = parseFloat(e.target.value); setFilters({ ...filters, min_distance_km: Math.min(v, filters.max_distance_km - 5) }); }}
+                        className="flex-1 accent-teal" />
                       <span className="font-mono text-xs w-12 text-right">{filters.min_distance_km}</span>
                     </div>
                   </div>
                   <div>
                     <label className="block text-xs text-muted mb-1">Max</label>
                     <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={0} max={500} step={5}
+                      <input type="range" min={0} max={500} step={5}
                         value={filters.max_distance_km}
-                        onChange={(e) => {
-                          const v = parseFloat(e.target.value);
-                          setFilters({ ...filters, max_distance_km: Math.max(v, filters.min_distance_km + 5) });
-                        }}
-                        className="flex-1 accent-info"
-                      />
+                        onChange={(e) => { const v = parseFloat(e.target.value); setFilters({ ...filters, max_distance_km: Math.max(v, filters.min_distance_km + 5) }); }}
+                        className="flex-1 accent-info" />
                       <span className="font-mono text-xs w-12 text-right">{filters.max_distance_km}</span>
                     </div>
                   </div>
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-muted mb-1">
                     D+ max : <span className="text-teal font-mono">{filters.max_elevation_m}</span> m
                   </label>
-                  <input
-                    type="range"
-                    min={200} max={5000} step={100}
+                  <input type="range" min={200} max={5000} step={100}
                     value={filters.max_elevation_m}
                     onChange={(e) => setFilters({ ...filters, max_elevation_m: parseFloat(e.target.value) })}
-                    className="w-full accent-teal"
-                  />
+                    className="w-full accent-teal" />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">
                     Durée min : <span className="text-teal font-mono">{Math.round(filters.min_duration_h * 60)}</span> min
                   </label>
-                  <input
-                    type="range"
-                    min={0} max={240} step={15}
+                  <input type="range" min={0} max={240} step={15}
                     value={Math.round(filters.min_duration_h * 60)}
                     onChange={(e) => setFilters({ ...filters, min_duration_h: parseFloat(e.target.value) / 60 })}
-                    className="w-full accent-teal"
-                  />
+                    className="w-full accent-teal" />
                 </div>
               </div>
-
               {listed && (
                 <p className="text-xs text-teal font-mono">
                   → {filteredActivities.length} rides correspondent aux filtres
@@ -385,11 +523,8 @@ export default function IntervalsPage() {
           )}
 
           <div className="flex items-center gap-3 mt-4">
-            <button
-              onClick={doList}
-              disabled={listing}
-              className="px-4 py-2 border border-border rounded hover:border-muted text-sm flex items-center gap-2"
-            >
+            <button onClick={doList} disabled={listing}
+              className="px-4 py-2 border border-border rounded hover:border-muted text-sm flex items-center gap-2">
               {listing ? <Loader2 className="animate-spin" size={14} /> : <Filter size={14} />}
               Rechercher les sorties
             </button>
@@ -410,21 +545,14 @@ export default function IntervalsPage() {
             <h3 className="text-sm font-semibold">
               <span className="text-teal font-mono">{filteredActivities.length}</span> rides
               retenues sur <span className="font-mono">{allActivities.length}</span> activités
-              {filteredActivities.length === 0 && (
-                <span className="text-coral ml-2">(ajustez les filtres)</span>
-              )}
+              {filteredActivities.length === 0 && <span className="text-coral ml-2">(ajustez les filtres)</span>}
             </h3>
-            <button
-              onClick={doAnalyze}
-              disabled={analyzing || filteredActivities.length === 0}
-              className="px-5 py-2 bg-teal hover:bg-teal/90 disabled:opacity-40 text-white font-semibold rounded flex items-center gap-2"
-            >
+            <button onClick={doAnalyze} disabled={analyzing || filteredActivities.length === 0}
+              className="px-5 py-2 bg-teal hover:bg-teal/90 disabled:opacity-40 text-white font-semibold rounded flex items-center gap-2">
               {analyzing ? <Loader2 className="animate-spin" size={16} /> : <Play size={16} />}
               {analyzing ? `Analyse ${doneCount}/${filteredActivities.length}…` : `Analyser ${filteredActivities.length} sorties`}
             </button>
           </div>
-
-          {/* Scrollable activity preview */}
           <div className="max-h-48 overflow-y-auto text-xs space-y-1">
             {filteredActivities.map((a) => (
               <div key={a.id} className="flex items-center gap-2 text-muted py-0.5">
@@ -457,84 +585,213 @@ export default function IntervalsPage() {
       )}
 
       {/* Results */}
-      {goodRides.length > 0 && (
+      {goodRides.length > 0 && aggCda !== null && (
         <>
-          {/* Totem */}
-          {aggCda && !analyzing && <CdATotem cda={aggCda} />}
+          <TabSwitcher
+            tabs={[
+              { id: "overview", label: "Vue d'ensemble" },
+              { id: "detail", label: "Détail d'une sortie" },
+            ]}
+            active={viewTab}
+            onChange={(id) => setViewTab(id as "overview" | "detail")}
+          />
 
-          {/* Aggregate banner */}
-          <div className="bg-panel border border-teal rounded-lg p-4">
-            <div className="text-xs text-muted uppercase">
-              CdA moyen ({goodRides.length} sortie{goodRides.length > 1 ? "s" : ""} retenue{goodRides.length > 1 ? "s" : ""})
-            </div>
-            <div className="text-3xl font-mono font-bold text-teal mt-1">
-              CdA = {aggCda?.toFixed(3)}
-            </div>
+          {viewTab === "overview" && (
+            <div className="space-y-6">
+              {/* Totem */}
+              {!analyzing && <CdATotem cda={aggCda} />}
 
-            {/* Chips */}
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {rides.map((r, i) => {
-                const isBad = r.excluded;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => r.result && !isBad && setSelectedIdx(i)}
-                    title={r.error || (r.result ? `CdA ${r.result.cda.toFixed(3)}` : "")}
-                    className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-mono ${
-                      isBad
-                        ? "bg-red-900/20 text-red-400/60 line-through border border-red-900/40"
-                        : i === selectedIdx
-                          ? "bg-teal/20 text-teal border border-teal"
-                          : "bg-emerald-900/30 text-emerald-400 border border-emerald-800 hover:border-teal"
-                    }`}
-                  >
-                    {isBad ? "✗" : i === selectedIdx ? "▶" : "✓"}
-                    <span className="truncate max-w-[120px]">{r.activity.start_date}</span>
-                    {r.result && !isBad && <span className="opacity-60">{r.result.cda.toFixed(3)}</span>}
-                    {isBad && <span className="opacity-40">excl.</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+              {/* Aggregate banner */}
+              <div className="bg-panel border border-teal rounded-lg p-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div>
+                    <div className="text-xs text-muted uppercase tracking-wide flex items-center">
+                      CdA moyen ({goodRides.length} sortie{goodRides.length > 1 ? "s" : ""} retenue{goodRides.length > 1 ? "s" : ""} sur {rides.length})
+                      <InfoTooltip text="Moyenne pondérée par le nombre de points valides × qualité (1/nRMSE). Les sorties avec nRMSE > 60% ou CdA hors limites sont exclues." />
+                    </div>
+                    <div className="text-3xl font-mono font-bold text-teal mt-1">
+                      CdA = {aggCda.toFixed(3)}
+                      {aggCdaLow != null && (
+                        <span className="text-sm text-muted font-normal ml-2">
+                          IC95 [{aggCdaLow.toFixed(3)} – {aggCdaHigh!.toFixed(3)}]
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="ml-auto flex gap-6 text-right">
+                    {aggCrr !== null && (
+                      <div>
+                        <div className="text-xs text-muted">Crr moyen</div>
+                        <div className="text-xl font-mono text-teal">{aggCrr.toFixed(4)}</div>
+                      </div>
+                    )}
+                    {aggRmse !== null && (
+                      <div>
+                        <div className="text-xs text-muted">RMSE moyen</div>
+                        <div className="text-xl font-mono text-muted">±{aggRmse.toFixed(0)} W</div>
+                      </div>
+                    )}
+                    {aggPower !== null && aggCda > 0 && (
+                      <div>
+                        <div className="text-xs text-muted flex items-center justify-end">
+                          W/CdA
+                          <InfoTooltip text="Puissance moyenne / CdA = capacité à aller vite sur le plat." />
+                        </div>
+                        <div className="text-xl font-mono text-info">
+                          {(aggPower / aggCda).toFixed(0)}
+                        </div>
+                      </div>
+                    )}
+                    {aggPower !== null && aggCda > 0 && (
+                      <div>
+                        <div className="text-xs text-muted">V plat</div>
+                        <div className="text-xl font-mono text-info">
+                          {(Math.pow(2 * aggPower / (aggCda * (aggRho || 1.2)), 1/3) * 3.6).toFixed(1)} km/h
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-          {/* Charts */}
-          {goodRides.length >= 2 && (
-            <div className="space-y-4">
-              <CdARunningAvgChart
-                rides={goodRides.map((r) => ({
-                  date: r.result!.ride_date,
-                  cda: r.result!.cda,
-                  nrmse: (r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1),
-                  fileName: r.activity.name,
-                }))}
-                aggCda={aggCda}
-              />
-              <CdAEvolutionChart
-                riders={[{
-                  name: "CdA",
-                  points: goodRides.map((r) => ({
-                    date: r.result!.ride_date,
-                    cda: r.result!.cda,
-                    r2: r.result!.r_squared,
-                    fileName: r.activity.name,
-                  })).sort((a, b) => a.date.localeCompare(b.date)),
-                }]}
-              />
+              {/* Position + Derived metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-panel border border-border rounded-lg p-4 flex justify-center">
+                  <PositionSchematic cda={aggCda} label="Position moyenne" size={240} />
+                </div>
+                <div className="bg-panel border border-border rounded-lg p-4 md:col-span-2">
+                  <h3 className="text-sm font-semibold mb-2">Métriques dérivées (moyenne)</h3>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm font-mono">
+                    {[30, 35, 40, 45].map((s) => {
+                      const v = s / 3.6;
+                      const pAero = 0.5 * aggCda * (aggRho || 1.2) * v * v * v;
+                      const pRoll = (aggCrr || 0.004) * mass * 9.80665 * v;
+                      const pTotal = (pAero + pRoll) / 0.977;
+                      return (
+                        <div key={s} className="flex justify-between border-b border-border/30 py-1">
+                          <span className="text-muted">{s} km/h</span>
+                          <span className="text-teal">{pTotal.toFixed(0)} W</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted mt-2">
+                    Watts pour rouler sur le plat ({mass} kg, pas de vent, ρ = {(aggRho || 1.2).toFixed(2)})
+                  </p>
+                </div>
+              </div>
+
+              <ReferenceTable cda={aggCda} crr={aggCrr || 0.004} />
+
+              {/* Charts */}
+              {goodRides.length >= 2 && (
+                <>
+                  <CdARunningAvgChart
+                    rides={goodRides.map((r) => ({
+                      date: r.result!.ride_date,
+                      cda: r.result!.cda,
+                      nrmse: (r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1),
+                      fileName: r.activity.name,
+                    }))}
+                    aggCda={aggCda}
+                  />
+                  <CdAEvolutionChart
+                    riders={[{
+                      name: "CdA",
+                      points: goodRides.map((r) => ({
+                        date: r.result!.ride_date,
+                        cda: r.result!.cda,
+                        r2: r.result!.r_squared,
+                        fileName: r.activity.name,
+                      })).sort((a, b) => a.date.localeCompare(b.date)),
+                    }]}
+                  />
+                </>
+              )}
+
+              {/* Ride chips */}
+              <div className="bg-panel border border-border rounded-lg p-4">
+                <h3 className="text-sm font-semibold mb-3">Sorties analysées</h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {rides.map((r, i) => {
+                    const isBad = r.excluded;
+                    const { minCda: _mn, maxCda: _mx } = BIKE_TYPE_CONFIG[bikeType];
+                    let reason = "";
+                    if (r.error) {
+                      reason = `Erreur : ${r.error}`;
+                    } else if (r.result) {
+                      const nrmse = (r.result.rmse_w || 0) / Math.max(r.result.avg_power_w, 1);
+                      if (nrmse > MAX_NRMSE) reason = `nRMSE ${(nrmse*100).toFixed(0)}% > 60%`;
+                      else if (r.result.cda < _mn) reason = `CdA ${r.result.cda.toFixed(3)} < ${_mn} (trop bas → drafting ?)`;
+                      else if (r.result.cda > _mx) reason = `CdA ${r.result.cda.toFixed(3)} > ${_mx} (hors limites)`;
+                      if (!isBad) reason = `CdA ${r.result.cda.toFixed(3)} • ${r.activity.name}`;
+                    }
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          if (r.result && !isBad) {
+                            setSelectedIdx(i);
+                            setViewTab("detail");
+                          }
+                        }}
+                        title={reason}
+                        className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-mono transition ${
+                          isBad
+                            ? "bg-red-900/20 text-red-400/60 line-through border border-red-900/40"
+                            : "bg-emerald-900/30 text-emerald-400 border border-emerald-800 hover:border-teal cursor-pointer"
+                        }`}
+                      >
+                        {isBad ? "✗" : "✓"}
+                        <FileText size={11} />
+                        <span className="truncate max-w-[120px]">{r.activity.start_date}</span>
+                        {r.result && !isBad && <span className="opacity-60">{r.result.cda.toFixed(3)}</span>}
+                        {isBad && r.result && <span className="opacity-40">{r.result.cda.toFixed(3)}</span>}
+                        {isBad && !r.result && <span className="opacity-40">err.</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-4 mt-1.5 text-[10px] text-muted">
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> Retenue (cliquer → détail)
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-2 h-2 rounded-full bg-red-500" /> Exclue
+                  </span>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Detail */}
-          {selectedResult && (
-            <>
-              <div className="bg-panel border border-border rounded-lg px-4 py-2 flex items-center gap-2 text-sm">
+          {viewTab === "detail" && selectedResult && (
+            <div>
+              <div className="bg-panel border border-border rounded-lg px-4 py-2 mb-4 flex items-center gap-2 text-sm flex-wrap">
                 <FileText size={14} className="text-muted" />
                 <span className="text-muted">Détail :</span>
                 <span className="font-mono text-teal">{rides[selectedIdx]?.activity?.name}</span>
                 <span className="text-muted text-xs">({rides[selectedIdx]?.activity?.start_date})</span>
+                <div className="flex gap-1 ml-auto">
+                  {rides.filter((r) => !r.excluded && r.result).map((r) => {
+                    const realIdx = rides.indexOf(r);
+                    return (
+                      <button
+                        key={realIdx}
+                        onClick={() => setSelectedIdx(realIdx)}
+                        className={`text-xs px-2 py-0.5 rounded font-mono ${
+                          realIdx === selectedIdx
+                            ? "bg-teal text-white"
+                            : "bg-panel border border-border text-muted hover:text-text"
+                        }`}
+                      >
+                        {r.activity.start_date}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               <ResultsDashboard result={selectedResult} />
-            </>
+            </div>
           )}
         </>
       )}

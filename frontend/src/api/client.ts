@@ -6,6 +6,9 @@ export interface AnalyzeParams {
   crr_fixed?: number | null;
   eta?: number;
   wind_height_factor?: number;
+  bike_type?: string;
+  cda_prior_mean?: number;
+  cda_prior_sigma?: number;
 }
 
 export async function analyze(params: AnalyzeParams): Promise<AnalysisResult> {
@@ -16,6 +19,9 @@ export async function analyze(params: AnalyzeParams): Promise<AnalysisResult> {
   if (params.eta != null) fd.append("eta", String(params.eta));
   if (params.wind_height_factor != null)
     fd.append("wind_height_factor", String(params.wind_height_factor));
+  if (params.bike_type) fd.append("bike_type", params.bike_type);
+  if (params.cda_prior_mean != null) fd.append("cda_prior_mean", String(params.cda_prior_mean));
+  if (params.cda_prior_sigma != null) fd.append("cda_prior_sigma", String(params.cda_prior_sigma));
 
   const res = await fetch("/api/analyze", { method: "POST", body: fd });
   if (!res.ok) {

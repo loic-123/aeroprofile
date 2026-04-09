@@ -1,4 +1,4 @@
-import { Article, Section, Formula, Note, P } from "../../components/BlogLayout";
+import { Article, Section, Formula, Tex, Note, P } from "../../components/BlogLayout";
 
 export default function Filters() {
   return (
@@ -63,8 +63,8 @@ export default function Filters() {
                 <td className="text-muted">Pertes de cornering, lean angle</td>
               </tr>
               <tr className="border-b border-border/30">
-                <td className="py-1.5">V_air négatif</td>
-                <td className="font-mono">V_air ≤ 0</td>
+                <td className="py-1.5"><Tex>{String.raw`V_{\text{air}}`}</Tex> négatif</td>
+                <td className="font-mono"><Tex>{String.raw`V_{\text{air}} \leq 0`}</Tex></td>
                 <td className="text-muted">Vent de dos plus fort que la vitesse sol</td>
               </tr>
               <tr className="border-b border-border/30">
@@ -84,7 +84,7 @@ export default function Filters() {
               </tr>
               <tr>
                 <td className="py-1.5">Drafting</td>
-                <td className="font-mono">CdA_inst &lt; 0.12</td>
+                <td className="font-mono"><Tex>{String.raw`C_dA_{\text{inst}} < 0.12`}</Tex></td>
                 <td className="text-muted">Impossible seul → dans la roue de quelqu'un</td>
               </tr>
             </tbody>
@@ -97,7 +97,8 @@ export default function Filters() {
           Après le filtrage individuel, on ne garde que les blocs continus
           d'au moins 30 secondes de données valides. Un point isolé valide
           entre deux zones filtrées n'apporte pas assez d'information pour
-          contraindre le modèle.
+          contraindre le modèle — le modèle physique requiert un état
+          quasi-stationnaire sur une durée suffisante.
         </P>
       </Section>
 
@@ -110,27 +111,42 @@ export default function Filters() {
         </P>
         <P>
           Si moins de 20% des données passent, c'est un signal d'alarme :
-          soit la sortie n'est pas adaptée (VTT, peloton), soit il y a un
-          problème de capteur.
+          soit la sortie n'est pas adaptée (VTT technique, peloton dense),
+          soit il y a un problème de capteur.
         </P>
       </Section>
 
-      <Section title="Filtrage post-analyse : raffinement itératif">
+      <Section title="Filtrage post-analyse : raffinement itératif hybride">
         <P>
           Après le solveur, un filtrage supplémentaire compare l'altitude
-          virtuelle reconstruite à l'altitude GPS réelle. Les segments où
-          le modèle diverge fortement (dérive &gt; 10% du D+ total, minimum
-          50m) sont exclus et le solveur est relancé (passe 2). Voir
-          l'article "Raffinement itératif" pour les détails.
+          virtuelle reconstruite à l'altitude GPS réelle. Deux critères
+          hybrides détectent les segments problématiques :
+        </P>
+        <ul className="list-disc ml-6 space-y-1 text-text">
+          <li>
+            <strong>Taux de dérive</strong> (<Tex>{String.raw`\frac{d}{dt}|\Delta h|`}</Tex>) :
+            détecte où le modèle diverge <em>activement</em> (drafting soudain, changement de vent)
+          </li>
+          <li>
+            <strong>Dérive absolue</strong> (<Tex>{String.raw`|\Delta h|`}</Tex>) :
+            filet de sécurité pour les biais accumulés trop importants
+          </li>
+        </ul>
+        <P>
+          Si plus de 30% des points valides seraient exclus, le raffinement
+          est sauté entièrement — le modèle est globalement défaillant et
+          le découper n'aiderait pas. Voir l'article "Raffinement itératif"
+          pour les détails.
         </P>
       </Section>
 
       <Section title="Filtrage multi-rides (mode Intervals / multi-fichiers)">
         <P>
           Quand plusieurs sorties sont analysées, un dernier filtre exclut
-          les rides entières dont le nRMSE dépasse 60%. La moyenne CdA est
-          pondérée par qualité (les bonnes rides pèsent 3× plus que les
-          médiocres).
+          les rides entières dont le nRMSE dépasse 60%, ou dont le CdA
+          tombe hors de la plage du type de vélo sélectionné. La moyenne
+          CdA est pondérée par qualité (les bonnes rides pèsent 3× plus
+          que les médiocres).
         </P>
       </Section>
 
@@ -142,12 +158,13 @@ export default function Filters() {
           <li>
             <strong>Puissance : moyenne mobile 5 secondes</strong> (Martin 1998).
             Lisse les oscillations de couple pédale-par-pédale que le modèle
-            quasi-statique ne peut pas capturer.
+            quasi-statique ne peut pas capturer. Les valeurs instantanées de
+            CdA héritent de ce lissage — elles sont déjà moyennées sur ~5s.
           </li>
           <li>
             <strong>Altitude : filtre Savitzky-Golay</strong> (fenêtre 31 points,
             polynôme degré 3). Préserve mieux les ruptures de pente qu'une
-            moyenne mobile tout en éliminant le bruit de 0.2m du baromètre.
+            moyenne mobile tout en éliminant le bruit de ±0.2 m du baromètre.
           </li>
         </ul>
       </Section>

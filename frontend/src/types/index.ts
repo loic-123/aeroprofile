@@ -1,3 +1,40 @@
+export type BikeType = "road" | "tt" | "mtb";
+
+export const BIKE_TYPE_CONFIG: Record<BikeType, { label: string; minCda: number; maxCda: number; defaultCrr: number; crrHint: string; description: string }> = {
+  road: { label: "Route", minCda: 0.22, maxCda: 0.50, defaultCrr: 0.0033, crrHint: "GP5000 S TR / tubeless haut de gamme", description: "Vélo de route (drops → tops)" },
+  tt: { label: "CLM / Triathlon", minCda: 0.15, maxCda: 0.32, defaultCrr: 0.0026, crrHint: "Tubulaire ou tubeless compétition, velodrome/lisse", description: "Prolongateurs / position aéro" },
+  mtb: { label: "VTT / Gravel", minCda: 0.30, maxCda: 0.65, defaultCrr: 0.0060, crrHint: "Pneu 40mm+ sur terrain mixte", description: "Position relevée, pneus larges" },
+};
+
+export interface CrrPreset {
+  label: string;
+  crr: number;
+}
+
+export const CRR_PRESETS: CrrPreset[] = [
+  { label: "Auto (estimé par le solveur)", crr: 0 },
+  { label: "Tubulaire vélodrome", crr: 0.0022 },
+  { label: "Tubeless compétition (GP5000 S TR, Pro One TLR)", crr: 0.0030 },
+  { label: "Tubeless route (GP5000, Corsa)", crr: 0.0035 },
+  { label: "Clincher standard (chambre butyl)", crr: 0.0045 },
+  { label: "Endurance / training (4Season, Gatorskin)", crr: 0.0055 },
+  { label: "Gravel 40mm (sentier compact)", crr: 0.0070 },
+  { label: "VTT (terre / racines)", crr: 0.0100 },
+];
+
+export interface PositionPreset {
+  label: string;
+  cdaPrior: number;
+  cdaSigma: number;
+}
+
+export const POSITION_PRESETS: PositionPreset[] = [
+  { label: "Très aéro",   cdaPrior: 0.24, cdaSigma: 0.04 },
+  { label: "Aéro (drops)", cdaPrior: 0.30, cdaSigma: 0.04 },
+  { label: "Modérée (cocottes)", cdaPrior: 0.34, cdaSigma: 0.06 },
+  { label: "Relâchée (tops)", cdaPrior: 0.40, cdaSigma: 0.06 },
+];
+
 export interface Anomaly {
   severity: "error" | "warning" | "info";
   code: string;
@@ -21,6 +58,7 @@ export interface ProfileData {
   wind_dir_deg: number[];
   rho: number[];
   filter_valid: boolean[];
+  filter_ve_valid?: boolean[];
   lat: number[];
   lon: number[];
 }

@@ -1,4 +1,4 @@
-"""Open-Meteo historical weather client."""
+"""Open-Meteo historical weather client with transparent caching."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import asyncio
 from datetime import date, datetime, timedelta, timezone
 
 import httpx
+
+from aeroprofile.weather.cache import get as _cache_get, put as _cache_put
 
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
@@ -35,6 +37,11 @@ async def fetch_weather(lat: float, lon: float, ride_date: date | str) -> dict:
     else:
         day = ride_date.isoformat()
         day_dt = ride_date
+
+    # Check cache first
+    cached = _cache_get(lat, lon, day_dt)
+    if cached is not None:
+        return cached
 
     # Decide endpoint: archive is authoritative but has a ~5-day lag.
     today = datetime.now(timezone.utc).date()
@@ -73,6 +80,7 @@ async def fetch_weather(lat: float, lon: float, ride_date: date | str) -> dict:
             if r.status_code == 200:
                 data = r.json()
                 if data.get("hourly", {}).get("time"):
+                    _cache_put(lat, lon, day_dt, data["hourly"])
                     return data["hourly"]
         # Fallback to forecast with past_days
         past_days = max(1, min(7, (today - day_dt).days + 1))
@@ -80,4 +88,5 @@ async def fetch_weather(lat: float, lon: float, ride_date: date | str) -> dict:
         r = await _get_with_retry(client, FORECAST_URL, params_fc)
         r.raise_for_status()
         data = r.json()
+        _cache_put(lat, lon, day_dt, data["hourly"])
         return data["hourly"]

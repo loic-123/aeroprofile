@@ -38,7 +38,6 @@ def apply_filters(
     steady_speed_cv_max: float = 0.15,
     min_power_w: float = 50.0,
     max_accel: float = 0.3,
-    drafting_cda_threshold: float = 0.12,
 ) -> pd.DataFrame:
     """Adds one boolean column per filter plus ``filter_valid``. Mutates df.
 
@@ -109,28 +108,35 @@ def apply_filters(
     cv = (v_roll_std / v_roll_mean.replace(0, np.nan)).fillna(1.0).to_numpy()
     df["filter_unsteady"] = cv > steady_speed_cv_max
 
-    # Drafting detection: compute instantaneous CdA and flag points where
-    # it's impossibly low (< 0.18 m² at speed > 8 m/s on flat).
-    # CdA_inst = (P×η - P_roll - P_grav - P_accel) / (0.5×ρ×V_air²×V)
-    # If CdA_inst < threshold → rider is in a draft (or data is broken).
+    # Drafting detection: CdA smoothed 10s drops below 70% of the ride's
+    # median CdA on fast/flat/pedalling segments. This relative threshold
+    # adapts automatically to each rider's morphology — a small rider with
+    # CdA=0.25 gets threshold 0.175, a large rider at 0.40 gets 0.28.
+    # 30% reduction corresponds to close drafting (Blocken et al. 2018).
     if "rho" in df.columns:
         rho = _arr(df["rho"])
         from aeroprofile.physics.constants import G as _G, ETA_DEFAULT as _eta
         theta = np.arctan(grad)
-        P_roll_est = 0.004 * mass * _G * np.cos(theta) * v  # Crr~0.004 guess
+        P_roll_est = 0.004 * mass * _G * np.cos(theta) * v
         P_grav_est = mass * _G * np.sin(theta) * v
         P_accel_est = mass * a * v
         numerator = p * _eta - P_roll_est - P_grav_est - P_accel_est
         denominator = 0.5 * rho * np.sign(v_air) * v_air * v_air * v
         with np.errstate(divide="ignore", invalid="ignore"):
-            cda_inst = np.where(np.abs(denominator) > 1.0, numerator / denominator, 0.5)
-        # Only flag at sufficient speed AND power on flat terrain.
-        # CdA < 0.12 at 30+ km/h while pedalling hard = physically impossible
-        # solo (even pro TT is ~0.17). Below that = certain drafting or data error.
+            cda_inst = np.where(np.abs(denominator) > 1.0, numerator / denominator, np.nan)
+        # Smooth CdA over 10 seconds to eliminate noise
+        cda_smooth_10s = pd.Series(cda_inst).rolling(window=10, center=True, min_periods=3).mean().to_numpy()
+        # Compute median CdA on fast/flat/pedalling points only (representative of solo riding)
         fast_flat_pedalling = (v > 8.0) & (np.abs(grad) < 0.02) & (p > 100.0)
-        raw_draft = fast_flat_pedalling & (cda_inst < drafting_cda_threshold) & (cda_inst > 0)
-        # A real drafting stint lasts at least 30 seconds — isolated low-CdA
-        # points are noise, not drafting. Keep only contiguous blocks ≥ 30 s.
+        cda_valid = cda_smooth_10s[fast_flat_pedalling & np.isfinite(cda_smooth_10s) & (cda_smooth_10s > 0.05) & (cda_smooth_10s < 0.8)]
+        if len(cda_valid) > 30:
+            cda_median = float(np.median(cda_valid))
+            draft_threshold = cda_median * 0.70  # 30% reduction = drafting
+            cda_smooth_safe = np.nan_to_num(cda_smooth_10s, nan=cda_median)
+            raw_draft = fast_flat_pedalling & (cda_smooth_safe < draft_threshold) & (cda_smooth_safe > 0)
+        else:
+            raw_draft = np.zeros(n, dtype=bool)
+        # Keep only contiguous blocks ≥ 20 seconds
         draft_clean = np.array(raw_draft, dtype=bool, copy=True)
         i = 0
         while i < n:
@@ -142,7 +148,7 @@ def apply_filters(
             while j < n and draft_clean[j]:
                 block_dur += dt[j] if dt[j] > 0 else 0.0
                 j += 1
-            if block_dur < 30.0:
+            if block_dur < 20.0:
                 draft_clean[i:j] = False
             i = j
         df["filter_drafting"] = draft_clean

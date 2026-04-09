@@ -14,13 +14,16 @@ export interface CacheOpts {
   crr_fixed?: number | null;
   eta?: number;
   wind_height_factor?: number;
+  bike_type?: string;
+  cda_prior_mean?: number;
+  cda_prior_sigma?: number;
 }
 
 function fileKey(file: File, opts?: CacheOpts): string {
   // Include analysis options in the key so different mass/crr/eta give
   // different cache entries (not stale results from a previous config).
   const optsStr = opts
-    ? `:m${opts.mass_kg}:crr${opts.crr_fixed ?? "auto"}:eta${opts.eta ?? "def"}:wf${opts.wind_height_factor ?? "def"}`
+    ? `:m${opts.mass_kg}:crr${opts.crr_fixed ?? "auto"}:eta${opts.eta ?? "def"}:wf${opts.wind_height_factor ?? "def"}:bt${opts.bike_type ?? "road"}:pm${opts.cda_prior_mean ?? "def"}:ps${opts.cda_prior_sigma ?? "def"}`
     : "";
   const raw = `${CACHE_VERSION}:${file.name}:${file.size}:${file.lastModified}${optsStr}`;
   let h = 5381;
@@ -60,7 +63,7 @@ export function setCache(file: File, result: AnalysisResult, opts?: CacheOpts): 
  */
 function intervalsKey(activityId: string, opts?: CacheOpts): string {
   const optsStr = opts
-    ? `:m${opts.mass_kg}:crr${opts.crr_fixed ?? "auto"}:eta${opts.eta ?? "def"}`
+    ? `:m${opts.mass_kg}:crr${opts.crr_fixed ?? "auto"}:eta${opts.eta ?? "def"}:bt${opts.bike_type ?? "road"}:pm${opts.cda_prior_mean ?? "def"}:ps${opts.cda_prior_sigma ?? "def"}`
     : "";
   const raw = `${CACHE_VERSION}:intervals:${activityId}${optsStr}`;
   let h = 5381;

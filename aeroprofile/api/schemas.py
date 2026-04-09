@@ -30,6 +30,7 @@ class ProfileData(BaseModel):
     wind_dir_deg: list[float]
     rho: list[float]
     filter_valid: list[bool]
+    filter_ve_valid: Optional[list[bool]] = None
     lat: list[float]
     lon: list[float]
 

@@ -29,6 +29,7 @@ from aeroprofile.solver.virtual_elevation import virtual_elevation
 from aeroprofile.solver.wind_inverse import solve_with_wind
 from aeroprofile.anomaly.calibration_check import detect_anomalies, Anomaly
 from aeroprofile.physics.power_model import power_model
+from aeroprofile.bike_types import get_bike_config
 
 
 @dataclass
@@ -160,8 +161,24 @@ async def analyze(
     fetch_wx: bool = True,
     tiled_weather: bool = True,
     drop_descents: bool = True,
-    min_block_seconds: int = 30,
+    min_block_seconds: int = 60,
+    bike_type: str | None = None,
+    cda_prior_override: tuple[float, float] | None = None,
 ) -> AnalysisResult:
+    bcfg = get_bike_config(bike_type)
+    # Allow frontend position slider to override the CdA prior
+    if cda_prior_override is not None:
+        mean, sigma = cda_prior_override
+        if mean > 0 and sigma > 0:
+            from aeroprofile.bike_types import BikeTypeConfig
+            bcfg = BikeTypeConfig(
+                label=bcfg.label,
+                cda_prior_mean=mean,
+                cda_prior_sigma=sigma,
+                cda_lower=bcfg.cda_lower,
+                cda_upper=bcfg.cda_upper,
+            )
+
     ride = parse_file(filepath)
     validate_ride(ride)
 
@@ -252,8 +269,12 @@ async def analyze(
     if insufficient and crr_fixed is None:
         effective_crr_fixed = 0.005
 
-    # Primary solver: Martin least-squares with weak Crr prior
-    sol: SolverResult = solve_cda_crr(df, mass_kg, eta=eta, crr_fixed=effective_crr_fixed)
+    # Primary solver: Martin least-squares with bike-type priors
+    sol: SolverResult = solve_cda_crr(
+        df, mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
+        cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
+        cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
+    )
     solver_method = "martin_ls"
     solver_note = (
         "Moindres carrés de Martin et al. (1998) avec prior faible sur Crr."
@@ -267,8 +288,10 @@ async def analyze(
     try:
         wi = solve_with_wind(
             df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
+            cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
+            cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
         )
-        if wi is not None and wi["r_squared"] > best_r2 and 0.15 <= wi["cda"] <= 0.55:
+        if wi is not None and wi["r_squared"] > best_r2 and bcfg.cda_lower <= wi["cda"] <= bcfg.cda_upper:
             # Overwrite df's v_air with the wind-solved values for
             # downstream decomposition / virtual elevation.
             valid_mask = df["filter_valid"].to_numpy()
@@ -305,8 +328,10 @@ async def analyze(
                 mass=mass_kg,
                 eta=eta,
                 crr_fixed=effective_crr_fixed,
+                cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
+                cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
             )
-            if 0.15 <= chung.cda <= 0.55 and chung.r_squared_elev > max(best_r2, 0.0):
+            if bcfg.cda_lower <= chung.cda <= bcfg.cda_upper and chung.r_squared_elev > max(best_r2, 0.0):
                 sol = SolverResult(
                     cda=chung.cda,
                     crr=chung.crr,
@@ -330,31 +355,59 @@ async def analyze(
     df["altitude_virtual"] = virtual_elevation(df, sol.cda, sol.crr, mass_kg, eta)
 
     ve_excluded_count = 0
-    # --- Iterative refinement: exclude points where VE diverges from GPS ---
-    # Where alt_virtual drifts far from alt_real, the model is wrong at those
-    # points (bad wind, drafting, braking). Excluding them and re-solving
-    # gives a cleaner CdA/Crr based only on "well-modelled" segments.
+    # --- Iterative refinement (hybrid): exclude points where VE diverges ---
+    # Two complementary criteria:
+    #   1. Drift RATE: d(drift)/dt is high → model is actively diverging
+    #      (catches sudden local problems: drafting, wind shift, braking)
+    #   2. Drift ABSOLUTE: |alt_virtual - alt_real| is very large → accumulated
+    #      bias too big even if stable (catches systematic model failure)
+    # A point is excluded if EITHER criterion fires.
     try:
         alt_real = df["altitude_smooth"].to_numpy()
         alt_virt = df["altitude_virtual"].to_numpy()
-        # Offset virtual to start at the same value as real
         alt_virt_aligned = alt_virt + (alt_real[0] - alt_virt[0])
-        # Rolling drift: smoothed absolute difference over a 60s window
-        drift = np.abs(alt_virt_aligned - alt_real)
-        drift_smooth = pd.Series(drift).rolling(window=60, center=True, min_periods=10).mean().to_numpy()
+
+        # --- Criterion 1: drift rate ---
+        drift = alt_virt_aligned - alt_real
+        drift_smooth = pd.Series(drift).rolling(window=30, center=True, min_periods=5).mean().to_numpy()
         drift_smooth = np.nan_to_num(drift_smooth, nan=0.0)
-        # Threshold proportional to D+: 10% of total elevation gain, min 50m.
-        # Flat ride (300m D+) → 50m. Mountain (1900m D+) → 190m.
+        dt_arr = df["dt"].to_numpy()
+        d_drift = np.diff(drift_smooth, prepend=drift_smooth[0])
+        dt_safe = np.where(dt_arr > 0, dt_arr, 1.0)
+        drift_rate = np.abs(d_drift / dt_safe)
+        drift_rate_smooth = pd.Series(drift_rate).rolling(window=60, center=True, min_periods=10).mean().to_numpy()
+        drift_rate_smooth = np.nan_to_num(drift_rate_smooth, nan=0.0)
+
         _alt = df["altitude_smooth"].to_numpy()
         _dalt = np.diff(_alt, prepend=_alt[0])
         _dplus = float(np.sum(_dalt[_dalt > 0]))
-        drift_threshold = max(50.0, _dplus * 0.10)
-        filter_ve_ok = drift_smooth <= drift_threshold
+        _duration = float((df["timestamp"].iloc[-1] - df["timestamp"].iloc[0]).total_seconds())
+        _base_rate = _dplus / max(_duration, 1.0)
+        drift_rate_threshold = max(0.10, _base_rate * 4.0)
+        rate_ok = drift_rate_smooth <= drift_rate_threshold
+
+        # --- Criterion 2: absolute drift (safety net) ---
+        drift_abs = np.abs(drift_smooth)
+        drift_abs_smooth = pd.Series(drift_abs).rolling(window=60, center=True, min_periods=10).mean().to_numpy()
+        drift_abs_smooth = np.nan_to_num(drift_abs_smooth, nan=0.0)
+        drift_abs_threshold = max(80.0, _dplus * 0.12)
+        abs_ok = drift_abs_smooth <= drift_abs_threshold
+
+        # Exclude if EITHER criterion fires
+        filter_ve_ok = rate_ok & abs_ok
+
         # Combine with existing filter_valid
         valid_pass1 = df["filter_valid"].to_numpy()
         valid_pass2 = valid_pass1 & filter_ve_ok
-        # Only re-solve if we still have enough points AND we actually excluded some
+        # Only re-solve if we excluded a meaningful but not excessive fraction.
+        # If >30% of valid points fail VE, the model is globally bad and
+        # trimming won't help — it'd just remove most data.
         n_excluded_by_ve = int(valid_pass1.sum() - valid_pass2.sum())
+        n_valid_pass1 = int(valid_pass1.sum())
+        pct_excluded = n_excluded_by_ve / max(n_valid_pass1, 1)
+        if pct_excluded > 0.30:
+            # Too many points fail → skip refinement, keep pass-1 result
+            n_excluded_by_ve = 0
         ve_excluded_count = n_excluded_by_ve
         n_valid_pass2 = int(valid_pass2.sum())
         if n_excluded_by_ve > 20 and n_valid_pass2 >= 100:
@@ -364,8 +417,10 @@ async def analyze(
             try:
                 # Re-run the best solver from pass 1
                 if solver_method == "wind_inverse":
-                    wi2 = solve_with_wind(df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed)
-                    if wi2 is not None and 0.15 <= wi2["cda"] <= 0.55:
+                    wi2 = solve_with_wind(df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
+                                          cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
+                                          cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper)
+                    if wi2 is not None and bcfg.cda_lower <= wi2["cda"] <= bcfg.cda_upper:
                         sol = SolverResult(
                             cda=wi2["cda"], crr=wi2["crr"],
                             cda_ci=(float("nan"), float("nan")),
@@ -375,10 +430,12 @@ async def analyze(
                             n_points=wi2["n_points"],
                             crr_was_fixed=(effective_crr_fixed is not None),
                         )
-                        solver_note += f" Passe 2 itérative : {n_excluded_by_ve} points exclus (dérive VE > {drift_threshold:.0f}m)."
+                        solver_note += f" Passe 2 itérative : {n_excluded_by_ve} points exclus (dérive VE hybride : taux > {drift_rate_threshold:.2f} m/s ou abs > {drift_abs_threshold:.0f} m)."
                 elif solver_method == "chung_ve":
-                    chung2 = solve_chung_ve(df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed)
-                    if 0.15 <= chung2.cda <= 0.55:
+                    chung2 = solve_chung_ve(df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
+                                            cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
+                                            cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper)
+                    if bcfg.cda_lower <= chung2.cda <= bcfg.cda_upper:
                         sol = SolverResult(
                             cda=chung2.cda, crr=chung2.crr,
                             cda_ci=chung2.cda_ci, crr_ci=chung2.crr_ci,
@@ -387,14 +444,18 @@ async def analyze(
                             n_points=chung2.n_points,
                             crr_was_fixed=(effective_crr_fixed is not None),
                         )
-                        solver_note += f" Passe 2 : {n_excluded_by_ve} pts exclus (dérive > {drift_threshold:.0f}m)."
+                        solver_note += f" Passe 2 : {n_excluded_by_ve} pts exclus (dérive hybride)."
                 else:
-                    sol2 = solve_cda_crr(df, mass_kg, eta=eta, crr_fixed=effective_crr_fixed)
-                    if 0.15 <= sol2.cda <= 0.55:
+                    sol2 = solve_cda_crr(df, mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
+                                         cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
+                                         cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper)
+                    if bcfg.cda_lower <= sol2.cda <= bcfg.cda_upper:
                         sol = sol2
-                        solver_note += f" Passe 2 : {n_excluded_by_ve} pts exclus (dérive > {drift_threshold:.0f}m)."
+                        solver_note += f" Passe 2 : {n_excluded_by_ve} pts exclus (dérive hybride)."
             except Exception:
                 pass
+            # Store VE mask for altitude chart (grey zones)
+            df["filter_ve_valid"] = valid_pass2
             # Restore original filter_valid (keep pass-2 sol but show all points in charts)
             df["filter_valid"] = df["filter_valid_original"]
             del df["filter_valid_original"]

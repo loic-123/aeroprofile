@@ -59,6 +59,10 @@ def solve_with_wind(
     wind_prior_sigma_ms: float = 2.0,
     crr_prior_mean: float = 0.0035,
     crr_prior_sigma: float = 0.0012,
+    cda_prior_mean: float = 0.30,
+    cda_prior_sigma: float = 0.12,
+    cda_lower: float = 0.15,
+    cda_upper: float = 0.60,
 ):
     """Jointly estimate (CdA, Crr, wind_per_segment) via Chung VE.
 
@@ -183,12 +187,16 @@ def solve_with_wind(
         if has_crr:
             extras.append(pw * (crr - crr_prior_mean) / crr_prior_sigma)
 
+        # CdA prior (bike-type-aware)
+        if cda_prior_sigma > 0:
+            extras.append(pw * (cda - cda_prior_mean) / cda_prior_sigma)
+
         return np.concatenate([res_alt, np.array(extras)])
 
     # Bounds
-    x0_list = [0.32]
-    lb_list = [0.15]
-    ub_list = [0.60]
+    x0_list = [cda_prior_mean]
+    lb_list = [cda_lower]
+    ub_list = [cda_upper]
     if has_crr:
         x0_list.append(0.004)
         lb_list.append(0.0015)
@@ -203,7 +211,8 @@ def solve_with_wind(
     ub = np.array(ub_list)
 
     # Multi-start on CdA
-    cda_starts = [0.25, 0.35, 0.45]
+    mid = (cda_lower + cda_upper) / 2
+    cda_starts = [cda_lower + 0.02, mid, cda_upper - 0.02]
     best = None
     for c0 in cda_starts:
         x0_try = x0.copy()

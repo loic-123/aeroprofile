@@ -1,4 +1,4 @@
-import { Article, Section, Formula, Note, Warning, P } from "../../components/BlogLayout";
+import { Article, Section, Formula, Tex, Note, Warning, P } from "../../components/BlogLayout";
 
 export default function IntervalsIntegration() {
   return (
@@ -30,22 +30,42 @@ export default function IntervalsIntegration() {
           Chaque activité passe par 4 étapes de sélection, du plus grossier
           au plus fin :
         </P>
-        <Formula>
-          {"NIVEAU 1 — Automatique (serveur)\n" +
-           "  Type = Ride ou GravelRide (exclut Run, Swim, etc.)\n" +
-           "  Capteur de puissance requis\n" +
-           "  Outdoor uniquement (exclut Zwift, home trainer)\n\n" +
-           "NIVEAU 2 — Sliders utilisateur (temps réel)\n" +
-           "  Distance : 30–500 km\n" +
-           "  D+ max : 2000 m\n" +
-           "  Durée min : 60 min\n\n" +
-           "NIVEAU 3 — Post-analyse (automatique)\n" +
-           "  nRMSE > 60% → ride exclue de la moyenne\n" +
-           "  (modèle n'a pas réussi à fitter)\n\n" +
-           "NIVEAU 4 — Par point dans chaque ride\n" +
-           "  13 filtres (freinage, virage, drafting, etc.)\n" +
-           "  + Passe 2 itérative (dérive VE)"}
-        </Formula>
+        <ul className="list-disc ml-6 space-y-2 text-text">
+          <li><strong>Niveau 1 — Automatique (serveur)</strong> : Type = Ride ou GravelRide,
+            capteur de puissance requis, outdoor uniquement (exclut Zwift, home trainer)</li>
+          <li><strong>Niveau 2 — Sliders utilisateur (temps réel)</strong> : Distance 30–500 km,
+            D+ max 2000 m, durée min 60 min</li>
+          <li><strong>Niveau 3 — Post-analyse (automatique)</strong> : nRMSE &gt; 60% → ride exclue
+            de la moyenne. CdA hors de la plage du type de vélo sélectionné → ride exclue.</li>
+          <li><strong>Niveau 4 — Par point dans chaque ride</strong> : 13 filtres (freinage,
+            virage, drafting, etc.) + passe 2 itérative (dérive VE hybride)</li>
+        </ul>
+      </Section>
+
+      <Section title="Type de vélo et bornes CdA">
+        <P>
+          AeroProfile propose trois types de vélo, chacun avec des bornes
+          de CdA réalistes et un prior bayésien adapté. Le type de vélo
+          influence à la fois l'estimation (prior + bornes du solveur) et
+          l'exclusion des rides dont le CdA tombe hors des bornes :
+        </P>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-border text-left text-muted text-xs">
+                <th className="py-2">Type</th>
+                <th className="py-2 text-right">CdA min</th>
+                <th className="py-2 text-right">CdA max</th>
+                <th className="py-2">Positions typiques</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono">
+              <tr className="border-b border-border/30"><td className="py-1.5">Route</td><td className="text-right">0.22</td><td className="text-right">0.50</td><td className="font-sans text-muted">Drops → tops</td></tr>
+              <tr className="border-b border-border/30"><td className="py-1.5">CLM / Triathlon</td><td className="text-right">0.17</td><td className="text-right">0.30</td><td className="font-sans text-muted">Prolongateurs → aéro hoods</td></tr>
+              <tr><td className="py-1.5">VTT / Gravel</td><td className="text-right">0.35</td><td className="text-right">0.60</td><td className="font-sans text-muted">Position relevée, pneus larges</td></tr>
+            </tbody>
+          </table>
+        </div>
       </Section>
 
       <Section title="Pourquoi analyser beaucoup de sorties ?">
@@ -53,31 +73,34 @@ export default function IntervalsIntegration() {
           Une seule sortie donne un CdA avec une incertitude de ±0.03-0.05 m²
           (due au vent, au drafting, à la qualité des données). En analysant
           20, 30 ou 50 sorties, la moyenne pondérée converge vers le "vrai"
-          CdA avec une incertitude beaucoup plus faible (±0.01 ou moins).
+          CdA avec une incertitude beaucoup plus faible. La loi des grands
+          nombres garantit :
         </P>
+        <Formula>
+          {String.raw`\text{IC}_{95\%} = \pm 1.96 \times \frac{\sigma_{\text{inter-rides}}}{\sqrt{N}}`}
+        </Formula>
         <P>
-          C'est le même principe qu'en statistique : une seule mesure est
-          bruitée, mais la moyenne de 50 mesures est stable. Le graphe de
-          convergence montre cette stabilisation en temps réel.
+          Avec <Tex>{String.raw`N = 30`}</Tex> rides et <Tex>{String.raw`\sigma = 0.03`}</Tex> m²,
+          l'IC95 tombe à <Tex>{String.raw`\pm 0.011`}</Tex> m² — suffisant pour détecter un changement
+          de position ou d'équipement.
         </P>
       </Section>
 
       <Section title="La pondération par qualité">
         <P>
-          Toutes les rides ne se valent pas. Une sortie plate par temps calme
-          donne un CdA plus fiable qu'une sortie montagneuse par grand vent.
-          AeroProfile pondère chaque ride par sa qualité (inverse du nRMSE) :
+          Toutes les rides ne se valent pas. AeroProfile pondère chaque ride
+          par sa qualité (nRMSE) et son volume de données :
         </P>
         <Formula>
-          {"poids(ride) = valid_points × qualité\n\n" +
-           "qualité = linéaire entre 3.0 (meilleur nRMSE) et 1.0 (pire)\n\n" +
-           "CdA_moyen = Σ(CdA_i × poids_i) / Σ(poids_i)\n\n" +
-           "IC95 = ±1.96 × écart-type inter-rides / √N"}
+          {String.raw`w_i = N_{\text{valid},i} \times q_i \qquad \text{où } q_i = 3 - 2 \cdot \frac{\text{nRMSE}_i - \text{nRMSE}_{\min}}{\text{nRMSE}_{\max} - \text{nRMSE}_{\min}}`}
+        </Formula>
+        <Formula>
+          {String.raw`\overline{C_dA} = \frac{\sum_i C_dA_i \cdot w_i}{\sum_i w_i}`}
         </Formula>
         <P>
-          Résultat : les bonnes sorties comptent 3× plus que les médiocres.
-          Les sorties catastrophiques (nRMSE &gt; 60%) sont exclues
-          entièrement.
+          La meilleure ride (nRMSE le plus bas) a un multiplicateur de 3×,
+          la pire retenue a 1×. Les rides catastrophiques (nRMSE &gt; 60%)
+          sont exclues entièrement.
         </P>
       </Section>
 
@@ -98,9 +121,8 @@ export default function IntervalsIntegration() {
       <Section title="Sécurité">
         <P>
           Votre clé API est stockée dans le localStorage de votre navigateur
-          — elle ne quitte jamais votre machine. Les requêtes vers
-          Intervals.icu passent par le backend AeroProfile (proxy pour
-          éviter les restrictions CORS) mais la clé n'est pas stockée
+          — elle ne quitte jamais votre machine sauf pour les requêtes vers
+          le backend AeroProfile (proxy CORS). La clé n'est pas stockée
           côté serveur.
         </P>
         <Warning>

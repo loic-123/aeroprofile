@@ -114,6 +114,8 @@ def solve_chung_ve(
     crr_prior_sigma: float | None = 0.0012,
     cda_prior_mean: float | None = 0.30,
     cda_prior_sigma: float | None = 0.12,
+    cda_lower: float = 0.15,
+    cda_upper: float = 0.60,
 ) -> ChungResult:
     """Estimate (CdA, Crr) by minimising altitude-reconstruction error.
 
@@ -161,10 +163,11 @@ def solve_chung_ve(
                 (x[0], crr_fixed), V, V_air, rho, P, dt, alt_real, mass, eta,
                 block_starts, None, None,
             )
-        starts = [(0.25,), (0.35,), (0.45,)]
+        mid = (cda_lower + cda_upper) / 2
+        starts = [(cda_lower + 0.02,), (mid,), (cda_upper - 0.02,)]
         best = None
         for x0 in starts:
-            r = least_squares(res1, x0=x0, bounds=([0.15], [0.60]), method="trf")
+            r = least_squares(res1, x0=x0, bounds=([cda_lower], [cda_upper]), method="trf")
             if best is None or r.cost < best.cost:
                 best = r
         cda = float(best.x[0])
@@ -178,9 +181,10 @@ def solve_chung_ve(
         cda_ci = (cda - 1.96 * se, cda + 1.96 * se)
         crr_ci = (crr_fixed, crr_fixed)
     else:
-        bounds_lower = [0.15, 0.0015]
-        bounds_upper = [0.60, 0.012]
-        starts = [(0.25, 0.003), (0.35, 0.005), (0.45, 0.007)]
+        bounds_lower = [cda_lower, 0.0015]
+        bounds_upper = [cda_upper, 0.012]
+        mid = (cda_lower + cda_upper) / 2
+        starts = [(cda_lower + 0.02, 0.003), (mid, 0.005), (cda_upper - 0.02, 0.007)]
         best = None
         for x0 in starts:
             r = least_squares(

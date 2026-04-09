@@ -8,17 +8,19 @@ Live demo: **https://aeroprofile.onrender.com**
 
 - Analyses *any* regular ride — no need for a controlled protocol (no velodrome, no loops, no pre-arranged out-and-back).
 - **3 solvers in cascade**: Wind-Inverse (jointly estimates wind + CdA), Chung Virtual Elevation, Martin LS — with automatic selection based on fit quality.
-- **Iterative VE refinement**: 2-pass algorithm that excludes segments where the model diverges from reality, then re-solves on clean data only.
+- **Iterative VE refinement (hybrid)**: 2-pass algorithm using both drift rate and absolute drift to exclude divergent segments, with a 30% safety cap to avoid over-trimming. Re-solves on clean data only.
 - **Yaw-angle correction**: CdA reported is the zero-yaw "wind tunnel" value, corrected for crosswind effects (Crouch et al. 2014).
 - **Per-point drafting filter**: detects and excludes segments where CdA_instantaneous < 0.12 for ≥30s (physically impossible solo).
 - **Variable η(P)**: drivetrain efficiency varies with power per Spicer et al. (2001).
 - **Martin 1998 complete**: wheel-bearing losses + wheel inertia (+0.14 kg) + 5s power smoothing.
+- **Bike type selector** (Route / CLM-Triathlon / VTT-Gravel) with per-type CdA plausibility bounds for automatic ride exclusion.
 - **4 analysis modes**:
   - **Single/multi-file upload** with drag & drop, local cache, quality-weighted averaging
   - **Multi-rider comparison** with drafting detection and W/CdA ranking
   - **Intervals.icu integration** — connect your account, filter rides by date/distance/D+, analyze a year of data in one click
-  - **11 methodology articles** explaining every step of the pipeline
+  - **11 methodology articles** with KaTeX-rendered LaTeX formulas explaining every step of the pipeline
 - **CdA Totem** — fun comparison of your CdA to a real-world object ("You're a dolphin 🐬").
+- **VE exclusion zones** visible as grey bands on the altitude chart.
 - Detects likely **power-meter calibration issues** and quantifies the probable offset in watts.
 
 ## Quick start
@@ -148,7 +150,7 @@ P × η = P_aero + P_roll + P_grav + P_accel + P_bearings
 
 ### 4. Filters
 
-Each sample is tagged with 12 boolean filters. Defaults follow the Debraux/Chung consensus:
+Each sample is tagged with 13 boolean filters (including per-point drafting detection). Defaults follow the Debraux/Chung consensus:
 
 - `power < 50 W` (Martin threshold)
 - `|acceleration| > 0.3 m/s²` (unsteady)
@@ -157,8 +159,15 @@ Each sample is tagged with 12 boolean filters. Defaults follow the Debraux/Chung
 - `gradient < -8%` (steep descents with braking/terminal velocity)
 - rolling speed CV > 15% over 15 s
 - power spikes > 3·NP, GPS jumps > 50 m, negative V_air, low speed < 3 m/s, stopped, zero power
+- CdA_instantaneous < 0.12 for ≥30s continuous blocks at speed > 8 m/s (drafting detection)
 
 Only **contiguous blocks of ≥ 30 s** of valid samples are kept. Mid-grade descents (-3% to -8%) are kept by default because their high V_air gives a strong aero signal.
+
+After the initial solve, a **hybrid iterative refinement** (pass 2) detects and excludes segments where the virtual elevation diverges from reality, using two complementary criteria:
+- **Drift rate** `d(drift)/dt > max(0.10, D+/duration × 4)` m/s — catches active divergence
+- **Absolute drift** `|drift| > max(80 m, D+ × 12%)` — catches accumulated bias
+
+If >30% of valid points would be excluded, refinement is skipped (model is globally poor). Excluded segments are shown as grey zones on the altitude chart.
 
 ### 5. Solver
 
@@ -170,7 +179,7 @@ Three estimators, tried in cascade (best R² wins):
 
 3. **Martin LS** (baseline) — `scipy.optimize.least_squares` on per-point power residuals, multi-start (3 seeds), trust-region reflective.
 
-All three share weak Gaussian priors on Crr ~ N(0.004, 0.0015²) and CdA ~ N(0.30, 0.12²) to stabilise ill-conditioned fits. Confidence intervals come from the Jacobian at the MAP estimate (prior rows excluded).
+All three share weak Gaussian priors on Crr ~ N(0.0035, 0.0012²) and CdA ~ N(0.30, 0.12²) to stabilise ill-conditioned fits. Confidence intervals come from the Jacobian at the MAP estimate (prior rows excluded).
 
 ### 6. Reporting
 

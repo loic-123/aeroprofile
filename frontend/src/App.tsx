@@ -9,7 +9,10 @@ import { BlogProvider } from "./components/BlogLayout";
 import { analyze } from "./api/client";
 import { getCached, setCache, type CacheOpts } from "./api/cache";
 import type { AnalysisResult } from "./types";
-import { Wind, Users, User, FileText, Loader2, BookOpen, Link2 } from "lucide-react";
+import { BIKE_TYPE_CONFIG, POSITION_PRESETS, type BikeType } from "./types";
+import { Wind, Users, User, FileText, Loader2, BookOpen, Link2, Clock } from "lucide-react";
+import { saveToHistory, type HistoryEntry } from "./api/history";
+import HistoryPage from "./pages/HistoryPage";
 import InfoTooltip from "./components/InfoTooltip";
 import CdAEvolutionChart from "./components/CdAEvolutionChart";
 import CdARunningAvgChart from "./components/CdARunningAvgChart";
@@ -18,10 +21,9 @@ import TabSwitcher from "./components/TabSwitcher";
 import ReferenceTable from "./components/ReferenceTable";
 import PositionSchematic from "./components/PositionSchematic";
 
-type Mode = "single" | "compare" | "intervals" | "blog";
+type Mode = "single" | "compare" | "intervals" | "blog" | "history";
 
 const MAX_NRMSE = 0.60;
-const MIN_CDA = 0.15;
 
 interface RideAnalysis {
   file: File;
@@ -40,12 +42,17 @@ export default function App() {
   const [totalFiles, setTotalFiles] = useState(0);
   const [doneCount, setDoneCount] = useState(0);
   const [viewTab, setViewTab] = useState<"overview" | "detail">("overview");
+  const [bikeType, setBikeType] = useState<BikeType>("road");
 
   const handleAnalyze = async (
     files: File[],
     mass_kg: number,
-    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean },
+    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean; bikeType?: BikeType; positionIdx?: number },
   ) => {
+    const bt = opts.bikeType || "road";
+    setBikeType(bt);
+    const { minCda: MIN_CDA, maxCda: MAX_CDA } = BIKE_TYPE_CONFIG[bt];
+    const posPreset = opts.positionIdx != null ? POSITION_PRESETS[opts.positionIdx] : undefined;
     setLoading(true);
     setError(null);
     setRides([]);
@@ -58,6 +65,9 @@ export default function App() {
       crr_fixed: opts.crr_fixed,
       eta: opts.eta,
       wind_height_factor: opts.wind_height_factor,
+      bike_type: bt,
+      cda_prior_mean: posPreset?.cdaPrior,
+      cda_prior_sigma: posPreset?.cdaSigma,
     };
     const results: RideAnalysis[] = [];
     for (let fi = 0; fi < files.length; fi++) {
@@ -66,12 +76,16 @@ export default function App() {
       const fromCache = opts.useCache !== false ? getCached(file, cacheOpts) : null;
       if (fromCache) {
         const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
-        results.push({ file, result: fromCache, excluded: nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA });
+        results.push({ file, result: fromCache, excluded: nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
-          const res = await analyze({ file, mass_kg, ...opts });
+          const res = await analyze({
+            file, mass_kg, ...opts, bike_type: bt,
+            cda_prior_mean: posPreset?.cdaPrior,
+            cda_prior_sigma: posPreset?.cdaSigma,
+          });
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
-          results.push({ file, result: res, excluded: nrmse > MAX_NRMSE || res.cda < MIN_CDA });
+          results.push({ file, result: res, excluded: nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
           setCache(file, res, cacheOpts);
         } catch (e: any) {
           results.push({ file, error: e.message || String(e), excluded: true });
@@ -93,6 +107,47 @@ export default function App() {
       )[0];
       setSelectedIdx(best.idx);
     }
+
+    // Save to history
+    const goodForHistory = results.filter((r) => !r.excluded && r.result);
+    if (goodForHistory.length > 0) {
+      const nrmses = goodForHistory.map((r) => Math.max((r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1), 0.01));
+      const bestN = Math.min(...nrmses), worstN = Math.max(...nrmses), span = worstN - bestN;
+      let tw = 0, sc = 0, sr = 0, sp = 0, sRho = 0, sRmse = 0;
+      for (let j = 0; j < goodForHistory.length; j++) {
+        const res = goodForHistory[j].result!;
+        const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
+        const w = Math.max(res.valid_points, 1) * qw;
+        tw += w; sc += res.cda * w; sr += res.crr * w; sp += res.avg_power_w * w; sRho += res.avg_rho * w; sRmse += (res.rmse_w || 0) * w;
+      }
+      const hCda = sc / tw, hCrr = sr / tw;
+      let hLow: number | null = null, hHigh: number | null = null;
+      if (goodForHistory.length >= 2) {
+        const cdas = goodForHistory.map((r) => r.result!.cda);
+        const wVar = cdas.reduce((a, c) => a + (c - hCda) ** 2, 0) / cdas.length;
+        const se = Math.sqrt(wVar / cdas.length);
+        hLow = hCda - 1.96 * se; hHigh = hCda + 1.96 * se;
+      }
+      const fileNames = files.map((f) => f.name);
+      const label = files.length === 1 ? fileNames[0] : `${goodForHistory.length} sortie${goodForHistory.length > 1 ? "s" : ""} (${fileNames[0]}${files.length > 1 ? "…" : ""})`;
+      saveToHistory({
+        id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        timestamp: new Date().toISOString(),
+        mode: "single",
+        label,
+        cda: hCda, cdaLow: hLow, cdaHigh: hHigh, crr: hCrr,
+        rmseW: sRmse / tw, avgPowerW: sp / tw, avgRho: sRho / tw,
+        bikeType: bt,
+        positionLabel: posPreset?.label || BIKE_TYPE_CONFIG[bt].label,
+        massKg: mass_kg,
+        crrFixed: opts.crr_fixed ?? null,
+        nRides: goodForHistory.length,
+        nExcluded: results.length - goodForHistory.length,
+        nTotalPoints: goodForHistory.reduce((a, r) => a + (r.result?.valid_points || 0), 0),
+        rideCdas: goodForHistory.map((r) => ({ date: r.result!.ride_date, cda: r.result!.cda })),
+      });
+    }
+
     setLoading(false);
   };
 
@@ -185,6 +240,14 @@ export default function App() {
             <Link2 size={14} /> Intervals
           </button>
           <button
+            onClick={() => setMode("history")}
+            className={`px-3 py-1.5 text-sm flex items-center gap-2 ${
+              mode === "history" ? "bg-teal text-white" : "text-muted"
+            }`}
+          >
+            <Clock size={14} /> Historique
+          </button>
+          <button
             onClick={() => {
               setMode("blog");
               setBlogSlug(null);
@@ -199,7 +262,9 @@ export default function App() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-6">
-        {mode === "intervals" ? (
+        {mode === "history" ? (
+          <HistoryPage />
+        ) : mode === "intervals" ? (
           <IntervalsPage />
         ) : mode === "blog" ? (
           <BlogProvider value={{ slug: blogSlug, go: setBlogSlug }}>

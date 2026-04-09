@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { Upload, Trash2, Loader2, Trophy, Wind, Activity, User, AlertTriangle, X, FileText } from "lucide-react";
 import { analyze } from "../api/client";
 import type { AnalysisResult } from "../types";
+import { BIKE_TYPE_CONFIG, POSITION_PRESETS, type BikeType } from "../types";
 import PositionSchematic from "./PositionSchematic";
 import InfoTooltip from "./InfoTooltip";
 import CdAEvolutionChart from "./CdAEvolutionChart";
@@ -19,6 +20,7 @@ interface RiderEntry {
   id: string;
   name: string;
   mass: number;
+  positionIdx: number;
   rides: RideResult[];
 }
 
@@ -43,6 +45,7 @@ function emptyRider(n: number): RiderEntry {
     id: `r${Date.now()}-${n}`,
     name: `Cycliste ${n}`,
     mass: 75,
+    positionIdx: 1,
     rides: [],
   };
 }
@@ -69,9 +72,9 @@ function emptyRider(n: number): RiderEntry {
  *   > 60%        → excluded from average (model fundamentally doesn't fit)
  */
 const MAX_NRMSE = 0.60;
-const MIN_CDA = 0.15;
 
-function aggregate(r: RiderEntry): RiderAgg | null {
+function aggregate(r: RiderEntry, bikeType: BikeType = "road"): RiderAgg | null {
+  const { minCda: MIN_CDA, maxCda: MAX_CDA } = BIKE_TYPE_CONFIG[bikeType];
   const done = r.rides.filter((rd) => rd.status === "done" && rd.result);
   if (done.length === 0) return null;
 
@@ -80,7 +83,7 @@ function aggregate(r: RiderEntry): RiderAgg | null {
     const res = rd.result!;
     const avgP = res.avg_power_w || 1;
     const nrmse = (res.rmse_w || 0) / avgP;
-    return nrmse <= MAX_NRMSE && res.cda >= MIN_CDA;
+    return nrmse <= MAX_NRMSE && res.cda >= MIN_CDA && res.cda <= MAX_CDA;
   });
   const nExcluded = done.length - good.length;
 
@@ -170,6 +173,7 @@ function aggregate(r: RiderEntry): RiderAgg | null {
 export default function CompareMode({ onBack }: { onBack: () => void }) {
   const [riders, setRiders] = useState<RiderEntry[]>([emptyRider(1), emptyRider(2)]);
   const [running, setRunning] = useState(false);
+  const [bikeType, setBikeType] = useState<BikeType>("road");
 
   const updateRider = (id: string, patch: Partial<RiderEntry>) =>
     setRiders((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -230,7 +234,11 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           ),
         );
         try {
-          const res = await analyze({ file: rd.file, mass_kg: rider.mass });
+          const posPreset = bikeType === "road" ? POSITION_PRESETS[rider.positionIdx] : undefined;
+          const res = await analyze({
+            file: rd.file, mass_kg: rider.mass, bike_type: bikeType,
+            cda_prior_mean: posPreset?.cdaPrior, cda_prior_sigma: posPreset?.cdaSigma,
+          });
           setRiders((rs) =>
             rs.map((r) =>
               r.id === rider.id
@@ -264,8 +272,10 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
     setRunning(false);
   };
 
+  const { minCda: minCdaBound, maxCda: maxCdaBound } = BIKE_TYPE_CONFIG[bikeType];
+
   const aggs = riders
-    .map((r) => aggregate(r))
+    .map((r) => aggregate(r, bikeType))
     .filter((a): a is RiderAgg => a !== null);
 
   const canRun = riders.filter((r) => r.rides.length > 0 && r.mass > 0).length >= 2;
@@ -311,6 +321,29 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           Glissez-déposez <strong>plusieurs fichiers</strong> par cycliste pour des
           résultats moyennés plus précis. Formats : .FIT, .GPX, .TCX.
         </p>
+        <div className="mt-3">
+          <label className="block text-xs text-muted mb-1">Type de vélo</label>
+          <div className="flex gap-1 max-w-sm">
+            {(Object.entries(BIKE_TYPE_CONFIG) as [BikeType, typeof BIKE_TYPE_CONFIG[BikeType]][]).map(([key, cfg]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setBikeType(key as BikeType)}
+                title={cfg.description}
+                className={`flex-1 px-3 py-1.5 text-sm rounded transition ${
+                  bikeType === key
+                    ? "bg-teal text-white font-semibold"
+                    : "bg-bg border border-border text-muted hover:text-text"
+                }`}
+              >
+                {cfg.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted mt-1">
+            CdA attendu : {BIKE_TYPE_CONFIG[bikeType].minCda} – {BIKE_TYPE_CONFIG[bikeType].maxCda} m²
+          </p>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -319,7 +352,8 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
             key={r.id}
             rider={r}
             index={i}
-            agg={aggregate(r)}
+            agg={aggregate(r, bikeType)}
+            bikeType={bikeType}
             onUpdate={(patch) => updateRider(r.id, patch)}
             onAddFiles={(files) => addFiles(r.id, files)}
             onRemoveFile={(idx) => removeFile(r.id, idx)}
@@ -510,7 +544,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                     if (rd.status !== "done" || !rd.result) return false;
                     const avgP = rd.result.avg_power_w || 1;
                     const nrmse = (rd.result.rmse_w || 0) / avgP;
-                    return nrmse <= MAX_NRMSE && rd.result.cda >= MIN_CDA;
+                    return nrmse <= MAX_NRMSE && rd.result.cda >= minCdaBound && rd.result.cda <= maxCdaBound;
                   })
                   .map((rd) => ({
                     date: rd.result.ride_date,
@@ -572,6 +606,7 @@ function RiderRow({
   rider,
   index,
   agg,
+  bikeType,
   onUpdate,
   onAddFiles,
   onRemoveFile,
@@ -580,11 +615,13 @@ function RiderRow({
   rider: RiderEntry;
   index: number;
   agg: RiderAgg | null;
+  bikeType: BikeType;
   onUpdate: (p: Partial<RiderEntry>) => void;
   onAddFiles: (files: File[]) => void;
   onRemoveFile: (idx: number) => void;
   onRemove?: () => void;
 }) {
+  const { minCda: minCdaBound, maxCda: maxCdaBound } = BIKE_TYPE_CONFIG[bikeType];
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -635,6 +672,31 @@ function RiderRow({
         )}
       </div>
 
+      {/* Position slider per rider (road only) */}
+      {bikeType === "road" && (
+        <div className="mb-3">
+          <div className="flex items-center gap-2 text-xs text-muted mb-1">
+            Position :
+            <span className="text-teal font-semibold">{POSITION_PRESETS[rider.positionIdx].label}</span>
+            <span className="opacity-60">(prior ≈ {POSITION_PRESETS[rider.positionIdx].cdaPrior})</span>
+          </div>
+          <input
+            type="range" min={0} max={POSITION_PRESETS.length - 1} step={1}
+            value={rider.positionIdx}
+            onChange={(e) => onUpdate({ positionIdx: parseInt(e.target.value) })}
+            className="w-full accent-teal"
+          />
+          <div className="flex justify-between text-[10px] text-muted mt-0.5">
+            {POSITION_PRESETS.map((p, i) => (
+              <span key={i}
+                className={`cursor-pointer ${i === rider.positionIdx ? "text-teal font-semibold" : ""}`}
+                onClick={() => onUpdate({ positionIdx: i })}
+              >{p.label}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-[1fr_120px] gap-3">
         {/* Drop zone */}
         <div>
@@ -670,7 +732,7 @@ function RiderRow({
                   rd.status === "done" && rd.result
                     ? (rd.result.rmse_w || 0) / Math.max(rd.result.avg_power_w, 1)
                     : 0;
-                const isExcluded = rd.status === "done" && rd.result && (nrmse > MAX_NRMSE || rd.result.cda < MIN_CDA);
+                const isExcluded = rd.status === "done" && rd.result && (nrmse > MAX_NRMSE || rd.result.cda < minCdaBound || rd.result.cda > maxCdaBound);
                 const isBad = rd.status === "error" || isExcluded;
                 const tooltip = rd.status === "error"
                   ? `Erreur : ${rd.error || "analyse échouée"}`

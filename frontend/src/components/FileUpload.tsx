@@ -1,11 +1,12 @@
 import { useState, useRef } from "react";
 import { Upload, Loader2, ChevronDown, ChevronRight, FileText, X } from "lucide-react";
+import { BIKE_TYPE_CONFIG, POSITION_PRESETS, CRR_PRESETS, type BikeType } from "../types";
 
 interface Props {
   onAnalyze: (
     files: File[],
     mass_kg: number,
-    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean },
+    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean; bikeType?: BikeType; positionIdx?: number },
   ) => void;
   loading: boolean;
   error: string | null;
@@ -14,9 +15,16 @@ interface Props {
 export default function FileUpload({ onAnalyze, loading, error }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [mass, setMass] = useState<number>(80);
+  const [bikeType, setBikeType] = useState<BikeType>("road");
+  const [positionIdx, setPositionIdx] = useState(1); // default: "Aéro (drops)"
   const [advanced, setAdvanced] = useState(false);
   const [eta, setEta] = useState(0.977);
-  const [crrFixed, setCrrFixed] = useState<string>("");
+  const [crrFixed, setCrrFixed] = useState<string>(String(BIKE_TYPE_CONFIG["road"].defaultCrr));
+
+  const handleBikeType = (bt: BikeType) => {
+    setBikeType(bt);
+    setCrrFixed(String(BIKE_TYPE_CONFIG[bt].defaultCrr));
+  };
   const [windFactor, setWindFactor] = useState(0.7);
   const [useCache, setUseCache] = useState(true);
   const [dragging, setDragging] = useState(false);
@@ -44,8 +52,9 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
 
   const submit = () => {
     if (files.length === 0 || !mass) return;
-    const crr = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : null;
-    onAnalyze(files, mass, { crr_fixed: crr, eta, wind_height_factor: windFactor, useCache });
+    const crrVal = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : 0;
+    const crr = crrVal > 0 ? crrVal : null;
+    onAnalyze(files, mass, { crr_fixed: crr, eta, wind_height_factor: windFactor, useCache, bikeType, positionIdx });
   };
 
   return (
@@ -104,18 +113,80 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
       )}
 
       <div className="mt-6 bg-panel border border-border rounded-lg p-5">
-        <label className="block text-sm mb-1">
-          Masse totale (cycliste + vélo) en kg
-        </label>
-        <input
-          type="number"
-          value={mass}
-          onChange={(e) => setMass(parseFloat(e.target.value))}
-          className="w-full bg-bg border border-border rounded px-3 py-2 font-mono focus:outline-none focus:border-teal"
-          min={30}
-          max={200}
-          step={0.1}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-sm mb-1">
+              Masse totale (cycliste + vélo) en kg
+            </label>
+            <input
+              type="number"
+              value={mass}
+              onChange={(e) => setMass(parseFloat(e.target.value))}
+              className="w-full bg-bg border border-border rounded px-3 py-2 font-mono focus:outline-none focus:border-teal"
+              min={30}
+              max={200}
+              step={0.1}
+            />
+          </div>
+          <div>
+            <label className="block text-sm mb-1">Type de vélo</label>
+            <div className="flex gap-1">
+              {(Object.entries(BIKE_TYPE_CONFIG) as [BikeType, typeof BIKE_TYPE_CONFIG[BikeType]][]).map(([key, cfg]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handleBikeType(key)}
+                  title={cfg.description}
+                  className={`flex-1 px-3 py-2 text-sm rounded transition ${
+                    bikeType === key
+                      ? "bg-teal text-white font-semibold"
+                      : "bg-bg border border-border text-muted hover:text-text"
+                  }`}
+                >
+                  {cfg.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted mt-1">
+              CdA attendu : {BIKE_TYPE_CONFIG[bikeType].minCda} – {BIKE_TYPE_CONFIG[bikeType].maxCda} m² · Crr : {BIKE_TYPE_CONFIG[bikeType].defaultCrr} ({BIKE_TYPE_CONFIG[bikeType].crrHint})
+            </p>
+          </div>
+        </div>
+
+        {/* Position slider */}
+        {bikeType === "road" && (
+          <div className="mb-4">
+            <label className="block text-sm mb-2">
+              Position sur le vélo
+              <span className="text-teal font-semibold ml-2">{POSITION_PRESETS[positionIdx].label}</span>
+              <span className="text-muted text-xs ml-2">
+                (prior CdA ≈ {POSITION_PRESETS[positionIdx].cdaPrior})
+              </span>
+            </label>
+            <div className="relative">
+              <input
+                type="range"
+                min={0}
+                max={POSITION_PRESETS.length - 1}
+                step={1}
+                value={positionIdx}
+                onChange={(e) => setPositionIdx(parseInt(e.target.value))}
+                className="w-full accent-teal"
+              />
+              <div className="flex justify-between text-[10px] text-muted mt-1 px-0.5">
+                {POSITION_PRESETS.map((p, i) => (
+                  <span
+                    key={i}
+                    className={`cursor-pointer ${i === positionIdx ? "text-teal font-semibold" : ""}`}
+                    onClick={() => setPositionIdx(i)}
+                  >
+                    {p.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         <button
           type="button"
@@ -141,14 +212,18 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
               />
             </div>
             <div>
-              <label className="block text-xs text-muted mb-1">Crr fixe (vide=auto)</label>
-              <input
-                type="text"
+              <label className="block text-xs text-muted mb-1">Crr (résistance au roulement)</label>
+              <select
                 value={crrFixed}
                 onChange={(e) => setCrrFixed(e.target.value)}
-                placeholder="auto"
-                className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
-              />
+                className="w-full bg-bg border border-border rounded px-2 py-1 font-mono text-sm"
+              >
+                {CRR_PRESETS.map((p) => (
+                  <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
+                    {p.crr === 0 ? "⚙ Auto (estimé par le solveur)" : `${p.crr.toFixed(4)} — ${p.label}`}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">Facteur vent 10m→1m</label>

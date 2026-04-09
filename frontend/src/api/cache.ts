@@ -55,6 +55,45 @@ export function setCache(file: File, result: AnalysisResult, opts?: CacheOpts): 
   }
 }
 
+/**
+ * Cache for Intervals.icu rides, keyed by activity_id + mass + crr.
+ */
+function intervalsKey(activityId: string, opts?: CacheOpts): string {
+  const optsStr = opts
+    ? `:m${opts.mass_kg}:crr${opts.crr_fixed ?? "auto"}:eta${opts.eta ?? "def"}`
+    : "";
+  const raw = `${CACHE_VERSION}:intervals:${activityId}${optsStr}`;
+  let h = 5381;
+  for (let i = 0; i < raw.length; i++) {
+    h = ((h << 5) + h + raw.charCodeAt(i)) & 0xffffffff;
+  }
+  return CACHE_PREFIX + h.toString(36);
+}
+
+export function getCachedInterval(activityId: string, opts?: CacheOpts): AnalysisResult | null {
+  try {
+    const key = intervalsKey(activityId, opts);
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed.cda === "number" && typeof parsed.crr === "number") {
+      return parsed as AnalysisResult;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function setCacheInterval(activityId: string, result: AnalysisResult, opts?: CacheOpts): void {
+  try {
+    const key = intervalsKey(activityId, opts);
+    localStorage.setItem(key, JSON.stringify(result));
+  } catch {
+    // ignore
+  }
+}
+
 export function clearCache(): void {
   try {
     const keys: string[] = [];

@@ -9,6 +9,7 @@ import {
   type ActivitySummary,
   type RideFilters,
 } from "../api/intervals";
+import { getCachedInterval, setCacheInterval, type CacheOpts } from "../api/cache";
 import type { AnalysisResult } from "../types";
 import InfoTooltip from "../components/InfoTooltip";
 import CdATotem from "../components/CdATotem";
@@ -47,6 +48,7 @@ export default function IntervalsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [mass, setMass] = useState(75);
   const [crrFixed, setCrrFixed] = useState("");
+  const [useCache, setUseCache] = useState(true);
 
   // Activities list — allActivities = outdoor rides with power from API
   const [allActivities, setAllActivities] = useState<ActivitySummary[]>([]);
@@ -123,16 +125,25 @@ export default function IntervalsPage() {
     setRides([]);
     setSelectedIdx(0);
     const crr = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : undefined;
+    const cacheOpts: CacheOpts = { mass_kg: mass, crr_fixed: crr };
 
     const results: RideResult[] = [];
     for (let i = 0; i < filteredActivities.length; i++) {
       const act = filteredActivities[i];
-      try {
-        const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr);
-        const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
-        results.push({ activity: act, result: res, excluded: nrmse > MAX_NRMSE });
-      } catch (e: any) {
-        results.push({ activity: act, error: e.message, excluded: true });
+      // Check cache first
+      const fromCache = useCache ? getCachedInterval(act.id, cacheOpts) : null;
+      if (fromCache) {
+        const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
+        results.push({ activity: act, result: fromCache, excluded: nrmse > MAX_NRMSE });
+      } else {
+        try {
+          const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr);
+          const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
+          results.push({ activity: act, result: res, excluded: nrmse > MAX_NRMSE });
+          setCacheInterval(act.id, res, cacheOpts);
+        } catch (e: any) {
+          results.push({ activity: act, error: e.message, excluded: true });
+        }
       }
       setDoneCount(i + 1);
       setRides([...results]);
@@ -260,6 +271,25 @@ export default function IntervalsPage() {
               <input type="text" value={crrFixed} onChange={(e) => setCrrFixed(e.target.value)} placeholder="auto"
                 className="w-full bg-bg border border-border rounded px-2 py-1 font-mono" />
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              type="button"
+              onClick={() => setUseCache(!useCache)}
+              className={`relative w-9 h-5 rounded-full transition-colors ${
+                useCache ? "bg-teal" : "bg-border"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                  useCache ? "translate-x-4" : ""
+                }`}
+              />
+            </button>
+            <label className="text-xs text-muted">
+              Cache local {useCache ? "(activé)" : "(désactivé — re-analyse tout)"}
+            </label>
           </div>
 
           <button

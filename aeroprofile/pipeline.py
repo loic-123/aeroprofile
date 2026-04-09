@@ -342,8 +342,12 @@ async def analyze(
         drift = np.abs(alt_virt_aligned - alt_real)
         drift_smooth = pd.Series(drift).rolling(window=60, center=True, min_periods=10).mean().to_numpy()
         drift_smooth = np.nan_to_num(drift_smooth, nan=0.0)
-        # Threshold: points with > 30m of smoothed drift are suspect
-        drift_threshold = 30.0
+        # Threshold proportional to D+: 10% of total elevation gain, min 50m.
+        # Flat ride (300m D+) → 50m. Mountain (1900m D+) → 190m.
+        _alt = df["altitude_smooth"].to_numpy()
+        _dalt = np.diff(_alt, prepend=_alt[0])
+        _dplus = float(np.sum(_dalt[_dalt > 0]))
+        drift_threshold = max(50.0, _dplus * 0.10)
         filter_ve_ok = drift_smooth <= drift_threshold
         # Combine with existing filter_valid
         valid_pass1 = df["filter_valid"].to_numpy()

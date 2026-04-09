@@ -13,6 +13,8 @@ import { Wind, Users, User, FileText, Loader2, BookOpen, Link2 } from "lucide-re
 import InfoTooltip from "./components/InfoTooltip";
 import CdAEvolutionChart from "./components/CdAEvolutionChart";
 import CdARunningAvgChart from "./components/CdARunningAvgChart";
+import CdATotem from "./components/CdATotem";
+import TabSwitcher from "./components/TabSwitcher";
 
 type Mode = "single" | "compare" | "intervals" | "blog";
 
@@ -34,6 +36,7 @@ export default function App() {
   const [blogSlug, setBlogSlug] = useState<string | null>(null);
   const [totalFiles, setTotalFiles] = useState(0);
   const [doneCount, setDoneCount] = useState(0);
+  const [viewTab, setViewTab] = useState<"overview" | "detail">("overview");
 
   const handleAnalyze = async (
     files: File[],
@@ -254,147 +257,170 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Multi-ride aggregate banner */}
+                {/* Single file → no tabs, show dashboard directly */}
+                {!isMulti && selectedResult && (
+                  <ResultsDashboard result={selectedResult} />
+                )}
+
+                {/* Multi-ride → tabbed view */}
                 {isMulti && aggCda !== null && (
-                  <div className="bg-panel border border-teal rounded-lg p-4 mb-6">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div>
-                        <div className="text-xs text-muted uppercase tracking-wide flex items-center">
-                          CdA moyen ({goodRides.length} sortie{goodRides.length > 1 ? "s" : ""} retenue{goodRides.length > 1 ? "s" : ""} sur {rides.length})
-                          <InfoTooltip text="Moyenne pondérée par le nombre de points valides × qualité (1/nRMSE). Les sorties avec nRMSE > 60% sont exclues. L'IC95 reflète la dispersion entre rides." />
-                        </div>
-                        <div className="text-3xl font-mono font-bold text-teal mt-1">
-                          CdA = {aggCda.toFixed(3)}
-                          {aggCdaLow != null && (
-                            <span className="text-sm text-muted font-normal ml-2">
-                              IC95 [{aggCdaLow.toFixed(3)} – {aggCdaHigh!.toFixed(3)}]
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="ml-auto flex gap-6 text-right">
-                        {aggCrr !== null && (
-                          <div>
-                            <div className="text-xs text-muted">Crr moyen</div>
-                            <div className="text-xl font-mono text-teal">{aggCrr.toFixed(4)}</div>
-                          </div>
-                        )}
-                        {aggPower !== null && aggCda !== null && aggCda > 0 && (
-                          <div>
-                            <div className="text-xs text-muted flex items-center justify-end">
-                              W/CdA
-                              <InfoTooltip text="Puissance moyenne / CdA = capacité à aller vite sur le plat. Plus c'est haut, plus vous êtes rapide. 300 ≈ 33 km/h, 500 ≈ 39 km/h, 700 ≈ 44 km/h." />
-                            </div>
-                            <div className="text-xl font-mono text-info">
-                              {(aggPower / aggCda).toFixed(0)}
-                            </div>
-                          </div>
-                        )}
-                        {aggPower !== null && aggCda !== null && aggCda > 0 && (
-                          <div>
-                            <div className="text-xs text-muted">V plat théorique</div>
-                            <div className="text-xl font-mono text-info">
-                              {(Math.pow(2 * aggPower / (aggCda * 1.2), 1/3) * 3.6).toFixed(1)} km/h
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Ride chips */}
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      {rides.map((r, i) => {
-                        const nrmse = r.result
-                          ? (r.result.rmse_w || 0) / Math.max(r.result.avg_power_w, 1)
-                          : 0;
-                        return (
-                          <button
-                            key={i}
-                            onClick={() => r.result && setSelectedIdx(i)}
-                            className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-mono transition ${
-                              r.excluded
-                                ? "bg-red-900/20 text-red-400/60 line-through border border-red-900/40"
-                                : i === selectedIdx
-                                  ? "bg-teal/20 text-teal border border-teal"
-                                  : "bg-emerald-900/30 text-emerald-400 border border-emerald-800 hover:border-teal"
-                            }`}
-                          >
-                            {r.excluded ? "✗" : i === selectedIdx ? "▶" : "✓"}
-                            <FileText size={11} />
-                            {r.file.name.length > 20
-                              ? r.file.name.slice(0, 17) + "…"
-                              : r.file.name}
-                            {r.result && !r.excluded && (
-                              <span className="opacity-60">
-                                {r.result.cda.toFixed(3)}
-                                {r.result.weather_ok === false && (
-                                  <span title="Météo indisponible — analyse sans correction de vent" className="text-orange-400 ml-0.5">⚡</span>
-                                )}
-                              </span>
-                            )}
-                            {r.excluded && r.error && (
-                              <span className="opacity-60">erreur</span>
-                            )}
-                            {r.excluded && r.result && (
-                              <span className="opacity-60">excl.</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="flex gap-4 mt-1.5 text-[10px] text-muted">
-                      <span className="flex items-center gap-1">
-                        <span className="inline-block w-2 h-2 rounded-full bg-teal" /> Retenue (cliquer = détail)
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <span className="inline-block w-2 h-2 rounded-full bg-red-500" /> Exclue (nRMSE &gt; 60%)
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* CdA convergence + evolution (multi-ride) */}
-                {isMulti && goodRides.length >= 2 && (
-                  <div className="mb-6 space-y-4">
-                    <CdARunningAvgChart
-                      rides={goodRides.map((r) => ({
-                        date: r.result!.ride_date,
-                        cda: r.result!.cda,
-                        nrmse: (r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1),
-                        fileName: r.file.name,
-                      }))}
-                      aggCda={aggCda}
-                    />
-                    <CdAEvolutionChart
-                      riders={[{
-                        name: "CdA",
-                        points: goodRides.map((r) => ({
-                          date: r.result!.ride_date,
-                          cda: r.result!.cda,
-                          r2: r.result!.r_squared,
-                          fileName: r.file.name,
-                        })).sort((a, b) => a.date.localeCompare(b.date)),
-                      }]}
-                    />
-                  </div>
-                )}
-
-                {/* Detail view of selected ride */}
-                {selectedResult && (
                   <>
-                    {isMulti && (
-                      <div className="bg-panel border border-border rounded-lg px-4 py-2 mb-4 flex items-center gap-2 text-sm">
-                        <FileText size={14} className="text-muted" />
-                        <span className="text-muted">Détail de :</span>
-                        <span className="font-mono text-teal">
-                          {rides[selectedIdx]?.file?.name}
-                        </span>
-                        <span className="text-muted text-xs">
-                          — cliquez sur un autre chip ✓ pour changer
-                        </span>
+                    <TabSwitcher
+                      tabs={[
+                        { id: "overview", label: "Vue d'ensemble" },
+                        { id: "detail", label: "Détail d'une sortie" },
+                      ]}
+                      active={viewTab}
+                      onChange={(id) => setViewTab(id as "overview" | "detail")}
+                    />
+
+                    {viewTab === "overview" && (
+                      <div className="space-y-6">
+                        {/* Totem */}
+                        {!loading && <CdATotem cda={aggCda} />}
+
+                        {/* Aggregate banner */}
+                        <div className="bg-panel border border-teal rounded-lg p-4">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <div>
+                              <div className="text-xs text-muted uppercase tracking-wide flex items-center">
+                                CdA moyen ({goodRides.length} sortie{goodRides.length > 1 ? "s" : ""} retenue{goodRides.length > 1 ? "s" : ""} sur {rides.length})
+                                <InfoTooltip text="Moyenne pondérée par le nombre de points valides × qualité (1/nRMSE). Les sorties avec nRMSE > 60% sont exclues. L'IC95 reflète la dispersion entre rides." />
+                              </div>
+                              <div className="text-3xl font-mono font-bold text-teal mt-1">
+                                CdA = {aggCda.toFixed(3)}
+                                {aggCdaLow != null && (
+                                  <span className="text-sm text-muted font-normal ml-2">
+                                    IC95 [{aggCdaLow.toFixed(3)} – {aggCdaHigh!.toFixed(3)}]
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="ml-auto flex gap-6 text-right">
+                              {aggCrr !== null && (
+                                <div>
+                                  <div className="text-xs text-muted">Crr moyen</div>
+                                  <div className="text-xl font-mono text-teal">{aggCrr.toFixed(4)}</div>
+                                </div>
+                              )}
+                              {aggPower !== null && aggCda > 0 && (
+                                <div>
+                                  <div className="text-xs text-muted flex items-center justify-end">
+                                    W/CdA
+                                    <InfoTooltip text="Puissance moyenne / CdA = capacité à aller vite sur le plat." />
+                                  </div>
+                                  <div className="text-xl font-mono text-info">
+                                    {(aggPower / aggCda).toFixed(0)}
+                                  </div>
+                                </div>
+                              )}
+                              {aggPower !== null && aggCda > 0 && (
+                                <div>
+                                  <div className="text-xs text-muted">V plat</div>
+                                  <div className="text-xl font-mono text-info">
+                                    {(Math.pow(2 * aggPower / (aggCda * 1.2), 1/3) * 3.6).toFixed(1)} km/h
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Charts */}
+                        {goodRides.length >= 2 && (
+                          <>
+                            <CdARunningAvgChart
+                              rides={goodRides.map((r) => ({
+                                date: r.result!.ride_date,
+                                cda: r.result!.cda,
+                                nrmse: (r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1),
+                                fileName: r.file.name,
+                              }))}
+                              aggCda={aggCda}
+                            />
+                            <CdAEvolutionChart
+                              riders={[{
+                                name: "CdA",
+                                points: goodRides.map((r) => ({
+                                  date: r.result!.ride_date,
+                                  cda: r.result!.cda,
+                                  r2: r.result!.r_squared,
+                                  fileName: r.file.name,
+                                })).sort((a, b) => a.date.localeCompare(b.date)),
+                              }]}
+                            />
+                          </>
+                        )}
+
+                        {/* Ride chips */}
+                        <div className="bg-panel border border-border rounded-lg p-4">
+                          <h3 className="text-sm font-semibold mb-3">Sorties analysées</h3>
+                          <div className="flex flex-wrap gap-1.5">
+                            {rides.map((r, i) => (
+                              <button
+                                key={i}
+                                onClick={() => {
+                                  if (r.result && !r.excluded) {
+                                    setSelectedIdx(i);
+                                    setViewTab("detail");
+                                  }
+                                }}
+                                className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-mono transition ${
+                                  r.excluded
+                                    ? "bg-red-900/20 text-red-400/60 line-through border border-red-900/40"
+                                    : "bg-emerald-900/30 text-emerald-400 border border-emerald-800 hover:border-teal cursor-pointer"
+                                }`}
+                              >
+                                {r.excluded ? "✗" : "✓"}
+                                <FileText size={11} />
+                                {r.file.name.length > 20 ? r.file.name.slice(0, 17) + "…" : r.file.name}
+                                {r.result && !r.excluded && (
+                                  <span className="opacity-60">{r.result.cda.toFixed(3)}</span>
+                                )}
+                                {r.excluded && <span className="opacity-40">excl.</span>}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex gap-4 mt-1.5 text-[10px] text-muted">
+                            <span className="flex items-center gap-1">
+                              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> Retenue (cliquer → détail)
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span className="inline-block w-2 h-2 rounded-full bg-red-500" /> Exclue
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     )}
-                    <ResultsDashboard result={selectedResult} />
+
+                    {viewTab === "detail" && selectedResult && (
+                      <div>
+                        <div className="bg-panel border border-border rounded-lg px-4 py-2 mb-4 flex items-center gap-2 text-sm flex-wrap">
+                          <FileText size={14} className="text-muted" />
+                          <span className="text-muted">Détail de :</span>
+                          <span className="font-mono text-teal">{rides[selectedIdx]?.file?.name}</span>
+                          <div className="flex gap-1 ml-auto">
+                            {rides.filter((r) => !r.excluded && r.result).map((r, j) => {
+                              const realIdx = rides.indexOf(r);
+                              return (
+                                <button
+                                  key={realIdx}
+                                  onClick={() => setSelectedIdx(realIdx)}
+                                  className={`text-xs px-2 py-0.5 rounded font-mono ${
+                                    realIdx === selectedIdx
+                                      ? "bg-teal text-white"
+                                      : "bg-panel border border-border text-muted hover:text-text"
+                                  }`}
+                                >
+                                  {r.file.name.length > 12 ? r.file.name.slice(0, 10) + "…" : r.file.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <ResultsDashboard result={selectedResult} />
+                      </div>
+                    )}
                   </>
                 )}
 

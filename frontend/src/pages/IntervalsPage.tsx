@@ -48,9 +48,8 @@ export default function IntervalsPage() {
   const [mass, setMass] = useState(75);
   const [crrFixed, setCrrFixed] = useState("");
 
-  // Activities list
-  const [activities, setActivities] = useState<ActivitySummary[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
+  // Activities list — allActivities = everything from API, filtered in real-time
+  const [allActivities, setAllActivities] = useState<ActivitySummary[]>([]);
   const [listing, setListing] = useState(false);
   const [listed, setListed] = useState(false);
 
@@ -66,9 +65,9 @@ export default function IntervalsPage() {
     if (athleteId) localStorage.setItem(LS_AID, athleteId);
   }, [apiKey, athleteId]);
 
-  // Update mass from profile
+  // Update mass from profile: add ~10 kg for the bike
   useEffect(() => {
-    if (profile?.weight_kg) setMass(Math.round(profile.weight_kg));
+    if (profile?.weight_kg) setMass(Math.round(profile.weight_kg + 10));
   }, [profile]);
 
   const doConnect = async () => {
@@ -88,15 +87,34 @@ export default function IntervalsPage() {
     setListing(true);
     setListed(false);
     try {
-      const r = await listActivities(apiKey, athleteId, oldest, newest, filters);
-      setActivities(r.activities);
-      setTotalCount(r.total);
+      // Fetch ALL activities in the date range (no server-side filtering)
+      const r = await listActivities(apiKey, athleteId, oldest, newest, {
+        min_distance_km: 0,
+        max_distance_km: 99999,
+        max_elevation_m: 99999,
+        min_duration_h: 0,
+        require_power: false,
+        exclude_indoor: false,
+      });
+      setAllActivities(r.activities);
       setListed(true);
     } catch (e: any) {
       setConnError(e.message);
     }
     setListing(false);
   };
+
+  // Client-side filtering — updates live when filters change
+  const filteredActivities = allActivities.filter((a) => {
+    if (a.activity_type !== "Ride" && a.activity_type !== "VirtualRide" && a.activity_type !== "GravelRide") return false;
+    if (a.distance_km < filters.min_distance_km) return false;
+    if (a.distance_km > filters.max_distance_km) return false;
+    if (a.elevation_gain_m > filters.max_elevation_m) return false;
+    if (a.moving_time_s / 3600 < filters.min_duration_h) return false;
+    if (filters.require_power && !a.has_power) return false;
+    if (filters.exclude_indoor && a.indoor) return false;
+    return true;
+  });
 
   const doAnalyze = async () => {
     setAnalyzing(true);
@@ -106,8 +124,8 @@ export default function IntervalsPage() {
     const crr = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : undefined;
 
     const results: RideResult[] = [];
-    for (let i = 0; i < activities.length; i++) {
-      const act = activities[i];
+    for (let i = 0; i < filteredActivities.length; i++) {
+      const act = filteredActivities[i];
       try {
         const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr);
         const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
@@ -232,7 +250,7 @@ export default function IntervalsPage() {
                 className="w-full bg-bg border border-border rounded px-2 py-1 font-mono" />
             </div>
             <div>
-              <label className="block text-xs text-muted mb-1">Masse totale (kg)</label>
+              <label className="block text-xs text-muted mb-1">Masse totale cycliste+vélo (kg)</label>
               <input type="number" value={mass} onChange={(e) => setMass(parseFloat(e.target.value) || 75)}
                 className="w-full bg-bg border border-border rounded px-2 py-1 font-mono" min={30} max={200} step={0.1} />
             </div>
@@ -272,10 +290,11 @@ export default function IntervalsPage() {
                   className="w-full bg-bg border border-border rounded px-2 py-1 font-mono" />
               </div>
               <div>
-                <label className="block text-xs text-muted mb-1">Durée min (h)</label>
-                <input type="number" value={filters.min_duration_h} step={0.5}
-                  onChange={(e) => setFilters({ ...filters, min_duration_h: parseFloat(e.target.value) || 0 })}
-                  className="w-full bg-bg border border-border rounded px-2 py-1 font-mono" />
+                <label className="block text-xs text-muted mb-1">Durée min (minutes)</label>
+                <input type="number" value={Math.round(filters.min_duration_h * 60)} step={15}
+                  onChange={(e) => setFilters({ ...filters, min_duration_h: (parseFloat(e.target.value) || 0) / 60 })}
+                  className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
+                  placeholder="60" />
               </div>
               <label className="flex items-center gap-2 text-xs text-muted">
                 <input type="checkbox" checked={filters.require_power}
@@ -303,8 +322,7 @@ export default function IntervalsPage() {
             </button>
             {listed && (
               <span className="text-sm text-muted">
-                <span className="text-teal font-mono">{activities.length}</span> rides
-                retenues sur {totalCount} activités
+                {allActivities.length} activités trouvées
               </span>
             )}
           </div>
@@ -312,25 +330,29 @@ export default function IntervalsPage() {
       )}
 
       {/* Activity list + analyze button */}
-      {listed && activities.length > 0 && (
+      {listed && (
         <div className="bg-panel border border-border rounded-lg p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold">
-              {activities.length} sorties à analyser
+              <span className="text-teal font-mono">{filteredActivities.length}</span> rides
+              retenues sur <span className="font-mono">{allActivities.length}</span> activités
+              {filteredActivities.length === 0 && (
+                <span className="text-coral ml-2">(ajustez les filtres)</span>
+              )}
             </h3>
             <button
               onClick={doAnalyze}
-              disabled={analyzing}
+              disabled={analyzing || filteredActivities.length === 0}
               className="px-5 py-2 bg-teal hover:bg-teal/90 disabled:opacity-40 text-white font-semibold rounded flex items-center gap-2"
             >
               {analyzing ? <Loader2 className="animate-spin" size={16} /> : <Play size={16} />}
-              {analyzing ? `Analyse ${doneCount}/${activities.length}…` : "Analyser tout"}
+              {analyzing ? `Analyse ${doneCount}/${filteredActivities.length}…` : `Analyser ${filteredActivities.length} sorties`}
             </button>
           </div>
 
           {/* Scrollable activity preview */}
           <div className="max-h-48 overflow-y-auto text-xs space-y-1">
-            {activities.map((a) => (
+            {filteredActivities.map((a) => (
               <div key={a.id} className="flex items-center gap-2 text-muted py-0.5">
                 <span className="font-mono text-text w-20">{a.start_date}</span>
                 <span className="truncate flex-1">{a.name}</span>
@@ -351,11 +373,11 @@ export default function IntervalsPage() {
               <Loader2 className="animate-spin text-teal" size={14} />
               Analyse en cours…
             </span>
-            <span className="font-mono text-teal">{doneCount} / {activities.length}</span>
+            <span className="font-mono text-teal">{doneCount} / {filteredActivities.length}</span>
           </div>
           <div className="h-2 bg-bg rounded-full overflow-hidden">
             <div className="h-full bg-teal rounded-full transition-all duration-500"
-              style={{ width: `${(doneCount / activities.length) * 100}%` }} />
+              style={{ width: `${filteredActivities.length > 0 ? (doneCount / filteredActivities.length) * 100 : 0}%` }} />
           </div>
         </div>
       )}

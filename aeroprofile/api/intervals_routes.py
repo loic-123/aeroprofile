@@ -10,7 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, Form, HTTPException, Query
 from pydantic import BaseModel
 
-from aeroprofile.intervals.client import IntervalsClient
+from aeroprofile.intervals.client import IntervalsClient, BASE_URL
 from aeroprofile.pipeline import analyze
 from aeroprofile.api.routes import _f, _df_to_profile
 from aeroprofile.api.schemas import AnalysisResultOut, AnomalyOut, ProfileData
@@ -66,6 +66,18 @@ async def connect(req: ConnectRequest):
         weight_kg=profile.weight_kg,
         ftp=profile.ftp,
     )
+
+
+@router.post("/debug-athlete")
+async def debug_athlete(req: ConnectRequest):
+    """Debug: return raw athlete JSON from Intervals.icu API."""
+    import httpx
+    async with httpx.AsyncClient(
+        timeout=30, auth=httpx.BasicAuth("API_KEY", req.api_key)
+    ) as c:
+        r = await c.get(f"{BASE_URL}/athlete/{req.athlete_id}")
+        r.raise_for_status()
+        return r.json()
 
 
 @router.post("/list", response_model=ListActivitiesResponse)

@@ -67,15 +67,32 @@ class IntervalsClient:
             return r
 
     async def get_athlete(self) -> AthleteProfile:
-        """Fetch athlete profile (name, weight, FTP)."""
+        """Fetch athlete profile (name, weight, FTP).
+
+        Weight is in ``icu_weight`` (not ``weight`` which is often None).
+        FTP is nested inside ``sportSettings`` for the Ride sport type.
+        """
         r = await self._get(f"/athlete/{self.athlete_id}")
         r.raise_for_status()
         d = r.json()
+
+        # Weight: prefer icu_weight over weight
+        weight = d.get("icu_weight") or d.get("weight") or 75
+        weight = float(weight)
+
+        # FTP: find the Ride sport settings
+        ftp = 0
+        for ss in d.get("sportSettings", []):
+            types = ss.get("types", [])
+            if "Ride" in types:
+                ftp = int(ss.get("ftp", 0) or 0)
+                break
+
         return AthleteProfile(
             id=str(d.get("id", self.athlete_id)),
             name=d.get("name", d.get("firstname", "Athlete")),
-            weight_kg=float(d.get("weight", 75) or 75),
-            ftp=int(d.get("icu_ftp", 0) or 0),
+            weight_kg=weight,
+            ftp=ftp,
             email=d.get("email", ""),
         )
 

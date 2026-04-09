@@ -115,6 +115,25 @@ export default function Filters() {
         </P>
       </Section>
 
+      <Section title="Filtrage post-analyse : raffinement itératif">
+        <P>
+          Après le solveur, un filtrage supplémentaire compare l'altitude
+          virtuelle reconstruite à l'altitude GPS réelle. Les segments où
+          le modèle diverge fortement (dérive &gt; 10% du D+ total, minimum
+          50m) sont exclus et le solveur est relancé (passe 2). Voir
+          l'article "Raffinement itératif" pour les détails.
+        </P>
+      </Section>
+
+      <Section title="Filtrage multi-rides (mode Intervals / multi-fichiers)">
+        <P>
+          Quand plusieurs sorties sont analysées, un dernier filtre exclut
+          les rides entières dont le nRMSE dépasse 60%. La moyenne CdA est
+          pondérée par qualité (les bonnes rides pèsent 3× plus que les
+          médiocres).
+        </P>
+      </Section>
+
       <Section title="Le lissage pré-filtrage">
         <P>
           Avant tout filtrage, AeroProfile applique deux lissages :

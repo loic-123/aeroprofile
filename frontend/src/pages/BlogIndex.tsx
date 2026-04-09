@@ -44,6 +44,24 @@ const ARTICLES = [
     tags: ["statistiques", "avancé"],
   },
   {
+    slug: "iterative-refinement",
+    title: "Raffinement itératif : n'utiliser que les points où le modèle fonctionne",
+    desc: "Deux passes automatiques : résoudre, identifier les zones de divergence altitude réelle/virtuelle, exclure, re-résoudre. Comme Golden Cheetah, mais automatisé.",
+    tags: ["solveur", "avancé"],
+  },
+  {
+    slug: "w-cda-metric",
+    title: "W/CdA : la métrique des rouleurs (l'analogue du W/kg)",
+    desc: "La puissance rapportée à la traînée aéro détermine votre vitesse sur le plat. Tableau de correspondance W/CdA → km/h.",
+    tags: ["aéro", "fondamentaux"],
+  },
+  {
+    slug: "intervals-integration",
+    title: "Intégration Intervals.icu : analyser un an de sorties en un clic",
+    desc: "Connectez votre compte, filtrez vos rides, et obtenez un CdA moyen pondéré sur des dizaines de sorties. Les 4 niveaux de filtrage expliqués.",
+    tags: ["intégration", "workflow"],
+  },
+  {
     slug: "drafting-detection",
     title: "Détection du drafting : quand rouler en groupe fausse le CdA",
     desc: "Pourquoi le CdA apparent chute de 30-40% dans un peloton, comment on le détecte, et ce qu'on peut quand même apprendre.",

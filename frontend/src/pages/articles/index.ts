@@ -6,6 +6,9 @@ import Filters from "./filters";
 import YawAngle from "./yaw-angle";
 import BayesianPriors from "./bayesian-priors";
 import DraftingDetection from "./drafting-detection";
+import IterativeRefinement from "./iterative-refinement";
+import WCdaMetric from "./w-cda-metric";
+import IntervalsIntegration from "./intervals-integration";
 
 export const ARTICLES: Record<string, () => JSX.Element> = {
   "power-equation": PowerEquation,
@@ -16,4 +19,7 @@ export const ARTICLES: Record<string, () => JSX.Element> = {
   "yaw-angle": YawAngle,
   "bayesian-priors": BayesianPriors,
   "drafting-detection": DraftingDetection,
+  "iterative-refinement": IterativeRefinement,
+  "w-cda-metric": WCdaMetric,
+  "intervals-integration": IntervalsIntegration,
 };

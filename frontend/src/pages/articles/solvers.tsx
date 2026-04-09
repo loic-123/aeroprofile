@@ -117,6 +117,13 @@ export default function Solvers() {
           Le solveur retenu est affiché dans le bandeau bleu du dashboard
           ("Méthode : wind_inverse", "Méthode : chung_ve").
         </P>
+        <P>
+          Après la cascade, une <strong>passe 2 itérative</strong> compare
+          l'altitude virtuelle à l'altitude réelle. Les segments où le modèle
+          diverge fortement (dérive &gt; 10% du D+) sont exclus, et le
+          solveur est relancé sur les points restants. Voir l'article dédié
+          sur le raffinement itératif.
+        </P>
       </Section>
 
       <Section title="Priors bayésiens : le filet de sécurité">

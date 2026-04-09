@@ -356,7 +356,7 @@ export default function IntervalsPage() {
             </button>
             {listed && (
               <span className="text-sm text-muted">
-                {allActivities.length} activités trouvées
+                {allActivities.length} activités sur Intervals (tous types)
               </span>
             )}
           </div>

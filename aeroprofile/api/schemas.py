@@ -51,6 +51,7 @@ class AnalysisResultOut(BaseModel):
     heading_variance: float = 0.0
     rmse_w: float = 0.0
     mae_w: float = 0.0
+    weather_ok: bool = True
 
     ride_date: str
     ride_distance_km: float

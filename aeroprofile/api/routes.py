@@ -139,6 +139,7 @@ async def analyze_endpoint(
         heading_variance=_f(result.heading_variance),
         rmse_w=_f(result.rmse_w),
         mae_w=_f(result.mae_w),
+        weather_ok=result.weather_ok,
         ride_date=result.ride_date,
         ride_distance_km=result.ride_distance_km,
         ride_duration_s=result.ride_duration_s,

@@ -42,6 +42,7 @@ export interface AnalysisResult {
   heading_variance: number;
   rmse_w: number;
   mae_w: number;
+  weather_ok: boolean;
   ride_date: string;
   ride_distance_km: number;
   ride_duration_s: number;

@@ -65,6 +65,7 @@ class AnalysisResult:
     heading_variance: float = 0.0  # circular variance of bearing (0-1)
     rmse_w: float = 0.0  # RMSE of power residuals in watts
     mae_w: float = 0.0   # mean absolute error in watts
+    weather_ok: bool = True  # False if weather API failed → fallback no-wind
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -184,10 +185,9 @@ async def analyze(
             }
         )
 
+    weather_ok = True
     if fetch_wx:
         wx = None
-        # Tiled weather: configurable via env. Local = 20 tiles / 5 km
-        # (full precision). Render free = 3 tiles / 15 km (avoids 502).
         import os
         _max_tiles = int(os.environ.get("AEROPROFILE_MAX_TILES", "20"))
         _tile_km = float(os.environ.get("AEROPROFILE_TILE_KM", "5.0"))
@@ -206,12 +206,11 @@ async def analyze(
                 hourly = await fetch_weather(lat_c, lon_c, ride_date)
                 wx = interpolate_weather(hourly, df["timestamp"].tolist())
             except Exception:
-                # Last-resort: ride continues with no wind correction rather
-                # than erroring out. The solver will still produce a CdA
-                # estimate, just without wind correction.
                 wx = _no_wind_fallback()
+                weather_ok = False
     else:
         wx = _no_wind_fallback()
+        weather_ok = False
 
     df = pd.concat([df, wx], axis=1)
 
@@ -423,6 +422,7 @@ async def analyze(
         anomalies=anomalies,
         df=df,
         crr_was_fixed=sol.crr_was_fixed,
+        weather_ok=weather_ok,
     )
 
 

@@ -316,6 +316,9 @@ export default function App() {
                             {r.result && !r.excluded && (
                               <span className="opacity-60">
                                 {r.result.cda.toFixed(3)}
+                                {r.result.weather_ok === false && (
+                                  <span title="Météo indisponible — analyse sans correction de vent" className="text-orange-400 ml-0.5">⚡</span>
+                                )}
                               </span>
                             )}
                             {r.excluded && r.error && (

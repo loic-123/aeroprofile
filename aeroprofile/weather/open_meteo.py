@@ -49,19 +49,19 @@ async def fetch_weather(lat: float, lon: float, ride_date: date | str) -> dict:
     }
 
     async def _get_with_retry(client, url, p):
-        # Open-Meteo free tier returns 429 when rate-limited. Retry up to
-        # 3 times with exponential backoff (1s, 2s, 4s).
+        # Open-Meteo free tier returns 429/502 when overloaded. Retry up to
+        # 5 times with exponential backoff (1s, 2s, 4s, 8s, 16s).
         last_exc = None
-        for attempt in range(3):
+        for attempt in range(5):
             try:
                 r = await client.get(url, params=p)
-                if r.status_code == 429:
-                    await asyncio.sleep(2 ** attempt)
+                if r.status_code in (429, 502, 503):
+                    await asyncio.sleep(min(2 ** attempt, 10))
                     continue
                 return r
             except httpx.HTTPError as e:
                 last_exc = e
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(min(2 ** attempt, 10))
         if last_exc is not None:
             raise last_exc
         return r

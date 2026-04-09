@@ -27,8 +27,6 @@ export interface RideFilters {
   max_distance_km: number;
   max_elevation_m: number;
   min_duration_h: number;
-  require_power: boolean;
-  exclude_indoor: boolean;
 }
 
 export const DEFAULT_FILTERS: RideFilters = {
@@ -36,8 +34,6 @@ export const DEFAULT_FILTERS: RideFilters = {
   max_distance_km: 300,
   max_elevation_m: 2000,
   min_duration_h: 1.0,
-  require_power: true,
-  exclude_indoor: true,
 };
 
 export async function connect(apiKey: string, athleteId: string): Promise<AthleteProfile> {
@@ -69,8 +65,6 @@ export async function listActivities(
   fd.append("max_distance_km", String(filters.max_distance_km));
   fd.append("max_elevation_m", String(filters.max_elevation_m));
   fd.append("min_duration_h", String(filters.min_duration_h));
-  fd.append("require_power", String(filters.require_power));
-  fd.append("exclude_indoor", String(filters.exclude_indoor));
   const res = await fetch(`${API}/list`, { method: "POST", body: fd });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));

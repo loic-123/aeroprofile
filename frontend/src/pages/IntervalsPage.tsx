@@ -93,8 +93,6 @@ export default function IntervalsPage() {
         max_distance_km: 99999,
         max_elevation_m: 99999,
         min_duration_h: 0,
-        require_power: false,
-        exclude_indoor: false,
       });
       setAllActivities(r.activities);
       setListed(true);
@@ -104,15 +102,16 @@ export default function IntervalsPage() {
     setListing(false);
   };
 
-  // Client-side filtering — updates live when filters change
+  // Client-side filtering — updates live when filters change.
+  // Indoor rides are ALWAYS excluded (no option). Power is ALWAYS required.
   const filteredActivities = allActivities.filter((a) => {
-    if (a.activity_type !== "Ride" && a.activity_type !== "VirtualRide" && a.activity_type !== "GravelRide") return false;
+    if (a.activity_type !== "Ride" && a.activity_type !== "GravelRide") return false;
+    if (a.indoor) return false;
+    if (!a.has_power) return false;
     if (a.distance_km < filters.min_distance_km) return false;
     if (a.distance_km > filters.max_distance_km) return false;
     if (a.elevation_gain_m > filters.max_elevation_m) return false;
     if (a.moving_time_s / 3600 < filters.min_duration_h) return false;
-    if (filters.require_power && !a.has_power) return false;
-    if (filters.exclude_indoor && a.indoor) return false;
     return true;
   });
 
@@ -270,44 +269,79 @@ export default function IntervalsPage() {
           </button>
 
           {showFilters && (
-            <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+            <div className="mt-3 space-y-4 text-sm">
+              <p className="text-xs text-muted">
+                Seules les sorties <strong>extérieures avec capteur de puissance</strong> sont
+                prises en compte (indoor et rides sans puissance sont toujours exclues).
+              </p>
+
+              {/* Distance dual slider */}
               <div>
-                <label className="block text-xs text-muted mb-1">Distance min (km)</label>
-                <input type="number" value={filters.min_distance_km}
-                  onChange={(e) => setFilters({ ...filters, min_distance_km: parseFloat(e.target.value) || 0 })}
-                  className="w-full bg-bg border border-border rounded px-2 py-1 font-mono" />
+                <label className="block text-xs text-muted mb-2">
+                  Distance : <span className="text-teal font-mono">{filters.min_distance_km}</span> – <span className="text-teal font-mono">{filters.max_distance_km}</span> km
+                </label>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted w-8">0</span>
+                  <div className="flex-1 relative h-6">
+                    {/* Min slider */}
+                    <input
+                      type="range"
+                      min={0} max={300} step={5}
+                      value={filters.min_distance_km}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        setFilters({ ...filters, min_distance_km: Math.min(v, filters.max_distance_km - 5) });
+                      }}
+                      className="absolute w-full h-1 top-2.5 appearance-none bg-border rounded pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-teal [&::-webkit-slider-thumb]:cursor-pointer"
+                    />
+                    {/* Max slider */}
+                    <input
+                      type="range"
+                      min={0} max={300} step={5}
+                      value={filters.max_distance_km}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        setFilters({ ...filters, max_distance_km: Math.max(v, filters.min_distance_km + 5) });
+                      }}
+                      className="absolute w-full h-1 top-2.5 appearance-none bg-transparent rounded pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-info [&::-webkit-slider-thumb]:cursor-pointer"
+                    />
+                  </div>
+                  <span className="text-xs text-muted w-10">300</span>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs text-muted mb-1">Distance max (km)</label>
-                <input type="number" value={filters.max_distance_km}
-                  onChange={(e) => setFilters({ ...filters, max_distance_km: parseFloat(e.target.value) || 999 })}
-                  className="w-full bg-bg border border-border rounded px-2 py-1 font-mono" />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-muted mb-1">
+                    D+ max : <span className="text-teal font-mono">{filters.max_elevation_m}</span> m
+                  </label>
+                  <input
+                    type="range"
+                    min={200} max={5000} step={100}
+                    value={filters.max_elevation_m}
+                    onChange={(e) => setFilters({ ...filters, max_elevation_m: parseFloat(e.target.value) })}
+                    className="w-full accent-teal"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted mb-1">
+                    Durée min : <span className="text-teal font-mono">{Math.round(filters.min_duration_h * 60)}</span> min
+                  </label>
+                  <input
+                    type="range"
+                    min={0} max={240} step={15}
+                    value={Math.round(filters.min_duration_h * 60)}
+                    onChange={(e) => setFilters({ ...filters, min_duration_h: parseFloat(e.target.value) / 60 })}
+                    className="w-full accent-teal"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs text-muted mb-1">D+ max (m)</label>
-                <input type="number" value={filters.max_elevation_m}
-                  onChange={(e) => setFilters({ ...filters, max_elevation_m: parseFloat(e.target.value) || 9999 })}
-                  className="w-full bg-bg border border-border rounded px-2 py-1 font-mono" />
-              </div>
-              <div>
-                <label className="block text-xs text-muted mb-1">Durée min (minutes)</label>
-                <input type="number" value={Math.round(filters.min_duration_h * 60)} step={15}
-                  onChange={(e) => setFilters({ ...filters, min_duration_h: (parseFloat(e.target.value) || 0) / 60 })}
-                  className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
-                  placeholder="60" />
-              </div>
-              <label className="flex items-center gap-2 text-xs text-muted">
-                <input type="checkbox" checked={filters.require_power}
-                  onChange={(e) => setFilters({ ...filters, require_power: e.target.checked })}
-                  className="accent-teal" />
-                Puissance requise
-              </label>
-              <label className="flex items-center gap-2 text-xs text-muted">
-                <input type="checkbox" checked={filters.exclude_indoor}
-                  onChange={(e) => setFilters({ ...filters, exclude_indoor: e.target.checked })}
-                  className="accent-teal" />
-                Exclure indoor
-              </label>
+
+              {listed && (
+                <p className="text-xs text-teal font-mono">
+                  → {filteredActivities.length} rides correspondent aux filtres
+                </p>
+              )}
             </div>
           )}
 

@@ -329,6 +329,7 @@ async def analyze(
     # Virtual elevation (pass 1)
     df["altitude_virtual"] = virtual_elevation(df, sol.cda, sol.crr, mass_kg, eta)
 
+    ve_excluded_count = 0
     # --- Iterative refinement: exclude points where VE diverges from GPS ---
     # Where alt_virtual drifts far from alt_real, the model is wrong at those
     # points (bad wind, drafting, braking). Excluding them and re-solving
@@ -354,6 +355,7 @@ async def analyze(
         valid_pass2 = valid_pass1 & filter_ve_ok
         # Only re-solve if we still have enough points AND we actually excluded some
         n_excluded_by_ve = int(valid_pass1.sum() - valid_pass2.sum())
+        ve_excluded_count = n_excluded_by_ve
         n_valid_pass2 = int(valid_pass2.sum())
         if n_excluded_by_ve > 20 and n_valid_pass2 >= 100:
             # Temporarily swap filter_valid for the re-solve
@@ -458,6 +460,8 @@ async def analyze(
 
     # Summary stats
     filter_summary = {name: int(df[name].sum()) for name in FILTER_NAMES}
+    if ve_excluded_count > 0:
+        filter_summary["filter_ve_drift"] = ve_excluded_count
     alt = df["altitude_smooth"].to_numpy()
     dalt = np.diff(alt, prepend=alt[0])
     elev_gain = float(np.sum(dalt[dalt > 0]))
@@ -553,6 +557,8 @@ def _rolling_cda(df: pd.DataFrame, mass: float, eta: float, window_s: int) -> np
     den = 0.5 * rho * np.sign(Va) * Va * Va * V
     with np.errstate(divide="ignore", invalid="ignore"):
         inst = np.where((np.abs(den) > 1e-3) & valid_mask, num / den, np.nan)
+    # Clip to physical range: CdA outside [0, 0.8] is noise, not signal.
+    inst = np.where((inst >= 0) & (inst <= 0.8), inst, np.nan)
 
     # Rolling mean window_s seconds
     series = pd.Series(inst)

@@ -21,6 +21,7 @@ const LS_KEY = "aeroprofile_intervals_key";
 const LS_AID = "aeroprofile_intervals_aid";
 
 const MAX_NRMSE = 0.60;
+const MIN_CDA = 0.15;
 
 interface RideResult {
   activity: ActivitySummary;
@@ -134,12 +135,12 @@ export default function IntervalsPage() {
       const fromCache = useCache ? getCachedInterval(act.id, cacheOpts) : null;
       if (fromCache) {
         const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
-        results.push({ activity: act, result: fromCache, excluded: nrmse > MAX_NRMSE });
+        results.push({ activity: act, result: fromCache, excluded: nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA });
       } else {
         try {
           const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr);
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
-          results.push({ activity: act, result: res, excluded: nrmse > MAX_NRMSE });
+          results.push({ activity: act, result: res, excluded: nrmse > MAX_NRMSE || res.cda < MIN_CDA });
           setCacheInterval(act.id, res, cacheOpts);
         } catch (e: any) {
           results.push({ activity: act, error: e.message, excluded: true });

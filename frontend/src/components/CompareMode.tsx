@@ -69,6 +69,7 @@ function emptyRider(n: number): RiderEntry {
  *   > 60%        → excluded from average (model fundamentally doesn't fit)
  */
 const MAX_NRMSE = 0.60;
+const MIN_CDA = 0.15;
 
 function aggregate(r: RiderEntry): RiderAgg | null {
   const done = r.rides.filter((rd) => rd.status === "done" && rd.result);
@@ -79,7 +80,7 @@ function aggregate(r: RiderEntry): RiderAgg | null {
     const res = rd.result!;
     const avgP = res.avg_power_w || 1;
     const nrmse = (res.rmse_w || 0) / avgP;
-    return nrmse <= MAX_NRMSE;
+    return nrmse <= MAX_NRMSE && res.cda >= MIN_CDA;
   });
   const nExcluded = done.length - good.length;
 
@@ -509,7 +510,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                     if (rd.status !== "done" || !rd.result) return false;
                     const avgP = rd.result.avg_power_w || 1;
                     const nrmse = (rd.result.rmse_w || 0) / avgP;
-                    return nrmse <= MAX_NRMSE;
+                    return nrmse <= MAX_NRMSE && rd.result.cda >= MIN_CDA;
                   })
                   .map((rd) => ({
                     date: rd.result.ride_date,
@@ -669,7 +670,7 @@ function RiderRow({
                   rd.status === "done" && rd.result
                     ? (rd.result.rmse_w || 0) / Math.max(rd.result.avg_power_w, 1)
                     : 0;
-                const isExcluded = rd.status === "done" && rd.result && nrmse > MAX_NRMSE;
+                const isExcluded = rd.status === "done" && rd.result && (nrmse > MAX_NRMSE || rd.result.cda < MIN_CDA);
                 const isBad = rd.status === "error" || isExcluded;
                 const tooltip = rd.status === "error"
                   ? `Erreur : ${rd.error || "analyse échouée"}`

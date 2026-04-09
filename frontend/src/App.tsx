@@ -19,6 +19,7 @@ import TabSwitcher from "./components/TabSwitcher";
 type Mode = "single" | "compare" | "intervals" | "blog";
 
 const MAX_NRMSE = 0.60;
+const MIN_CDA = 0.15;
 
 interface RideAnalysis {
   file: File;
@@ -63,12 +64,12 @@ export default function App() {
       const fromCache = opts.useCache !== false ? getCached(file, cacheOpts) : null;
       if (fromCache) {
         const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
-        results.push({ file, result: fromCache, excluded: nrmse > MAX_NRMSE });
+        results.push({ file, result: fromCache, excluded: nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA });
       } else {
         try {
           const res = await analyze({ file, mass_kg, ...opts });
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
-          results.push({ file, result: res, excluded: nrmse > MAX_NRMSE });
+          results.push({ file, result: res, excluded: nrmse > MAX_NRMSE || res.cda < MIN_CDA });
           setCache(file, res, cacheOpts);
         } catch (e: any) {
           results.push({ file, error: e.message || String(e), excluded: true });

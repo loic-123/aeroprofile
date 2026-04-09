@@ -19,6 +19,8 @@ const FILTER_LABELS: Record<string, string> = {
   filter_gps_jump: "Saut GPS (> 50 m entre 2 pts)",
   filter_power_spike: "Spike de puissance (> 3×NP)",
   filter_unsteady: "Vitesse instable (CV > 15%)",
+  filter_drafting: "Drafting détecté (CdA inst. < 0.12, ≥ 30s)",
+  filter_ve_drift: "Dérive altitude virtuelle (passe 2 itérative)",
 };
 
 export default function FilterSummary({ result }: { result: AnalysisResult }) {

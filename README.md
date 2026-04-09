@@ -7,10 +7,19 @@ Live demo: **https://aeroprofile.onrender.com**
 **What makes it different**
 
 - Analyses *any* regular ride — no need for a controlled protocol (no velodrome, no loops, no pre-arranged out-and-back).
-- Detects likely **power-meter calibration issues** and quantifies the probable offset in watts from residual bias.
-- **Drafting detection** — flags when the CdA looks suspiciously low for a solo rider, and in compare mode identifies the "puller" vs "drafter" between riders on the same ride.
-- **Compare mode** — upload several activity files and rank riders on aero, rolling efficiency, and total drag at 40 km/h. Each rider's posture is illustrated by a cyclist silhouette matched to their CdA.
-- Two independent solvers (Martin LS and Chung Virtual Elevation) with automatic fallback based on fit quality.
+- **3 solvers in cascade**: Wind-Inverse (jointly estimates wind + CdA), Chung Virtual Elevation, Martin LS — with automatic selection based on fit quality.
+- **Iterative VE refinement**: 2-pass algorithm that excludes segments where the model diverges from reality, then re-solves on clean data only.
+- **Yaw-angle correction**: CdA reported is the zero-yaw "wind tunnel" value, corrected for crosswind effects (Crouch et al. 2014).
+- **Per-point drafting filter**: detects and excludes segments where CdA_instantaneous < 0.12 for ≥30s (physically impossible solo).
+- **Variable η(P)**: drivetrain efficiency varies with power per Spicer et al. (2001).
+- **Martin 1998 complete**: wheel-bearing losses + wheel inertia (+0.14 kg) + 5s power smoothing.
+- **4 analysis modes**:
+  - **Single/multi-file upload** with drag & drop, local cache, quality-weighted averaging
+  - **Multi-rider comparison** with drafting detection and W/CdA ranking
+  - **Intervals.icu integration** — connect your account, filter rides by date/distance/D+, analyze a year of data in one click
+  - **11 methodology articles** explaining every step of the pipeline
+- **CdA Totem** — fun comparison of your CdA to a real-world object ("You're a dolphin 🐬").
+- Detects likely **power-meter calibration issues** and quantifies the probable offset in watts.
 
 ## Quick start
 

@@ -15,6 +15,8 @@ import CdAEvolutionChart from "./components/CdAEvolutionChart";
 import CdARunningAvgChart from "./components/CdARunningAvgChart";
 import CdATotem from "./components/CdATotem";
 import TabSwitcher from "./components/TabSwitcher";
+import ReferenceTable from "./components/ReferenceTable";
+import PositionSchematic from "./components/PositionSchematic";
 
 type Mode = "single" | "compare" | "intervals" | "blog";
 
@@ -104,6 +106,7 @@ export default function App() {
   let aggCdaLow: number | null = null;
   let aggCdaHigh: number | null = null;
   let aggPower: number | null = null;
+  let aggRho: number | null = null;
   if (goodRides.length >= 1) {
     const nrmses = goodRides.map((r) =>
       Math.max((r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1), 0.01)
@@ -111,7 +114,7 @@ export default function App() {
     const bestN = Math.min(...nrmses);
     const worstN = Math.max(...nrmses);
     const span = worstN - bestN;
-    let totalW = 0, sumCda = 0, sumCrr = 0, sumPow = 0;
+    let totalW = 0, sumCda = 0, sumCrr = 0, sumPow = 0, sumRho = 0;
     for (let j = 0; j < goodRides.length; j++) {
       const res = goodRides[j].result!;
       const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
@@ -120,10 +123,12 @@ export default function App() {
       sumCda += res.cda * w;
       sumCrr += res.crr * w;
       sumPow += res.avg_power_w * w;
+      sumRho += res.avg_rho * w;
     }
     aggCda = sumCda / totalW;
     aggCrr = sumCrr / totalW;
     aggPower = sumPow / totalW;
+    aggRho = sumRho / totalW;
     if (goodRides.length >= 2) {
       const cdas = goodRides.map((r) => r.result!.cda);
       let wVar = 0;
@@ -326,6 +331,35 @@ export default function App() {
                             </div>
                           </div>
                         </div>
+
+                        {/* Position + References + Derived metrics */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="bg-panel border border-border rounded-lg p-4 flex justify-center">
+                            <PositionSchematic cda={aggCda} label="Position moyenne" size={240} />
+                          </div>
+                          <div className="bg-panel border border-border rounded-lg p-4 md:col-span-2">
+                            <h3 className="text-sm font-semibold mb-2">Métriques dérivées (moyenne)</h3>
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm font-mono">
+                              {[30, 35, 40, 45].map((s) => {
+                                const v = s / 3.6;
+                                const pAero = 0.5 * aggCda * (aggRho || 1.2) * v * v * v;
+                                const pRoll = (aggCrr || 0.004) * 75 * 9.80665 * v;
+                                const pTotal = (pAero + pRoll) / 0.977;
+                                return (
+                                  <div key={s} className="flex justify-between border-b border-border/30 py-1">
+                                    <span className="text-muted">{s} km/h</span>
+                                    <span className="text-teal">{pTotal.toFixed(0)} W</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <p className="text-xs text-muted mt-2">
+                              Watts pour rouler sur le plat (75 kg, pas de vent, ρ = {(aggRho || 1.2).toFixed(2)})
+                            </p>
+                          </div>
+                        </div>
+
+                        <ReferenceTable cda={aggCda} crr={aggCrr || 0.004} />
 
                         {/* Charts */}
                         {goodRides.length >= 2 && (

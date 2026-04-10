@@ -9,7 +9,7 @@ import { BlogProvider } from "./components/BlogLayout";
 import { analyze } from "./api/client";
 import { getCached, setCache, type CacheOpts } from "./api/cache";
 import type { AnalysisResult } from "./types";
-import { BIKE_TYPE_CONFIG, POSITION_PRESETS, type BikeType } from "./types";
+import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, type BikeType } from "./types";
 import { Wind, Users, User, FileText, Loader2, BookOpen, Link2, Clock } from "lucide-react";
 import { saveToHistory, type HistoryEntry } from "./api/history";
 import HistoryPage from "./pages/HistoryPage";
@@ -54,7 +54,7 @@ export default function App() {
     setBikeType(bt);
     setLastMass(mass_kg);
     const { minCda: MIN_CDA, maxCda: MAX_CDA } = BIKE_TYPE_CONFIG[bt];
-    const posPreset = opts.positionIdx != null ? POSITION_PRESETS[opts.positionIdx] : undefined;
+    const posPreset = opts.positionIdx != null ? POSITION_PRESETS_BY_BIKE[bt][opts.positionIdx] : undefined;
     setLoading(true);
     setError(null);
     setRides([]);

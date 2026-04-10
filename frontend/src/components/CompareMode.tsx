@@ -4,7 +4,7 @@ import { analyze } from "../api/client";
 import { getCached, setCache, type CacheOpts } from "../api/cache";
 import { saveToHistory } from "../api/history";
 import type { AnalysisResult } from "../types";
-import { BIKE_TYPE_CONFIG, POSITION_PRESETS, CRR_PRESETS, type BikeType } from "../types";
+import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
 import PositionSchematic from "./PositionSchematic";
 import InfoTooltip from "./InfoTooltip";
 import CdAEvolutionChart from "./CdAEvolutionChart";
@@ -239,7 +239,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           ),
         );
         try {
-          const posPreset = POSITION_PRESETS[rider.positionIdx];
+          const posPreset = POSITION_PRESETS_BY_BIKE[bikeType][rider.positionIdx];
           const crrVal = rider.crrFixed ? parseFloat(rider.crrFixed.replace(",", ".")) : undefined;
           const crr = crrVal && crrVal > 0 ? crrVal : undefined;
           const cacheOpts: CacheOpts = {
@@ -311,7 +311,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           const se = Math.sqrt(wVar / cdas.length);
           hLow = hCda - 1.96 * se; hHigh = hCda + 1.96 * se;
         }
-        const posP = POSITION_PRESETS[rider.positionIdx];
+        const posP = POSITION_PRESETS_BY_BIKE[bikeType][rider.positionIdx];
         const crrVal = rider.crrFixed ? parseFloat(rider.crrFixed) : null;
         saveToHistory({
           id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -762,17 +762,17 @@ function RiderRow({
         <div className="mb-3">
           <div className="flex items-center gap-2 text-xs text-muted mb-1">
             Position :
-            <span className="text-teal font-semibold">{POSITION_PRESETS[rider.positionIdx].label}</span>
-            <span className="opacity-60">(prior ≈ {POSITION_PRESETS[rider.positionIdx].cdaPrior})</span>
+            <span className="text-teal font-semibold">{POSITION_PRESETS_BY_BIKE[bikeType][rider.positionIdx].label}</span>
+            <span className="opacity-60">(prior ≈ {POSITION_PRESETS_BY_BIKE[bikeType][rider.positionIdx].cdaPrior})</span>
           </div>
           <input
-            type="range" min={0} max={POSITION_PRESETS.length - 1} step={1}
+            type="range" min={0} max={POSITION_PRESETS_BY_BIKE[bikeType].length - 1} step={1}
             value={rider.positionIdx}
             onChange={(e) => onUpdate({ positionIdx: parseInt(e.target.value) })}
             className="w-full accent-teal"
           />
           <div className="flex justify-between text-[10px] text-muted mt-0.5">
-            {POSITION_PRESETS.map((p, i) => (
+            {POSITION_PRESETS_BY_BIKE[bikeType].map((p, i) => (
               <span key={i}
                 className={`cursor-pointer ${i === rider.positionIdx ? "text-teal font-semibold" : ""}`}
                 onClick={() => onUpdate({ positionIdx: i })}

@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { Upload, Loader2, ChevronDown, ChevronRight, FileText, X } from "lucide-react";
-import { BIKE_TYPE_CONFIG, POSITION_PRESETS, CRR_PRESETS, type BikeType } from "../types";
+import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
 
 interface Props {
   onAnalyze: (
@@ -23,6 +23,9 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
 
   const handleBikeType = (bt: BikeType) => {
     setBikeType(bt);
+    // Reset position to "Je ne sais pas" if current index exceeds new presets
+    const presets = POSITION_PRESETS_BY_BIKE[bt];
+    if (positionIdx >= presets.length) setPositionIdx(0);
   };
   const [windFactor, setWindFactor] = useState(0.7);
   const [useCache, setUseCache] = useState(true);
@@ -179,9 +182,9 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
           <div>
             <label className="block text-xs text-muted mb-1">
               Position sur le vélo :
-              <span className="text-teal font-semibold ml-1">{POSITION_PRESETS[positionIdx].label}</span>
-              {POSITION_PRESETS[positionIdx].cdaPrior > 0 ? (
-                <span className="ml-1">(prior CdA ≈ {POSITION_PRESETS[positionIdx].cdaPrior})</span>
+              <span className="text-teal font-semibold ml-1">{POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].label}</span>
+              {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior > 0 ? (
+                <span className="ml-1">(prior CdA ≈ {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior})</span>
               ) : (
                 <span className="ml-1">(pas de prior — estimation libre)</span>
               )}
@@ -189,14 +192,14 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
             <input
               type="range"
               min={0}
-              max={POSITION_PRESETS.length - 1}
+              max={POSITION_PRESETS_BY_BIKE[bikeType].length - 1}
               step={1}
               value={positionIdx}
               onChange={(e) => setPositionIdx(parseInt(e.target.value))}
               className="w-full accent-teal"
             />
             <div className="flex justify-between text-[10px] text-muted mt-0.5">
-              {POSITION_PRESETS.map((p, i) => (
+              {POSITION_PRESETS_BY_BIKE[bikeType].map((p, i) => (
                 <span
                   key={i}
                   className={`cursor-pointer ${i === positionIdx ? "text-teal font-semibold" : ""}`}

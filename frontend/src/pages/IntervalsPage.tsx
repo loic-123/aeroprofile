@@ -12,7 +12,7 @@ import {
 import { getCachedInterval, setCacheInterval, type CacheOpts } from "../api/cache";
 import { saveToHistory } from "../api/history";
 import type { AnalysisResult } from "../types";
-import { BIKE_TYPE_CONFIG, POSITION_PRESETS, CRR_PRESETS, type BikeType } from "../types";
+import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
 import InfoTooltip from "../components/InfoTooltip";
 import CdATotem from "../components/CdATotem";
 import CdARunningAvgChart from "../components/CdARunningAvgChart";
@@ -139,7 +139,7 @@ export default function IntervalsPage() {
     setSelectedIdx(0);
     setViewTab("overview");
     const crr = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : undefined;
-    const posPresetForCache = bikeType === "road" ? POSITION_PRESETS[positionIdx] : undefined;
+    const posPresetForCache = POSITION_PRESETS_BY_BIKE[bikeType][positionIdx];
     const cacheOpts: CacheOpts = {
       mass_kg: mass, crr_fixed: crr, bike_type: bikeType,
       cda_prior_mean: posPresetForCache?.cdaPrior,
@@ -156,7 +156,7 @@ export default function IntervalsPage() {
         results.push({ activity: act, result: fromCache, excluded: nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
-          const posPreset = bikeType === "road" ? POSITION_PRESETS[positionIdx] : undefined;
+          const posPreset = POSITION_PRESETS_BY_BIKE[bikeType][positionIdx];
           const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, posPreset?.cdaPrior, posPreset?.cdaSigma);
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
           results.push({ activity: act, result: res, excluded: nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
@@ -198,7 +198,7 @@ export default function IntervalsPage() {
         const se = Math.sqrt(wVar / cdas.length);
         hLow = hCda - 1.96 * se; hHigh = hCda + 1.96 * se;
       }
-      const posP = bikeType === "road" ? POSITION_PRESETS[positionIdx] : undefined;
+      const posP = POSITION_PRESETS_BY_BIKE[bikeType][positionIdx];
       saveToHistory({
         id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         timestamp: new Date().toISOString(),
@@ -396,18 +396,18 @@ export default function IntervalsPage() {
             <div>
               <label className="block text-xs text-muted mb-1">
                 Position :
-                <span className="text-teal font-semibold ml-1">{POSITION_PRESETS[positionIdx].label}</span>
-                {POSITION_PRESETS[positionIdx].cdaPrior > 0 ? (
-                  <span className="ml-1">(prior CdA ≈ {POSITION_PRESETS[positionIdx].cdaPrior})</span>
+                <span className="text-teal font-semibold ml-1">{POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].label}</span>
+                {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior > 0 ? (
+                  <span className="ml-1">(prior CdA ≈ {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior})</span>
                 ) : (
                   <span className="ml-1">(pas de prior — estimation libre)</span>
                 )}
               </label>
-              <input type="range" min={0} max={POSITION_PRESETS.length - 1} step={1}
+              <input type="range" min={0} max={POSITION_PRESETS_BY_BIKE[bikeType].length - 1} step={1}
                 value={positionIdx} onChange={(e) => setPositionIdx(parseInt(e.target.value))}
                 className="w-full accent-teal" />
               <div className="flex justify-between text-[10px] text-muted mt-0.5">
-                {POSITION_PRESETS.map((p, i) => (
+                {POSITION_PRESETS_BY_BIKE[bikeType].map((p, i) => (
                   <span key={i} className={`cursor-pointer ${i === positionIdx ? "text-teal font-semibold" : ""}`}
                     onClick={() => setPositionIdx(i)}>{p.label}</span>
                 ))}

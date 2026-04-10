@@ -28,13 +28,32 @@ export interface PositionPreset {
   cdaSigma: number;
 }
 
-export const POSITION_PRESETS: PositionPreset[] = [
-  { label: "Je ne sais pas", cdaPrior: 0, cdaSigma: 0 },
-  { label: "Très aéro",   cdaPrior: 0.24, cdaSigma: 0.06 },
-  { label: "Aéro (drops)", cdaPrior: 0.30, cdaSigma: 0.08 },
-  { label: "Modérée (cocottes)", cdaPrior: 0.34, cdaSigma: 0.08 },
-  { label: "Relâchée (tops)", cdaPrior: 0.40, cdaSigma: 0.10 },
-];
+export const POSITION_PRESETS_BY_BIKE: Record<BikeType, PositionPreset[]> = {
+  road: [
+    { label: "Je ne sais pas", cdaPrior: 0, cdaSigma: 0 },
+    { label: "Très aéro",        cdaPrior: 0.24, cdaSigma: 0.06 },
+    { label: "Aéro (drops)",     cdaPrior: 0.30, cdaSigma: 0.08 },
+    { label: "Modérée (cocottes)", cdaPrior: 0.34, cdaSigma: 0.08 },
+    { label: "Relâchée (tops)",  cdaPrior: 0.40, cdaSigma: 0.10 },
+  ],
+  tt: [
+    { label: "Je ne sais pas", cdaPrior: 0, cdaSigma: 0 },
+    { label: "Pro (superman)",   cdaPrior: 0.18, cdaSigma: 0.03 },
+    { label: "Aéro (prolongateurs)", cdaPrior: 0.21, cdaSigma: 0.04 },
+    { label: "Modérée (hoods)",  cdaPrior: 0.25, cdaSigma: 0.05 },
+    { label: "Relâchée",        cdaPrior: 0.29, cdaSigma: 0.05 },
+  ],
+  mtb: [
+    { label: "Je ne sais pas", cdaPrior: 0, cdaSigma: 0 },
+    { label: "Agressive (XC)",   cdaPrior: 0.35, cdaSigma: 0.06 },
+    { label: "Modérée",         cdaPrior: 0.42, cdaSigma: 0.08 },
+    { label: "Relâchée",        cdaPrior: 0.50, cdaSigma: 0.08 },
+    { label: "Très droite",     cdaPrior: 0.55, cdaSigma: 0.10 },
+  ],
+};
+
+// Backward compat
+export const POSITION_PRESETS = POSITION_PRESETS_BY_BIKE.road;
 
 export interface Anomaly {
   severity: "error" | "warning" | "info";

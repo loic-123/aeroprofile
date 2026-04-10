@@ -1,8 +1,10 @@
 import { useState, useRef, useCallback } from "react";
 import { Upload, Trash2, Loader2, Trophy, Wind, Activity, User, AlertTriangle, X, FileText } from "lucide-react";
 import { analyze } from "../api/client";
+import { getCached, setCache, type CacheOpts } from "../api/cache";
+import { saveToHistory } from "../api/history";
 import type { AnalysisResult } from "../types";
-import { BIKE_TYPE_CONFIG, POSITION_PRESETS, type BikeType } from "../types";
+import { BIKE_TYPE_CONFIG, POSITION_PRESETS, CRR_PRESETS, type BikeType } from "../types";
 import PositionSchematic from "./PositionSchematic";
 import InfoTooltip from "./InfoTooltip";
 import CdAEvolutionChart from "./CdAEvolutionChart";
@@ -21,6 +23,7 @@ interface RiderEntry {
   name: string;
   mass: number;
   positionIdx: number;
+  crrFixed: string;
   rides: RideResult[];
 }
 
@@ -46,6 +49,7 @@ function emptyRider(n: number): RiderEntry {
     name: `Cycliste ${n}`,
     mass: 75,
     positionIdx: 2,
+    crrFixed: "0.003",
     rides: [],
   };
 }
@@ -174,6 +178,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
   const [riders, setRiders] = useState<RiderEntry[]>([emptyRider(1), emptyRider(2)]);
   const [running, setRunning] = useState(false);
   const [bikeType, setBikeType] = useState<BikeType>("road");
+  const [useLocalCache, setUseLocalCache] = useState(true);
 
   const updateRider = (id: string, patch: Partial<RiderEntry>) =>
     setRiders((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -234,11 +239,21 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           ),
         );
         try {
-          const posPreset = bikeType === "road" ? POSITION_PRESETS[rider.positionIdx] : undefined;
-          const res = await analyze({
+          const posPreset = POSITION_PRESETS[rider.positionIdx];
+          const crrVal = rider.crrFixed ? parseFloat(rider.crrFixed.replace(",", ".")) : undefined;
+          const crr = crrVal && crrVal > 0 ? crrVal : undefined;
+          const cacheOpts: CacheOpts = {
+            mass_kg: rider.mass, bike_type: bikeType, crr_fixed: crr,
+            cda_prior_mean: posPreset?.cdaPrior,
+            cda_prior_sigma: posPreset?.cdaSigma,
+          };
+          const fromCache = useLocalCache ? getCached(rd.file, cacheOpts) : null;
+          const res = fromCache || await analyze({
             file: rd.file, mass_kg: rider.mass, bike_type: bikeType,
+            crr_fixed: crr,
             cda_prior_mean: posPreset?.cdaPrior, cda_prior_sigma: posPreset?.cdaSigma,
           });
+          if (!fromCache) setCache(rd.file, res, cacheOpts);
           setRiders((rs) =>
             rs.map((r) =>
               r.id === rider.id
@@ -269,6 +284,59 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
         }
       }
     }
+    // Save to history per rider
+    for (const rider of riders) {
+      const done = rider.rides.filter((rd) => rd.status === "done" && rd.result);
+      const good = done.filter((rd) => {
+        const res = rd.result!;
+        const n = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
+        const { minCda, maxCda } = BIKE_TYPE_CONFIG[bikeType];
+        return n <= MAX_NRMSE && res.cda >= minCda && res.cda <= maxCda;
+      });
+      if (good.length > 0) {
+        const nrmses = good.map((rd) => Math.max((rd.result!.rmse_w || 0) / Math.max(rd.result!.avg_power_w, 1), 0.01));
+        const bestN = Math.min(...nrmses), worstN = Math.max(...nrmses), span = worstN - bestN;
+        let tw = 0, sc = 0, sr = 0, sp = 0, sRho = 0, sRmse = 0;
+        for (let j = 0; j < good.length; j++) {
+          const res = good[j].result!;
+          const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
+          const w = Math.max(res.valid_points, 1) * qw;
+          tw += w; sc += res.cda * w; sr += res.crr * w; sp += res.avg_power_w * w; sRho += res.avg_rho * w; sRmse += (res.rmse_w || 0) * w;
+        }
+        const hCda = sc / tw, hCrr = sr / tw;
+        let hLow: number | null = null, hHigh: number | null = null;
+        if (good.length >= 2) {
+          const cdas = good.map((r) => r.result!.cda);
+          const wVar = cdas.reduce((a, c) => a + (c - hCda) ** 2, 0) / cdas.length;
+          const se = Math.sqrt(wVar / cdas.length);
+          hLow = hCda - 1.96 * se; hHigh = hCda + 1.96 * se;
+        }
+        const posP = POSITION_PRESETS[rider.positionIdx];
+        const crrVal = rider.crrFixed ? parseFloat(rider.crrFixed) : null;
+        saveToHistory({
+          id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          timestamp: new Date().toISOString(),
+          mode: "compare",
+          label: `${rider.name} (${good.length} sortie${good.length > 1 ? "s" : ""})`,
+          cda: hCda, cdaLow: hLow, cdaHigh: hHigh, crr: hCrr,
+          rmseW: sRmse / tw, avgPowerW: sp / tw, avgRho: sRho / tw,
+          bikeType,
+          positionLabel: posP?.label || bikeType,
+          massKg: rider.mass,
+          crrFixed: crrVal && crrVal > 0 ? crrVal : null,
+          cdaPriorMean: posP?.cdaPrior || null,
+          cdaPriorSigma: posP?.cdaSigma || null,
+          nRides: good.length,
+          nExcluded: done.length - good.length,
+          nTotalPoints: good.reduce((a, r) => a + (r.result?.valid_points || 0), 0),
+          rideCdas: good.map((r) => ({
+            date: r.result!.ride_date, cda: r.result!.cda,
+            nrmse: (r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1),
+          })),
+        });
+      }
+    }
+
     setRunning(false);
   };
 
@@ -360,6 +428,23 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
             onRemove={riders.length > 2 ? () => removeRider(r.id) : undefined}
           />
         ))}
+      </div>
+
+      <div className="flex items-center gap-2 mb-2">
+        <button
+          type="button"
+          onClick={() => setUseLocalCache(!useLocalCache)}
+          className={`relative w-9 h-5 rounded-full transition-colors ${
+            useLocalCache ? "bg-teal" : "bg-border"
+          }`}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+            useLocalCache ? "translate-x-4" : ""
+          }`} />
+        </button>
+        <label className="text-xs text-muted">
+          Cache local {useLocalCache ? "(activé)" : "(désactivé — re-analyse tout)"}
+        </label>
       </div>
 
       <div className="flex items-center gap-3">
@@ -697,7 +782,7 @@ function RiderRow({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_120px] gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_150px] gap-3">
         {/* Drop zone */}
         <div>
           <div
@@ -734,13 +819,12 @@ function RiderRow({
                     : 0;
                 const isExcluded = rd.status === "done" && rd.result && (nrmse > MAX_NRMSE || rd.result.cda < minCdaBound || rd.result.cda > maxCdaBound);
                 const isBad = rd.status === "error" || isExcluded;
-                const tooltip = rd.status === "error"
-                  ? `Erreur : ${rd.error || "analyse échouée"}`
-                  : isExcluded && rd.result
-                    ? `Exclue (nRMSE ${(nrmse * 100).toFixed(0)}% > 45% — modèle non fiable)`
-                    : rd.status === "done" && rd.result
-                      ? `CdA ${rd.result.cda.toFixed(3)} • nRMSE ${(nrmse * 100).toFixed(0)}%`
-                      : undefined;
+                let tooltip: string | undefined;
+                if (rd.status === "error") {
+                  tooltip = `Erreur : ${rd.error || "analyse échouée"}`;
+                } else if (rd.status === "done" && rd.result) {
+                  tooltip = `${rd.file.name}\nCdA ${rd.result.cda.toFixed(3)} • nRMSE ${(nrmse * 100).toFixed(0)}% • ±${rd.result.rmse_w.toFixed(0)}W`;
+                }
                 return (
                 <span
                   key={i}
@@ -763,13 +847,13 @@ function RiderRow({
                     ? rd.file.name.slice(0, 22) + "…"
                     : rd.file.name}
                   {rd.status === "done" && rd.result && !isBad && (
-                    <span className="opacity-70">
-                      CdA {rd.result.cda.toFixed(3)}
-                    </span>
+                    <>
+                      <span className="opacity-70">{rd.result.cda.toFixed(3)}</span>
+                      <span className="opacity-40">{(nrmse * 100).toFixed(0)}%</span>
+                    </>
                   )}
-                  {isBad && (
-                    <span className="opacity-40">excl.</span>
-                  )}
+                  {isBad && rd.result && <span className="opacity-40">{rd.result.cda.toFixed(3)}</span>}
+                  {isBad && !rd.result && <span className="opacity-40">err.</span>}
                   <button
                     onClick={(e) => { e.stopPropagation(); onRemoveFile(i); }}
                     className="hover:text-coral"
@@ -809,6 +893,24 @@ function RiderRow({
             min={30}
             max={200}
           />
+        </div>
+
+        {/* Crr dropdown */}
+        <div>
+          <label className="block text-xs text-muted mb-1">Pneus (Crr)</label>
+          <select
+            value={rider.crrFixed}
+            onChange={(e) => onUpdate({ crrFixed: e.target.value })}
+            className={`w-full bg-bg border rounded px-2 py-1 font-mono text-xs ${
+              !rider.crrFixed ? "border-orange-500/50" : "border-border"
+            }`}
+          >
+            {CRR_PRESETS.map((p) => (
+              <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
+                {p.crr === 0 ? "Auto" : `${p.crr.toFixed(4)}`}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
     </div>

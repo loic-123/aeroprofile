@@ -19,7 +19,7 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
   const [positionIdx, setPositionIdx] = useState(2); // default: "Aéro (drops)"
   const [advanced, setAdvanced] = useState(false);
   const [eta, setEta] = useState(0.977);
-  const [crrFixed, setCrrFixed] = useState<string>("");
+  const [crrFixed, setCrrFixed] = useState<string>("0.003");
 
   const handleBikeType = (bt: BikeType) => {
     setBikeType(bt);

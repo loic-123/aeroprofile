@@ -53,7 +53,7 @@ export default function IntervalsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [mass, setMass] = useState(75);
   const [bikeType, setBikeType] = useState<BikeType>("road");
-  const [crrFixed, setCrrFixed] = useState("");
+  const [crrFixed, setCrrFixed] = useState("0.003");
   const [positionIdx, setPositionIdx] = useState(2); // default: "Aéro (drops)"
   const [useCache, setUseCache] = useState(true);
 

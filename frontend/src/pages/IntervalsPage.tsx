@@ -378,13 +378,20 @@ export default function IntervalsPage() {
             <div>
               <label className="block text-xs text-muted mb-1">Pneus (Crr)</label>
               <select value={crrFixed} onChange={(e) => setCrrFixed(e.target.value)}
-                className="w-full bg-bg border border-border rounded px-2 py-1.5 font-mono text-xs">
+                className={`w-full bg-bg border rounded px-2 py-1.5 font-mono text-xs ${
+                  !crrFixed ? "border-orange-500/50" : "border-border"
+                }`}>
                 {CRR_PRESETS.map((p) => (
                   <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
                     {p.crr === 0 ? "Auto (estimé)" : `${p.crr.toFixed(4)} — ${p.label}`}
                   </option>
                 ))}
               </select>
+              {!crrFixed && (
+                <p className="text-[10px] text-orange-400 mt-0.5">
+                  Fixer le Crr donne un CdA plus stable.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">
@@ -801,7 +808,7 @@ export default function IntervalsPage() {
                   })}
                 </div>
               </div>
-              <ResultsDashboard result={selectedResult} />
+              <ResultsDashboard result={selectedResult} massKg={mass} />
             </div>
           )}
         </>

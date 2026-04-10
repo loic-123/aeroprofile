@@ -43,6 +43,7 @@ export default function App() {
   const [doneCount, setDoneCount] = useState(0);
   const [viewTab, setViewTab] = useState<"overview" | "detail">("overview");
   const [bikeType, setBikeType] = useState<BikeType>("road");
+  const [lastMass, setLastMass] = useState(75);
 
   const handleAnalyze = async (
     files: File[],
@@ -51,6 +52,7 @@ export default function App() {
   ) => {
     const bt = opts.bikeType || "road";
     setBikeType(bt);
+    setLastMass(mass_kg);
     const { minCda: MIN_CDA, maxCda: MAX_CDA } = BIKE_TYPE_CONFIG[bt];
     const posPreset = opts.positionIdx != null ? POSITION_PRESETS[opts.positionIdx] : undefined;
     setLoading(true);
@@ -168,6 +170,7 @@ export default function App() {
   let aggCdaHigh: number | null = null;
   let aggPower: number | null = null;
   let aggRho: number | null = null;
+  let aggRmse: number | null = null;
   if (goodRides.length >= 1) {
     const nrmses = goodRides.map((r) =>
       Math.max((r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1), 0.01)
@@ -175,7 +178,7 @@ export default function App() {
     const bestN = Math.min(...nrmses);
     const worstN = Math.max(...nrmses);
     const span = worstN - bestN;
-    let totalW = 0, sumCda = 0, sumCrr = 0, sumPow = 0, sumRho = 0;
+    let totalW = 0, sumCda = 0, sumCrr = 0, sumPow = 0, sumRho = 0, sumRmse = 0;
     for (let j = 0; j < goodRides.length; j++) {
       const res = goodRides[j].result!;
       const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
@@ -185,9 +188,11 @@ export default function App() {
       sumCrr += res.crr * w;
       sumPow += res.avg_power_w * w;
       sumRho += res.avg_rho * w;
+      sumRmse += (res.rmse_w || 0) * w;
     }
     aggCda = sumCda / totalW;
     aggCrr = sumCrr / totalW;
+    aggRmse = sumRmse / totalW;
     aggPower = sumPow / totalW;
     aggRho = sumRho / totalW;
     if (goodRides.length >= 2) {
@@ -336,7 +341,7 @@ export default function App() {
 
                 {/* Single file → no tabs, show dashboard directly */}
                 {!isMulti && selectedResult && (
-                  <ResultsDashboard result={selectedResult} />
+                  <ResultsDashboard result={selectedResult} massKg={lastMass} />
                 )}
 
                 {/* Multi-ride → tabbed view */}
@@ -380,6 +385,12 @@ export default function App() {
                                   <div className="text-xl font-mono text-teal">{aggCrr.toFixed(4)}</div>
                                 </div>
                               )}
+                              {aggRmse !== null && (
+                                <div>
+                                  <div className="text-xs text-muted">RMSE moyen</div>
+                                  <div className="text-xl font-mono text-muted">±{aggRmse.toFixed(0)} W</div>
+                                </div>
+                              )}
                               {aggPower !== null && aggCda > 0 && (
                                 <div>
                                   <div className="text-xs text-muted flex items-center justify-end">
@@ -395,7 +406,7 @@ export default function App() {
                                 <div>
                                   <div className="text-xs text-muted">V plat</div>
                                   <div className="text-xl font-mono text-info">
-                                    {(Math.pow(2 * aggPower / (aggCda * 1.2), 1/3) * 3.6).toFixed(1)} km/h
+                                    {(Math.pow(2 * aggPower / (aggCda * (aggRho || 1.2)), 1/3) * 3.6).toFixed(1)} km/h
                                   </div>
                                 </div>
                               )}
@@ -414,7 +425,7 @@ export default function App() {
                               {[30, 35, 40, 45].map((s) => {
                                 const v = s / 3.6;
                                 const pAero = 0.5 * aggCda * (aggRho || 1.2) * v * v * v;
-                                const pRoll = (aggCrr || 0.004) * 75 * 9.80665 * v;
+                                const pRoll = (aggCrr || 0.004) * lastMass * 9.80665 * v;
                                 const pTotal = (pAero + pRoll) / 0.977;
                                 return (
                                   <div key={s} className="flex justify-between border-b border-border/30 py-1">
@@ -425,7 +436,7 @@ export default function App() {
                               })}
                             </div>
                             <p className="text-xs text-muted mt-2">
-                              Watts pour rouler sur le plat (75 kg, pas de vent, ρ = {(aggRho || 1.2).toFixed(2)})
+                              Watts pour rouler sur le plat ({lastMass} kg, pas de vent, ρ = {(aggRho || 1.2).toFixed(2)})
                             </p>
                           </div>
                         </div>
@@ -462,30 +473,46 @@ export default function App() {
                         <div className="bg-panel border border-border rounded-lg p-4">
                           <h3 className="text-sm font-semibold mb-3">Sorties analysées</h3>
                           <div className="flex flex-wrap gap-1.5">
-                            {rides.map((r, i) => (
+                            {rides.map((r, i) => {
+                              const isBad = r.excluded;
+                              let tooltip = "";
+                              let nrmseVal = 0;
+                              if (r.error) {
+                                tooltip = `Erreur : ${r.error}`;
+                              } else if (r.result) {
+                                nrmseVal = (r.result.rmse_w || 0) / Math.max(r.result.avg_power_w, 1);
+                                tooltip = `${r.file.name}\nCdA ${r.result.cda.toFixed(3)} • nRMSE ${(nrmseVal*100).toFixed(0)}% • ±${r.result.rmse_w.toFixed(0)}W`;
+                              }
+                              return (
                               <button
                                 key={i}
                                 onClick={() => {
-                                  if (r.result && !r.excluded) {
+                                  if (r.result && !isBad) {
                                     setSelectedIdx(i);
                                     setViewTab("detail");
                                   }
                                 }}
+                                title={tooltip}
                                 className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-mono transition ${
-                                  r.excluded
+                                  isBad
                                     ? "bg-red-900/20 text-red-400/60 line-through border border-red-900/40"
                                     : "bg-emerald-900/30 text-emerald-400 border border-emerald-800 hover:border-teal cursor-pointer"
                                 }`}
                               >
-                                {r.excluded ? "✗" : "✓"}
+                                {isBad ? "✗" : "✓"}
                                 <FileText size={11} />
                                 {r.file.name.length > 20 ? r.file.name.slice(0, 17) + "…" : r.file.name}
-                                {r.result && !r.excluded && (
-                                  <span className="opacity-60">{r.result.cda.toFixed(3)}</span>
+                                {r.result && !isBad && (
+                                  <>
+                                    <span className="opacity-70">{r.result.cda.toFixed(3)}</span>
+                                    <span className="opacity-40">{(nrmseVal*100).toFixed(0)}%</span>
+                                  </>
                                 )}
-                                {r.excluded && <span className="opacity-40">excl.</span>}
+                                {isBad && r.result && <span className="opacity-40">{r.result.cda.toFixed(3)}</span>}
+                                {isBad && !r.result && <span className="opacity-40">err.</span>}
                               </button>
-                            ))}
+                              );
+                            })}
                           </div>
                           <div className="flex gap-4 mt-1.5 text-[10px] text-muted">
                             <span className="flex items-center gap-1">
@@ -528,7 +555,7 @@ export default function App() {
                             })}
                           </div>
                         </div>
-                        <ResultsDashboard result={selectedResult} />
+                        <ResultsDashboard result={selectedResult} massKg={lastMass} />
                       </div>
                     )}
                   </>

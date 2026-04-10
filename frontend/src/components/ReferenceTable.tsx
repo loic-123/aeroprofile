@@ -7,11 +7,11 @@ import InfoTooltip from "./InfoTooltip";
 
 const CDA_RANGES: { label: string; low: number; high: number; desc: string }[] = [
   { label: "CLM pro (Superman)", low: 0.17, high: 0.20, desc: "Prolongateurs, dos plat, casque aéro" },
-  { label: "CLM amateur", low: 0.21, high: 0.25, desc: "Prolongateurs, bras tendus" },
-  { label: "Route, mains en bas", low: 0.28, high: 0.32, desc: "Drops, dos plat, bons réflexes aéro" },
-  { label: "Route, cocottes", low: 0.32, high: 0.38, desc: "Position standard sur cocottes (hoods)" },
-  { label: "Route, mains en haut", low: 0.38, high: 0.45, desc: "Buste relevé, mains sur le cintre" },
-  { label: "Position droite / VTT", low: 0.45, high: 0.55, desc: "VTT, vélo ville, position très droite" },
+  { label: "CLM amateur", low: 0.20, high: 0.25, desc: "Prolongateurs, bras tendus" },
+  { label: "Route, drops aéro", low: 0.25, high: 0.30, desc: "Drops, dos plat, bons réflexes aéro" },
+  { label: "Route, cocottes", low: 0.30, high: 0.35, desc: "Position standard sur cocottes (hoods)" },
+  { label: "Route, mains en haut", low: 0.35, high: 0.42, desc: "Buste relevé, mains sur le cintre" },
+  { label: "Position droite / VTT", low: 0.42, high: 0.55, desc: "VTT, vélo ville, position très droite" },
 ];
 
 const CRR_RANGES: { label: string; low: number; high: number; desc: string }[] = [
@@ -33,7 +33,21 @@ function RowHighlight({
   unit: string;
   fmt: (v: number) => string;
 }) {
-  const match = ranges.findIndex((r) => value >= r.low && value <= r.high);
+  // Find matching range. Use [low, high) for all except last which uses [low, high]
+  let match = ranges.findIndex((r, i) =>
+    i === ranges.length - 1
+      ? value >= r.low && value <= r.high
+      : value >= r.low && value < r.high
+  );
+  // If no exact match, find the closest range
+  if (match === -1) {
+    let minDist = Infinity;
+    for (let i = 0; i < ranges.length; i++) {
+      const mid = (ranges[i].low + ranges[i].high) / 2;
+      const d = Math.abs(value - mid);
+      if (d < minDist) { minDist = d; match = i; }
+    }
+  }
   return (
     <table className="w-full text-sm">
       <thead>
@@ -69,13 +83,6 @@ function RowHighlight({
             </tr>
           );
         })}
-        {match === -1 && (
-          <tr className="bg-coral/10">
-            <td colSpan={2} className="py-2 text-coral text-xs">
-              Votre valeur ({fmt(value)}) est en dehors des plages de référence.
-            </td>
-          </tr>
-        )}
       </tbody>
     </table>
   );

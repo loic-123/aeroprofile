@@ -160,7 +160,9 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
             <select
               value={crrFixed}
               onChange={(e) => setCrrFixed(e.target.value)}
-              className="w-full bg-bg border border-border rounded px-2 py-2 font-mono text-sm"
+              className={`w-full bg-bg border rounded px-2 py-2 font-mono text-sm ${
+                !crrFixed ? "border-orange-500/50" : "border-border"
+              }`}
             >
               {CRR_PRESETS.map((p) => (
                 <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
@@ -168,6 +170,11 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
                 </option>
               ))}
             </select>
+            {!crrFixed && (
+              <p className="text-[10px] text-orange-400 mt-1">
+                Fixer le Crr donne un CdA plus stable. Sélectionnez vos pneus si vous les connaissez.
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-xs text-muted mb-1">
@@ -200,6 +207,26 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
               ))}
             </div>
           </div>
+        </div>
+
+        {/* Cache toggle — visible */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setUseCache(!useCache)}
+            className={`relative w-9 h-5 rounded-full transition-colors ${
+              useCache ? "bg-teal" : "bg-border"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                useCache ? "translate-x-4" : ""
+              }`}
+            />
+          </button>
+          <label className="text-xs text-muted">
+            Cache local {useCache ? "(activé)" : "(désactivé — re-analyse tout)"}
+          </label>
         </div>
 
         <button
@@ -238,24 +265,6 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
                   max={1.0}
                 />
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setUseCache(!useCache)}
-                className={`relative w-9 h-5 rounded-full transition-colors ${
-                  useCache ? "bg-teal" : "bg-border"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                    useCache ? "translate-x-4" : ""
-                  }`}
-                />
-              </button>
-              <label className="text-xs text-muted">
-                Cache local {useCache ? "(activé — résultats instantanés si déjà analysé)" : "(désactivé — re-analyse tout)"}
-              </label>
             </div>
           </div>
         )}

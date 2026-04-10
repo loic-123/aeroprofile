@@ -4,7 +4,7 @@ import { getHistory, deleteFromHistory, clearHistory, type HistoryEntry } from "
 
 export default function HistoryPage() {
   const [entries, setEntries] = useState(() => getHistory());
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const handleDelete = (id: string) => {
     deleteFromHistory(id);
@@ -51,7 +51,7 @@ export default function HistoryPage() {
 
       <div className="space-y-2">
         {entries.map((e) => {
-          const isExpanded = expandedId === e.id;
+          const isExpanded = expandedIds.has(e.id);
           const nrmse = e.avgPowerW > 0 ? (e.rmseW / e.avgPowerW * 100).toFixed(0) : "?";
           const wCda = e.cda > 0 ? (e.avgPowerW / e.cda).toFixed(0) : "–";
           const vFlat = e.cda > 0 && e.avgRho > 0
@@ -62,7 +62,11 @@ export default function HistoryPage() {
             <div key={e.id} className="bg-panel border border-border rounded-lg overflow-hidden">
               {/* Header row — always visible */}
               <button
-                onClick={() => setExpandedId(isExpanded ? null : e.id)}
+                onClick={() => setExpandedIds((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(e.id)) next.delete(e.id); else next.add(e.id);
+                  return next;
+                })}
                 className="w-full px-4 py-3 flex items-center gap-3 text-sm hover:bg-bg/50 transition"
               >
                 {isExpanded ? <ChevronDown size={14} className="text-muted" /> : <ChevronRight size={14} className="text-muted" />}

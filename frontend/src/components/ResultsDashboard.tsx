@@ -19,6 +19,7 @@ import { AlertCircle } from "lucide-react";
 
 interface Props {
   result: AnalysisResult;
+  massKg?: number;
 }
 
 function StatCard({
@@ -104,12 +105,11 @@ function CdABreakdown({ result }: { result: AnalysisResult }) {
   );
 }
 
-function DerivedMetrics({ result }: { result: AnalysisResult }) {
-  // Power needed to maintain a flat speed of V, no wind, typical mass 75kg
+function DerivedMetrics({ result, massKg }: { result: AnalysisResult; massKg?: number }) {
   const rho = result.avg_rho;
   const cda = result.cda;
   const crr = result.crr;
-  const mass = 75;
+  const mass = massKg || 75;
   const g = 9.80665;
 
   const powerAt = (kmh: number) => {
@@ -131,10 +131,10 @@ function DerivedMetrics({ result }: { result: AnalysisResult }) {
     <div className="bg-panel border border-border rounded-lg p-4">
       <h3 className="text-sm font-semibold mb-1 flex items-center">
         Métriques dérivées
-        <InfoTooltip text="Watts nécessaires pour maintenir une vitesse donnée sur le plat, sans vent, pour un cycliste de 75 kg avec votre CdA et Crr. Air à densité de votre sortie." />
+        <InfoTooltip text={`Watts nécessaires pour maintenir une vitesse donnée sur le plat, sans vent, pour ${mass} kg avec votre CdA et Crr. Air à densité de votre sortie.`} />
       </h3>
       <p className="text-xs text-muted mb-3">
-        Watts pour rouler sur le plat (75 kg, pas de vent)
+        Watts pour rouler sur le plat ({mass} kg, pas de vent)
       </p>
       <table className="w-full text-sm font-mono">
         <tbody>
@@ -179,7 +179,7 @@ function ChartSection({
   );
 }
 
-export default function ResultsDashboard({ result }: Props) {
+export default function ResultsDashboard({ result, massKg }: Props) {
   const hours = Math.floor(result.ride_duration_s / 3600);
   const mins = Math.floor((result.ride_duration_s % 3600) / 60);
   const badFit = result.r_squared < 0.3;
@@ -318,7 +318,7 @@ export default function ResultsDashboard({ result }: Props) {
               <PositionSchematic cda={result.cda} size={320} />
             </div>
           </div>
-          <DerivedMetrics result={result} />
+          <DerivedMetrics result={result} massKg={massKg} />
         </div>
       )}
 

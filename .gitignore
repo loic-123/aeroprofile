@@ -20,4 +20,4 @@ frontend/dist/
 /*.zip
 
 # Bulk downloaded activity files (too large for git)
-tests/fixtures/i355768/
+tests/fixtures/laurette/

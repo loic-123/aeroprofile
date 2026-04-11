@@ -28,7 +28,7 @@ export default function WindChart({ profile }: { profile: ProfileData }) {
           <XAxis dataKey="d" stroke="#8b8ba0" fontSize={11} unit=" km" />
           <YAxis yAxisId="s" stroke="#8b8ba0" fontSize={11} unit=" km/h" />
           <YAxis yAxisId="d" orientation="right" stroke="#8b8ba0" fontSize={11} unit="°" domain={[0, 360]} />
-          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} />
+          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} formatter={(v: number) => typeof v === "number" ? v.toFixed(1) : v} />
           <Legend />
           <Line yAxisId="s" type="monotone" dataKey="speed" stroke="#3B82F6" dot={false} name="Vent (km/h)" />
           <Line yAxisId="d" type="monotone" dataKey="dir" stroke="#E8654A" dot={false} name="Direction (°)" strokeDasharray="3 3" />

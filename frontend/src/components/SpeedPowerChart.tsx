@@ -76,7 +76,7 @@ export default function SpeedPowerChart({ profile }: { profile: ProfileData }) {
             fontSize={11}
             unit=" W"
           />
-          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} />
+          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} formatter={(v: number) => typeof v === "number" ? v.toFixed(1) : v} />
           <Scatter data={data2} fill="#1D9E75" fillOpacity={0.3} />
         </ScatterChart>
       </ResponsiveContainer>

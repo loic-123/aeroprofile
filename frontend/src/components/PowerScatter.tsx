@@ -38,7 +38,7 @@ export default function PowerScatter({ profile }: { profile: ProfileData }) {
             domain={[0, maxV]}
             unit=" W"
           />
-          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} />
+          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} formatter={(v: number) => typeof v === "number" ? v.toFixed(1) : v} />
           <ReferenceLine
             segment={[
               { x: 0, y: 0 },

@@ -41,7 +41,7 @@ export default function CdARollingChart({
             domain={[0.15, 0.6]}
             tickFormatter={(v: number) => v.toFixed(2)}
           />
-          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} />
+          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} formatter={(v: number) => typeof v === "number" ? v.toFixed(3) : v} />
           <Legend />
           <ReferenceLine y={cdaMean} stroke="#1D9E75" strokeDasharray="3 3" />
           <Line

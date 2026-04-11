@@ -25,7 +25,7 @@ export default function PowerDecomposition({ profile }: { profile: ProfileData }
           <CartesianGrid stroke="#262633" />
           <XAxis dataKey="d" stroke="#8b8ba0" fontSize={11} unit=" km" />
           <YAxis stroke="#8b8ba0" fontSize={11} unit=" W" />
-          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} />
+          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} formatter={(v: number) => typeof v === "number" ? v.toFixed(1) : v} />
           <Legend />
           <Area
             type="monotone"

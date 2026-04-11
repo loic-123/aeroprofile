@@ -362,7 +362,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
             <CartesianGrid stroke="#262633" />
             <XAxis dataKey="d" stroke="#8b8ba0" fontSize={10} unit=" km" />
             <YAxis stroke="#8b8ba0" fontSize={10} unit={showPowerChart ? " W" : " km/h"} />
-            <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} />
+            <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} formatter={(v: number) => typeof v === "number" ? v.toFixed(1) : v} />
             <Legend />
             {showPowerChart ? (
               <>

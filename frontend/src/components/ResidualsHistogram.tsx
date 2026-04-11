@@ -40,7 +40,7 @@ export default function ResidualsHistogram({ profile }: { profile: ProfileData }
             tickFormatter={(v) => v.toFixed(0)}
           />
           <YAxis stroke="#8b8ba0" fontSize={11} />
-          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} />
+          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} formatter={(v: number) => typeof v === "number" ? v.toFixed(1) : v} />
           <ReferenceLine x={0} stroke="#E8654A" strokeDasharray="3 3" />
           <Bar dataKey="count" fill="#3B82F6" />
         </BarChart>

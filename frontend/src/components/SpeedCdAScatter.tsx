@@ -28,7 +28,7 @@ export default function SpeedCdAScatter({ profile }: { profile: ProfileData }) {
           <CartesianGrid stroke="#262633" />
           <XAxis dataKey="x" stroke="#8b8ba0" fontSize={11} name="CdA" />
           <YAxis dataKey="y" stroke="#8b8ba0" fontSize={11} unit=" W" />
-          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} />
+          <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} formatter={(v: number) => typeof v === "number" ? v.toFixed(1) : v} />
           <Scatter data={data} fill="#1D9E75" fillOpacity={0.3} />
         </ScatterChart>
       </ResponsiveContainer>

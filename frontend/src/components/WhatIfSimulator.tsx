@@ -110,11 +110,17 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       }
     }
 
-    const groundSpeeds: number[] = [result.avg_speed_kmh / 3.6];
+    // Compute raw speeds from distance deltas, then calibrate so the
+    // average matches the known avg_speed_kmh from the analysis result.
+    const rawSpeeds: number[] = [1];
     for (let i = 1; i < n; i++) {
       const dd = (dist[i] - dist[i - 1]) * 1000;
-      groundSpeeds.push(Math.max(dd / avgDt, 0.1));
+      rawSpeeds.push(Math.max(dd / avgDt, 0.01));
     }
+    const rawAvg = rawSpeeds.reduce((s, v) => s + v, 0) / rawSpeeds.length;
+    const targetAvg = result.avg_speed_kmh / 3.6;
+    const calibFactor = rawAvg > 0.1 ? targetAvg / rawAvg : 1;
+    const groundSpeeds = rawSpeeds.map((v) => v * calibFactor);
 
     const output: { d: number; vReal: number; vSim: number; pReal: number; pSim: number }[] = [];
 

@@ -256,7 +256,6 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
                 className="w-full accent-teal" />
               <div className="flex justify-between text-[10px] text-muted">
                 <span>20% (strict)</span>
-                <span>45% (défaut)</span>
                 <span>Toutes</span>
               </div>
             </div>

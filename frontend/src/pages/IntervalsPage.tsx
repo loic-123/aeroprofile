@@ -449,7 +449,6 @@ export default function IntervalsPage() {
               className="w-full accent-teal max-w-sm" />
             <div className="flex justify-between text-[10px] text-muted max-w-sm">
               <span>20% (strict)</span>
-              <span>45% (défaut)</span>
               <span>Toutes</span>
             </div>
           </div>

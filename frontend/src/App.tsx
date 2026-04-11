@@ -44,6 +44,7 @@ export default function App() {
   const [viewTab, setViewTab] = useState<"overview" | "detail">("overview");
   const [bikeType, setBikeType] = useState<BikeType>("road");
   const [lastMass, setLastMass] = useState(75);
+  const [lastMaxNrmse, setLastMaxNrmse] = useState(DEFAULT_MAX_NRMSE);
 
   const handleAnalyze = async (
     files: File[],
@@ -55,6 +56,7 @@ export default function App() {
     setLastMass(mass_kg);
     const { minCda: MIN_CDA, maxCda: MAX_CDA } = BIKE_TYPE_CONFIG[bt];
     const MAX_NRMSE = opts.maxNrmse || DEFAULT_MAX_NRMSE;
+    setLastMaxNrmse(MAX_NRMSE);
     const posPreset = opts.positionIdx != null ? POSITION_PRESETS_BY_BIKE[bt][opts.positionIdx] : undefined;
     setLoading(true);
     setError(null);
@@ -343,6 +345,43 @@ export default function App() {
                 {/* Single file → no tabs, show dashboard directly */}
                 {!isMulti && selectedResult && (
                   <ResultsDashboard result={selectedResult} massKg={lastMass} />
+                )}
+
+                {/* Single file excluded → show warning with reason */}
+                {!isMulti && !selectedResult && rides.length === 1 && rides[0].result && (
+                  <div className="bg-orange-500/10 border border-orange-500 rounded-lg p-4 text-sm">
+                    <div className="font-semibold text-orange-400 mb-2">Sortie exclue</div>
+                    {(() => {
+                      const r = rides[0].result!;
+                      const nrmse = (r.rmse_w || 0) / Math.max(r.avg_power_w, 1);
+                      const reasons: string[] = [];
+                      if (nrmse > (lastMaxNrmse)) reasons.push(`nRMSE = ${(nrmse * 100).toFixed(0)}% (seuil : ${(lastMaxNrmse * 100).toFixed(0)}%) — le modèle physique n'arrive pas à prédire correctement la puissance sur cette sortie`);
+                      if (r.cda < BIKE_TYPE_CONFIG[bikeType].minCda) reasons.push(`CdA = ${r.cda.toFixed(3)} est en dessous du minimum (${BIKE_TYPE_CONFIG[bikeType].minCda}) pour un vélo ${BIKE_TYPE_CONFIG[bikeType].label} — possible drafting`);
+                      if (r.cda > BIKE_TYPE_CONFIG[bikeType].maxCda) reasons.push(`CdA = ${r.cda.toFixed(3)} dépasse le maximum (${BIKE_TYPE_CONFIG[bikeType].maxCda}) pour un vélo ${BIKE_TYPE_CONFIG[bikeType].label}`);
+                      return (
+                        <>
+                          <ul className="list-disc ml-4 space-y-1 text-text">
+                            {reasons.map((r, i) => <li key={i}>{r}</li>)}
+                          </ul>
+                          <p className="text-muted mt-2">
+                            Vous pouvez augmenter le seuil nRMSE dans les options avancées, ou essayer avec d'autres paramètres (masse, Crr, position).
+                          </p>
+                          <div className="mt-3 grid grid-cols-3 gap-3 text-xs font-mono">
+                            <div>CdA : <span className="text-teal">{r.cda.toFixed(3)}</span></div>
+                            <div>Crr : <span className="text-teal">{r.crr.toFixed(4)}</span></div>
+                            <div>RMSE : <span className="text-muted">±{r.rmse_w.toFixed(0)} W</span></div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Single file error */}
+                {!isMulti && !selectedResult && rides.length === 1 && rides[0].error && (
+                  <div className="bg-coral/10 border border-coral rounded-lg p-4 text-sm text-coral">
+                    Erreur d'analyse : {rides[0].error}
+                  </div>
                 )}
 
                 {/* Multi-ride → tabbed view */}

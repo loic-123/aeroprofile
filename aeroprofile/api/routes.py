@@ -13,7 +13,7 @@ from aeroprofile.pipeline import analyze
 
 router = APIRouter()
 
-MAX_PROFILE_POINTS = 5000
+MAX_PROFILE_POINTS = 50000  # no practical limit — send all points
 
 
 def _f(v, default=0.0):

@@ -84,7 +84,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
     cda:   [{ id: "power", label: "Puissance fixée → impact sur vitesse" },
             { id: "speed", label: "Vitesse fixée → impact sur puissance" }],
     power: [{ id: "power", label: "CdA fixé → impact sur vitesse" },
-            { id: "speed", label: "Vitesse fixée → impact sur puissance" }],
+            { id: "speed", label: "Vitesse fixée → CdA équivalent" }],
     speed: [{ id: "power", label: "Puissance fixée → puissance nécessaire" },
             { id: "speed", label: "CdA fixé → puissance nécessaire" }],
   };
@@ -122,7 +122,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
     const calibFactor = rawAvg > 0.1 ? targetAvg / rawAvg : 1;
     const groundSpeeds = rawSpeeds.map((v) => v * calibFactor);
 
-    const output: { d: number; vReal: number; vSim: number; pReal: number; pSim: number }[] = [];
+    const output: { d: number; vReal: number; vSim: number; pReal: number; pSim: number; cdaSim: number }[] = [];
 
     for (let i = 1; i < n; i++) {
       const d = dist[i];
@@ -136,6 +136,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
 
       let vSim = vBase;
       let pSim = pRaw;
+      let cdaEq = baseCda;
 
       if (vary === "cda") {
         const newCda = baseCda + cdaDelta;
@@ -149,11 +150,26 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       } else if (vary === "power") {
         const newP = pRaw * (1 + powerDelta / 100);
         if (fixed === "power") {
+          // CdA fixed, power changes → new speed
           vSim = solveSpeed(newP, baseCda, baseCrr, rho, mass, grad, vBase);
           pSim = newP;
         } else {
+          // Speed fixed, power changes → equivalent CdA
+          // At same speed, more power means higher equivalent CdA
+          // Solve: newP * eta = 0.5 * CdA_eq * rho * V³ + Crr*m*g*V + m*g*grad*V
+          // CdA_eq = (newP * eta - Crr*m*g*cos(θ)*V - m*g*sin(θ)*V) / (0.5*rho*V³)
           vSim = vBase;
           pSim = newP;
+          if (vGround > 0.5) {
+            const ct = Math.cos(Math.atan(grad));
+            const st = Math.sin(Math.atan(grad));
+            const pNonAero = baseCrr * mass * G * ct * vGround + mass * G * st * vGround;
+            const den = 0.5 * rho * vGround * vGround * vGround;
+            if (den > 1) {
+              cdaEq = (newP * ETA - pNonAero) / den;
+              cdaEq = Math.max(0.05, Math.min(0.8, cdaEq));
+            }
+          }
         }
       } else {
         const newV = vBase + speedDelta / 3.6;
@@ -173,6 +189,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
         vSim: Math.max(vSimKmh, 0),
         pReal: pRaw,
         pSim: Math.max(pSim, 0),
+        cdaSim: cdaEq,
       });
     }
 
@@ -193,10 +210,13 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       timeSim += pt.vSim > 0.1 ? (pt.vReal / pt.vSim) * avgDt : avgDt;
     }
 
+    const avgCdaSim = simData.reduce((s, d) => s + d.cdaSim, 0) / simData.length;
+
     return { avgVReal, avgVSim, deltaV: avgVSim - avgVReal,
              avgPReal, avgPSim, deltaP: avgPSim - avgPReal,
+             avgCdaSim, deltaCda: avgCdaSim - baseCda,
              timeReal, timeSim, deltaTime: timeSim - timeReal };
-  }, [simData, avgDt]);
+  }, [simData, avgDt, baseCda]);
 
   const fmtTime = (s: number) => {
     const abs = Math.abs(s);
@@ -337,16 +357,33 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
             </div>
           </div>
           <div className="bg-bg rounded p-2">
-            <div className="text-[10px] text-muted uppercase">Puissance moy.</div>
-            <div className="font-mono text-sm">
-              <span className="text-muted">{summary.avgPReal.toFixed(0)}</span>
-              <span className="mx-1">→</span>
-              <span className="text-teal font-semibold">{summary.avgPSim.toFixed(0)}</span>
-              <span className="text-xs text-muted"> W</span>
-            </div>
-            <div className={`text-xs font-mono ${summary.deltaP < -0.5 ? "text-emerald-400" : summary.deltaP > 0.5 ? "text-coral" : "text-muted"}`}>
-              {summary.deltaP >= 0 ? "+" : ""}{summary.deltaP.toFixed(0)} W
-            </div>
+            {vary === "power" && fixed === "speed" ? (
+              <>
+                <div className="text-[10px] text-muted uppercase">CdA équivalent</div>
+                <div className="font-mono text-sm">
+                  <span className="text-muted">{baseCda.toFixed(3)}</span>
+                  <span className="mx-1">→</span>
+                  <span className="text-teal font-semibold">{summary.avgCdaSim.toFixed(3)}</span>
+                  <span className="text-xs text-muted"> m²</span>
+                </div>
+                <div className={`text-xs font-mono ${summary.deltaCda < -0.001 ? "text-emerald-400" : summary.deltaCda > 0.001 ? "text-coral" : "text-muted"}`}>
+                  {summary.deltaCda >= 0 ? "+" : ""}{summary.deltaCda.toFixed(3)}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-[10px] text-muted uppercase">Puissance moy.</div>
+                <div className="font-mono text-sm">
+                  <span className="text-muted">{summary.avgPReal.toFixed(0)}</span>
+                  <span className="mx-1">→</span>
+                  <span className="text-teal font-semibold">{summary.avgPSim.toFixed(0)}</span>
+                  <span className="text-xs text-muted"> W</span>
+                </div>
+                <div className={`text-xs font-mono ${summary.deltaP < -0.5 ? "text-emerald-400" : summary.deltaP > 0.5 ? "text-coral" : "text-muted"}`}>
+                  {summary.deltaP >= 0 ? "+" : ""}{summary.deltaP.toFixed(0)} W
+                </div>
+              </>
+            )}
           </div>
           <div className="bg-bg rounded p-2">
             <div className="text-[10px] text-muted uppercase">Temps estimé</div>

@@ -57,7 +57,7 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
     if (files.length === 0 || !mass) return;
     const crrVal = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : 0;
     const crr = crrVal > 0 ? crrVal : null;
-    onAnalyze(files, mass, { crr_fixed: crr, eta, wind_height_factor: windFactor, useCache, bikeType, positionIdx, maxNrmse: maxNrmse / 100 });
+    onAnalyze(files, mass, { crr_fixed: crr, eta, wind_height_factor: windFactor, useCache, bikeType, positionIdx, maxNrmse: maxNrmse >= 100 ? 999 : maxNrmse / 100 });
   };
 
   return (
@@ -246,18 +246,18 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
           <div className="mt-3 space-y-3 text-sm">
             <div>
               <label className="block text-xs text-muted mb-1">
-                Seuil nRMSE max : <span className="text-teal font-mono font-semibold">{maxNrmse}%</span>
+                Seuil nRMSE max : <span className="text-teal font-mono font-semibold">{maxNrmse > 95 ? "désactivé (toutes)" : `${maxNrmse}%`}</span>
                 <span className="ml-2 text-muted">
-                  (les sorties au-dessus sont exclues — {maxNrmse < 30 ? "très strict" : maxNrmse < 45 ? "strict" : maxNrmse < 60 ? "modéré" : "permissif"})
+                  ({maxNrmse > 95 ? "aucun filtre qualité" : maxNrmse < 30 ? "très strict" : maxNrmse < 45 ? "strict" : maxNrmse < 60 ? "modéré" : "permissif"})
                 </span>
               </label>
-              <input type="range" min={20} max={80} step={5} value={maxNrmse}
+              <input type="range" min={20} max={100} step={5} value={maxNrmse}
                 onChange={(e) => setMaxNrmse(parseInt(e.target.value))}
                 className="w-full accent-teal" />
               <div className="flex justify-between text-[10px] text-muted">
                 <span>20% (strict)</span>
                 <span>45% (défaut)</span>
-                <span>80% (permissif)</span>
+                <span>Toutes</span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

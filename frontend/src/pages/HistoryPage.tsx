@@ -119,9 +119,9 @@ export default function HistoryPage() {
                     <div>Masse : <span className="text-text font-mono">{e.massKg} kg</span></div>
                     <div>Rides : <span className="text-text font-mono">{e.nRides}</span> retenues, <span className="text-text font-mono">{e.nExcluded}</span> exclues</div>
                     <div>Vélo : <span className="text-text">{e.bikeType}</span> · <span className="text-text">{e.positionLabel}</span></div>
-                    <div>Crr : <span className="text-text font-mono">{e.crrFixed != null ? `${e.crrFixed} (fixé)` : "auto"}</span></div>
+                    <div>Crr : <span className="text-text font-mono">{e.crrFixed != null ? `${e.crrFixed.toFixed(4)} (fixé)` : "auto"}</span></div>
                     <div>Prior CdA : <span className="text-text font-mono">
-                      {e.cdaPriorMean != null ? `${e.cdaPriorMean} ± ${e.cdaPriorSigma}` : "défaut"}
+                      {e.cdaPriorMean != null ? `${e.cdaPriorMean.toFixed(2)} ± ${e.cdaPriorSigma?.toFixed(2)}` : "défaut"}
                     </span></div>
                   </div>
 

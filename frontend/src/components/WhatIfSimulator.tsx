@@ -209,8 +209,6 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
     return simData.filter((_, i) => i % step === 0);
   }, [simData]);
 
-  const isChanged = cdaDelta !== 0 || powerDelta !== 0 || speedDelta !== 0;
-
   // Decide what to show in chart: V or P
   const showPowerChart = (vary === "cda" && fixed === "speed") ||
                           (vary === "speed") ||
@@ -245,7 +243,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       <div className="flex gap-1">
         {fixedOptions[vary].map((opt) => (
           <button key={opt.id}
-            onClick={() => { setFixed(opt.id); resetSliders(); }}
+            onClick={() => setFixed(opt.id)}
             className={`flex-1 px-2 py-1 text-[11px] rounded transition ${
               fixed === opt.id ? "bg-info/20 text-info font-semibold border border-info/30" : "bg-bg border border-border text-muted hover:text-text"
             }`}>
@@ -319,7 +317,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       </div>
 
       {/* Summary */}
-      {summary && isChanged && (
+      {summary && (
         <div className="grid grid-cols-3 gap-3 text-center">
           <div className="bg-bg rounded p-2">
             <div className="text-[10px] text-muted uppercase">Vitesse moy.</div>
@@ -358,7 +356,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       )}
 
       {/* Chart */}
-      {chartData.length > 10 && isChanged && (
+      {chartData.length > 10 && (
         <ResponsiveContainer width="100%" height={180}>
           <LineChart data={chartData}>
             <CartesianGrid stroke="#262633" />
@@ -381,11 +379,6 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
         </ResponsiveContainer>
       )}
 
-      {!isChanged && (
-        <p className="text-xs text-muted text-center py-4">
-          Déplacez le slider pour simuler un changement et voir son impact sur la sortie.
-        </p>
-      )}
     </div>
   );
 }

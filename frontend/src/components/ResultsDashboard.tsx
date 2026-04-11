@@ -8,6 +8,7 @@ import ResidualsHistogram from "./ResidualsHistogram";
 import SpeedCdAScatter from "./SpeedCdAScatter";
 import MapView from "./MapView";
 import ReferenceTable from "./ReferenceTable";
+import WhatIfSimulator from "./WhatIfSimulator";
 import FilterSummary from "./FilterSummary";
 import WindChart from "./WindChart";
 import SpeedPowerChart from "./SpeedPowerChart";
@@ -323,6 +324,7 @@ export default function ResultsDashboard({ result, massKg }: Props) {
       )}
 
       {!unreliable && <ReferenceTable cda={result.cda} crr={result.crr} />}
+      {!unreliable && <WhatIfSimulator result={result} />}
 
       <AnomalyAlerts anomalies={result.anomalies} />
 

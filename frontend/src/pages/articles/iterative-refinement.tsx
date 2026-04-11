@@ -110,78 +110,67 @@ export default function IterativeRefinement() {
         </P>
       </Section>
 
-      <Section title="Crit\u00e8re 2 : d\u00e9rive absolue (filet de s\u00e9curit\u00e9)">
+      <Section title="Critère 2 : dérive détrendée (filet de sécurité)">
         <P>
-          Le second crit\u00e8re est un filet de s\u00e9curit\u00e9 pour les biais accumul\u00e9s
-          lentement. M\u00eame si le taux de d\u00e9rive est faible \u00e0 chaque instant, une
-          petite erreur syst\u00e9matique peut s'accumuler sur un long segment
-          jusqu'\u00e0 produire un \u00e9cart massif. On calcule la valeur absolue de la
-          d\u00e9rive liss\u00e9e, moyenn\u00e9e sur 60 secondes :
+          Le second critère ne regarde pas la dérive brute mais la dérive
+          <strong> après soustraction de sa tendance linéaire</strong>. Pourquoi ?
+          Après un épisode de drafting de 2 minutes, la dérive fait un saut
+          de +30 m puis reste stable. La dérive brute reste à +30 m pour tout
+          le reste de la sortie — un seuil absolu exclurait toute la suite,
+          alors que le modèle y fonctionne correctement.
+        </P>
+        <P>
+          En retirant la tendance linéaire (fit par moindres carrés sur la
+          dérive lissée), on ne garde que les <strong>écarts locaux</strong> :
         </P>
         <Formula>
-          {String.raw`d(t) = \left\langle \left| \text{d\`erive}_{\text{liss\`ee}}(t) \right| \right\rangle_{60\text{s}}`}
+          {String.raw`\delta(t) = \left\langle \left| \Delta h_{\text{lissé}}(t) - \text{trend}(t) \right| \right\rangle_{60\text{s}}`}
+        </Formula>
+        <Formula>
+          {String.raw`\text{trend}(t) = a \cdot t + b \quad \text{(régression linéaire sur } \Delta h_{\text{lissé}} \text{)}`}
         </Formula>
         <P>
-          Le seuil est proportionnel au d\u00e9nivel\u00e9 positif total :
+          Le seuil est proportionnel au dénivelé positif :
         </P>
         <Formula>
-          {String.raw`\text{seuil}_{\text{abs}} = \max\!\left(80 \;\text{m},\;\; D^{+} \times 12\% \right)`}
+          {String.raw`\text{seuil}_{\text{detrend}} = \max\!\left(40 \;\text{m},\;\; D^{+} \times 8\% \right)`}
         </Formula>
         <P>
-          Exemples concrets :
-        </P>
-        <ul className="list-disc ml-6 space-y-1 text-text">
-          <li>
-            Sortie plate (300 m <Tex>{String.raw`D^{+}`}</Tex>) : seuil = 80 m
-            (plancher)
-          </li>
-          <li>
-            Col moyen (800 m <Tex>{String.raw`D^{+}`}</Tex>) : seuil = 96 m
-          </li>
-          <li>
-            Ventoux (1900 m <Tex>{String.raw`D^{+}`}</Tex>) : seuil = 228 m
-          </li>
-        </ul>
-        <P>
-          <strong>Ce que \u00e7a attrape :</strong> un vent l\u00e9g\u00e8rement mal estim\u00e9
-          pendant une longue mont\u00e9e, un capteur de puissance qui d\u00e9rive
-          lentement, ou un <Tex>{String.raw`C_{rr}`}</Tex> inadapt\u00e9 au
-          rev\u00eatement. Ces erreurs s'accumulent doucement — le taux de d\u00e9rive
-          reste sous le seuil, mais l'\u00e9cart absolu finit par exploser.
+          <strong>Ce que ça attrape :</strong> les segments où le modèle
+          diverge localement de façon anormale, même si la dérive globale est
+          constante. Un offset constant (biais CdA, biais vent global) est
+          absorbé par la tendance linéaire et ne déclenche pas d'exclusion.
+          Seuls les vrais problèmes locaux (drafting, freinage, changement
+          de vent brutal) sont détectés.
         </P>
       </Section>
 
-      <Section title="Pourquoi deux crit\u00e8res sont n\u00e9cessaires">
+      <Section title="Pourquoi deux critères sont nécessaires">
         <P>
-          Ni le taux de d\u00e9rive seul, ni la d\u00e9rive absolue seule ne suffisent :
+          Ni le taux de dérive seul, ni la dérive détrendée seule ne suffisent :
         </P>
         <ul className="list-disc ml-6 space-y-2 text-text">
           <li>
             <strong>Taux seul :</strong> rate sur les erreurs lentes et
-            syst\u00e9matiques. Sur une mont\u00e9e de 40 minutes avec un vent
-            l\u00e9g\u00e8rement sous-estim\u00e9, le taux de d\u00e9rive peut rester \u00e0 0.05 m/s
-            (sous le seuil) mais l'\u00e9cart accumul\u00e9 atteint{" "}
-            <Tex>{String.raw`0.05 \times 2400 = 120`}</Tex> m.
+            systématiques. Sur une montée de 40 minutes avec un vent
+            légèrement sous-estimé, le taux de dérive reste à 0.05 m/s
+            (sous le seuil) mais l'écart détrendé finit par dépasser le
+            seuil car la dérive s'écarte de la tendance linéaire locale.
           </li>
           <li>
-            <strong>Absolu seul :</strong> rate sur les probl\u00e8mes courts et
-            intenses. 2 minutes de drafting causent un taux de d\u00e9rive
-            \u00e9norme (0.5 m/s) mais l'\u00e9cart absolu accumul\u00e9 n'est que de{" "}
-            <Tex>{String.raw`0.5 \times 120 = 60`}</Tex> m — souvent sous le
-            seuil absolu.
+            <strong>Détrendé seul :</strong> rate sur les problèmes très
+            courts et intenses. 20 secondes de drafting causent un taux de
+            dérive énorme (0.5 m/s) mais l'écart détrendé peut rester
+            faible si la tendance linéaire s'adapte au saut.
           </li>
         </ul>
         <P>
           L'approche hybride combine les deux : un point est exclu si{" "}
-          <strong>l'un OU l'autre</strong> des crit\u00e8res d\u00e9passe son seuil :
+          <strong>l'un OU l'autre</strong> des critères dépasse son seuil :
         </P>
         <Formula>
-          {String.raw`\text{exclu}(t) = \bigl( r(t) > \text{seuil}_{\text{taux}} \bigr) \;\lor\; \bigl( d(t) > \text{seuil}_{\text{abs}} \bigr)`}
+          {String.raw`\text{exclu}(t) = \bigl( r(t) > \text{seuil}_{\text{taux}} \bigr) \;\lor\; \bigl( \delta(t) > \text{seuil}_{\text{detrend}} \bigr)`}
         </Formula>
-        <P>
-          C'est un OR logique, pas un AND. Cela garantit que les deux types
-          d'erreur sont d\u00e9tect\u00e9s sans que l'un ne masque l'autre.
-        </P>
       </Section>
 
       <Section title="La r\u00e8gle des 30% : savoir quand ne pas raffiner">

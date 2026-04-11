@@ -386,12 +386,28 @@ async def analyze(
         drift_rate_threshold = max(0.10, _base_rate * 4.0)
         rate_ok = drift_rate_smooth <= drift_rate_threshold
 
-        # --- Criterion 2: absolute drift (safety net) ---
-        drift_abs = np.abs(drift_smooth)
-        drift_abs_smooth = pd.Series(drift_abs).rolling(window=60, center=True, min_periods=10).mean().to_numpy()
-        drift_abs_smooth = np.nan_to_num(drift_abs_smooth, nan=0.0)
-        drift_abs_threshold = max(80.0, _dplus * 0.12)
-        abs_ok = drift_abs_smooth <= drift_abs_threshold
+        # --- Criterion 2: detrended drift (safety net) ---
+        # A constant drift offset (e.g. from a past drafting episode that's
+        # now over) is NOT a problem — the solver can absorb a global bias.
+        # What IS a problem is when the drift deviates from its own trend,
+        # meaning the model is locally wrong at that specific segment.
+        # We fit a linear trend to the drift and flag points where the
+        # residual exceeds a threshold.
+        n_pts = len(drift_smooth)
+        t_axis = np.arange(n_pts, dtype=float)
+        # Robust linear fit (least-squares on the smoothed drift)
+        valid_mask_for_fit = np.isfinite(drift_smooth)
+        if valid_mask_for_fit.sum() > 10:
+            coeffs = np.polyfit(t_axis[valid_mask_for_fit], drift_smooth[valid_mask_for_fit], 1)
+            drift_trend = np.polyval(coeffs, t_axis)
+        else:
+            drift_trend = np.zeros(n_pts)
+        drift_detrended = np.abs(drift_smooth - drift_trend)
+        drift_detrended_smooth = pd.Series(drift_detrended).rolling(window=60, center=True, min_periods=10).mean().to_numpy()
+        drift_detrended_smooth = np.nan_to_num(drift_detrended_smooth, nan=0.0)
+        # Threshold: proportional to D+, with a minimum floor
+        drift_detrend_threshold = max(40.0, _dplus * 0.08)
+        abs_ok = drift_detrended_smooth <= drift_detrend_threshold
 
         # Exclude if EITHER criterion fires
         filter_ve_ok = rate_ok & abs_ok
@@ -430,7 +446,7 @@ async def analyze(
                             n_points=wi2["n_points"],
                             crr_was_fixed=(effective_crr_fixed is not None),
                         )
-                        solver_note += f" Passe 2 itérative : {n_excluded_by_ve} points exclus (dérive VE hybride : taux > {drift_rate_threshold:.2f} m/s ou abs > {drift_abs_threshold:.0f} m)."
+                        solver_note += f" Passe 2 itérative : {n_excluded_by_ve} points exclus (dérive VE hybride : taux > {drift_rate_threshold:.2f} m/s ou écart detrended > {drift_detrend_threshold:.0f} m)."
                 elif solver_method == "chung_ve":
                     chung2 = solve_chung_ve(df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
                                             cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,

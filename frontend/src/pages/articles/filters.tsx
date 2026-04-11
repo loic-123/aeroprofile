@@ -128,8 +128,8 @@ export default function Filters() {
             détecte où le modèle diverge <em>activement</em> (drafting soudain, changement de vent)
           </li>
           <li>
-            <strong>Dérive absolue</strong> (<Tex>{String.raw`|\Delta h|`}</Tex>) :
-            filet de sécurité pour les biais accumulés trop importants
+            <strong>Dérive détrendée</strong> (<Tex>{String.raw`|\Delta h - \text{trend}|`}</Tex>) :
+            filet de sécurité — détecte les écarts locaux après soustraction de la tendance linéaire globale
           </li>
         </ul>
         <P>

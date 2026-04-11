@@ -23,7 +23,7 @@ import PositionSchematic from "./components/PositionSchematic";
 
 type Mode = "single" | "compare" | "intervals" | "blog" | "history";
 
-const MAX_NRMSE = 0.45;
+const DEFAULT_MAX_NRMSE = 0.45;
 
 interface RideAnalysis {
   file: File;
@@ -48,12 +48,13 @@ export default function App() {
   const handleAnalyze = async (
     files: File[],
     mass_kg: number,
-    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean; bikeType?: BikeType; positionIdx?: number },
+    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean; bikeType?: BikeType; positionIdx?: number; maxNrmse?: number },
   ) => {
     const bt = opts.bikeType || "road";
     setBikeType(bt);
     setLastMass(mass_kg);
     const { minCda: MIN_CDA, maxCda: MAX_CDA } = BIKE_TYPE_CONFIG[bt];
+    const MAX_NRMSE = opts.maxNrmse || DEFAULT_MAX_NRMSE;
     const posPreset = opts.positionIdx != null ? POSITION_PRESETS_BY_BIKE[bt][opts.positionIdx] : undefined;
     setLoading(true);
     setError(null);

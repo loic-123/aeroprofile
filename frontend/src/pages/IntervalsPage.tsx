@@ -25,7 +25,7 @@ import PositionSchematic from "../components/PositionSchematic";
 const LS_KEY = "aeroprofile_intervals_key";
 const LS_AID = "aeroprofile_intervals_aid";
 
-const MAX_NRMSE = 0.45;
+const DEFAULT_MAX_NRMSE = 0.45;
 
 interface RideResult {
   activity: ActivitySummary;
@@ -56,6 +56,7 @@ export default function IntervalsPage() {
   const [crrFixed, setCrrFixed] = useState("0.003");
   const [positionIdx, setPositionIdx] = useState(2); // default: "Aéro (drops)"
   const [useCache, setUseCache] = useState(true);
+  const [maxNrmse, setMaxNrmse] = useState(45);
 
   const handleBikeType = (bt: BikeType) => {
     setBikeType(bt);
@@ -138,6 +139,7 @@ export default function IntervalsPage() {
     setRides([]);
     setSelectedIdx(0);
     setViewTab("overview");
+    const MAX_NRMSE = maxNrmse / 100;
     const crr = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : undefined;
     const posPresetForCache = POSITION_PRESETS_BY_BIKE[bikeType][positionIdx];
     const cacheOpts: CacheOpts = {
@@ -432,6 +434,24 @@ export default function IntervalsPage() {
             <label className="text-xs text-muted">
               Cache local {useCache ? "(activé)" : "(désactivé — re-analyse tout)"}
             </label>
+          </div>
+
+          {/* nRMSE threshold slider */}
+          <div className="mt-3">
+            <label className="block text-xs text-muted mb-1">
+              Seuil qualité (nRMSE max) : <span className="text-teal font-mono font-semibold">{maxNrmse}%</span>
+              <span className="ml-2">
+                ({maxNrmse < 30 ? "très strict — peu de sorties retenues" : maxNrmse < 45 ? "strict" : maxNrmse < 60 ? "modéré" : "permissif — plus de sorties mais moins précis"})
+              </span>
+            </label>
+            <input type="range" min={20} max={80} step={5} value={maxNrmse}
+              onChange={(e) => setMaxNrmse(parseInt(e.target.value))}
+              className="w-full accent-teal max-w-sm" />
+            <div className="flex justify-between text-[10px] text-muted max-w-sm">
+              <span>20% (strict)</span>
+              <span>45% (défaut)</span>
+              <span>80% (permissif)</span>
+            </div>
           </div>
 
           <button
@@ -769,7 +789,7 @@ export default function IntervalsPage() {
                   </span>
                 </div>
                 <p className="text-[10px] text-muted mt-2 leading-relaxed">
-                  Une sortie est exclue si son erreur de modélisation (nRMSE) dépasse 45%
+                  Une sortie est exclue si son erreur de modélisation (nRMSE) dépasse {maxNrmse}%
                   ou si le CdA estimé tombe hors de la plage du type de vélo
                   ({BIKE_TYPE_CONFIG[bikeType].minCda}–{BIKE_TYPE_CONFIG[bikeType].maxCda} m²).
                   Les sorties en groupe (mots-clés dans le titre) sont exclues avant l'analyse.

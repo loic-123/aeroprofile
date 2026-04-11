@@ -277,12 +277,12 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
               CdA : <span className="text-teal font-mono font-semibold">{(baseCda + cdaDelta).toFixed(3)} m²</span>
               <span className="ml-2">({cdaDelta >= 0 ? "+" : ""}{cdaDelta.toFixed(3)} vs réel {baseCda.toFixed(3)})</span>
             </label>
-            <input type="range" min={-0.15} max={0.15} step={0.005} value={cdaDelta}
+            <input type="range" min={-0.25} max={0.25} step={0.005} value={cdaDelta}
               onChange={(e) => setCdaDelta(parseFloat(e.target.value))} className="w-full accent-teal" />
             <div className="flex justify-between text-[10px] text-muted">
-              <span>{Math.max(baseCda - 0.15, 0.05).toFixed(2)}</span>
+              <span>{Math.max(baseCda - 0.25, 0.05).toFixed(2)}</span>
               <span className="text-teal cursor-pointer" onClick={() => setCdaDelta(0)}>actuel</span>
-              <span>{(baseCda + 0.15).toFixed(2)}</span>
+              <span>{(baseCda + 0.25).toFixed(2)}</span>
             </div>
           </>
         )}
@@ -292,12 +292,12 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
               Puissance : <span className="text-teal font-mono font-semibold">{powerDelta >= 0 ? "+" : ""}{powerDelta}%</span>
               <span className="ml-2">({(avgPower * (1 + powerDelta / 100)).toFixed(0)} W vs {avgPower.toFixed(0)} W)</span>
             </label>
-            <input type="range" min={-30} max={30} step={1} value={powerDelta}
+            <input type="range" min={-50} max={50} step={1} value={powerDelta}
               onChange={(e) => setPowerDelta(parseInt(e.target.value))} className="w-full accent-teal" />
             <div className="flex justify-between text-[10px] text-muted">
-              <span>-30%</span>
+              <span>-50%</span>
               <span className="text-teal cursor-pointer" onClick={() => setPowerDelta(0)}>actuel</span>
-              <span>+30%</span>
+              <span>+50%</span>
             </div>
           </>
         )}
@@ -307,12 +307,12 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
               Vitesse : <span className="text-teal font-mono font-semibold">{speedDelta >= 0 ? "+" : ""}{speedDelta.toFixed(1)} km/h</span>
               <span className="ml-2">({(result.avg_speed_kmh + speedDelta).toFixed(1)} vs {result.avg_speed_kmh.toFixed(1)} km/h)</span>
             </label>
-            <input type="range" min={-10} max={10} step={0.5} value={speedDelta}
+            <input type="range" min={-15} max={15} step={0.5} value={speedDelta}
               onChange={(e) => setSpeedDelta(parseFloat(e.target.value))} className="w-full accent-teal" />
             <div className="flex justify-between text-[10px] text-muted">
-              <span>-10 km/h</span>
+              <span>-15 km/h</span>
               <span className="text-teal cursor-pointer" onClick={() => setSpeedDelta(0)}>actuel</span>
-              <span>+10 km/h</span>
+              <span>+15 km/h</span>
             </div>
           </>
         )}

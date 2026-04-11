@@ -125,48 +125,47 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       const vGround = groundSpeeds[i];
       const pRaw = powerProfile === "smooth" ? avgPower : (pMeasured[i] || avgPower);
 
-      // Baseline: solve V from real P and real CdA (consistent model)
+      // Baseline: solve V from real P and real CdA (model-consistent baseline)
       const vBase = solveSpeed(pRaw, baseCda, baseCrr, rho, mass, grad, vGround);
-      const pBase = pRaw;
 
       let vSim = vBase;
-      let pSim = pBase;
+      let pSim = pRaw;
 
       if (vary === "cda") {
         const newCda = baseCda + cdaDelta;
         if (fixed === "power") {
-          // P fixed, CdA changes → solve new V
-          vSim = solveSpeed(pBase, newCda, baseCrr, rho, mass, grad, vBase);
-          pSim = pBase;
+          vSim = solveSpeed(pRaw, newCda, baseCrr, rho, mass, grad, vBase);
+          pSim = pRaw;
         } else {
-          // V fixed, CdA changes → compute new P
           vSim = vBase;
-          pSim = computePower(vBase, newCda, baseCrr, rho, mass, grad);
+          pSim = computePower(vGround, newCda, baseCrr, rho, mass, grad);
         }
       } else if (vary === "power") {
-        const newP = pBase * (1 + powerDelta / 100);
+        const newP = pRaw * (1 + powerDelta / 100);
         if (fixed === "power") {
-          // "CdA fixed" → P changes, solve new V
           vSim = solveSpeed(newP, baseCda, baseCrr, rho, mass, grad, vBase);
           pSim = newP;
         } else {
-          // V fixed, P changes → compute what P is needed (just show new P)
           vSim = vBase;
           pSim = newP;
         }
       } else {
-        // vary === "speed"
         const newV = vBase + speedDelta / 3.6;
         vSim = Math.max(newV, 0.01);
-        // In both sub-modes, compute power needed at new speed
         pSim = computePower(vSim, baseCda, baseCrr, rho, mass, grad);
       }
 
+      // Use RATIO method: vSim/vBase applied to real GPS speed
+      // This way vReal matches the actual ride, and vSim is the delta
+      const ratio = vBase > 0.1 ? vSim / vBase : 1;
+      const vRealKmh = vGround * 3.6;
+      const vSimKmh = vRealKmh * ratio;
+
       output.push({
         d,
-        vReal: vBase * 3.6,
-        vSim: Math.max(vSim, 0) * 3.6,
-        pReal: pBase,
+        vReal: vRealKmh,
+        vSim: Math.max(vSimKmh, 0),
+        pReal: pRaw,
         pSim: Math.max(pSim, 0),
       });
     }

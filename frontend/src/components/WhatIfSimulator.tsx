@@ -1,14 +1,13 @@
 /**
  * What-If Simulator: vary one parameter on a real ride and see the impact.
  *
- * Modes:
- *  - Vary CdA → see new speed (at same power) or new power (at same speed)
- *  - Vary power (±%) → see new speed
- *  - Vary speed (±km/h) → see new power required
- *
- * Two power profiles:
- *  - "Réel" = keep the actual power profile (intervals, sprints, etc.)
- *  - "Lissé" = use constant power = average
+ * 6 combinations:
+ *  - Vary CdA, power fixed → new speed
+ *  - Vary CdA, speed fixed → new power needed
+ *  - Vary power, CdA fixed → new speed
+ *  - Vary power, speed fixed → new CdA equivalent
+ *  - Vary speed, power fixed → new power needed
+ *  - Vary speed, CdA fixed → new power needed (same as above)
  */
 
 import { useState, useMemo } from "react";
@@ -28,153 +27,95 @@ import InfoTooltip from "./InfoTooltip";
 
 const G = 9.80665;
 const ETA = 0.977;
-const I_EFF = 0.14; // wheel inertia effective mass
 
-/**
- * Given all forces except aero, solve for velocity that balances power.
- * P * eta = 0.5 * CdA * rho * V_air^2 * V + Crr * m * g * V + m * g * grad * V
- * With V_air ≈ V + headwind, this is a cubic in V. We use Newton's method.
- */
+/** Solve for V given P, CdA, Crr, rho, mass, gradient (no wind). */
 function solveSpeed(
-  power: number,
-  cda: number,
-  crr: number,
-  rho: number,
-  mass: number,
-  gradient: number,
-  headwind: number,
-  vGuess: number,
+  power: number, cda: number, crr: number, rho: number,
+  mass: number, gradient: number, vGuess: number,
 ): number {
-  let v = Math.max(vGuess, 1.0);
-  for (let iter = 0; iter < 20; iter++) {
-    const va = v + headwind;
-    if (va <= 0) { v = Math.max(v * 0.5, 0.5); continue; }
-    const pAero = 0.5 * cda * rho * va * va * v;
-    const pRoll = crr * mass * G * Math.cos(Math.atan(gradient)) * v;
-    const pGrav = mass * G * Math.sin(Math.atan(gradient)) * v;
-    const pTotal = pAero + pRoll + pGrav;
-    const target = power * ETA;
-    const residual = pTotal - target;
-
-    // Derivative dP/dV
-    const dpAero = 0.5 * cda * rho * (3 * va * va - 2 * va * headwind);
-    // simplified: d/dV[0.5*cda*rho*(v+hw)^2*v] = 0.5*cda*rho*(3v^2+4v*hw+hw^2)
-    const dpAerodV = 0.5 * cda * rho * (3 * v * v + 4 * v * headwind + headwind * headwind);
-    const dpRolldV = crr * mass * G * Math.cos(Math.atan(gradient));
-    const dpGravdV = mass * G * Math.sin(Math.atan(gradient));
-    const dpdv = dpAerodV + dpRolldV + dpGravdV;
-
-    if (Math.abs(dpdv) < 1e-6) break;
-    const step = residual / dpdv;
-    v = Math.max(v - step, 0.1);
-    if (Math.abs(residual) < 0.01) break;
+  const ct = Math.cos(Math.atan(gradient));
+  const st = Math.sin(Math.atan(gradient));
+  let v = Math.max(vGuess, 0.5);
+  for (let i = 0; i < 30; i++) {
+    const f = 0.5 * cda * rho * v * v * v + crr * mass * G * ct * v + mass * G * st * v - power * ETA;
+    const df = 1.5 * cda * rho * v * v + crr * mass * G * ct + mass * G * st;
+    if (Math.abs(df) < 1e-9) break;
+    v = Math.max(v - f / df, 0.01);
+    if (Math.abs(f) < 0.1) break;
   }
   return v;
 }
 
-/**
- * Given velocity, compute power required.
- */
+/** Compute power required at given speed. */
 function computePower(
-  v: number,
-  cda: number,
-  crr: number,
-  rho: number,
-  mass: number,
-  gradient: number,
-  headwind: number,
+  v: number, cda: number, crr: number, rho: number,
+  mass: number, gradient: number,
 ): number {
-  const va = v + headwind;
-  if (va <= 0 || v <= 0) return 0;
-  const pAero = 0.5 * cda * rho * va * va * v;
-  const pRoll = crr * mass * G * Math.cos(Math.atan(gradient)) * v;
-  const pGrav = mass * G * Math.sin(Math.atan(gradient)) * v;
-  return (pAero + pRoll + pGrav) / ETA;
+  if (v <= 0) return 0;
+  const ct = Math.cos(Math.atan(gradient));
+  const st = Math.sin(Math.atan(gradient));
+  return (0.5 * cda * rho * v * v * v + crr * mass * G * ct * v + mass * G * st * v) / ETA;
 }
 
-type SimMode = "cda" | "power" | "speed";
+type VaryParam = "cda" | "power" | "speed";
+type FixedParam = "power" | "speed";
 type PowerProfile = "real" | "smooth";
 
 export default function WhatIfSimulator({ result }: { result: AnalysisResult }) {
-  const [mode, setMode] = useState<SimMode>("cda");
+  const [vary, setVary] = useState<VaryParam>("cda");
+  const [fixed, setFixed] = useState<FixedParam>("power");
   const [powerProfile, setPowerProfile] = useState<PowerProfile>("real");
-  const [cdaDelta, setCdaDelta] = useState(0); // absolute delta
-  const [powerDelta, setPowerDelta] = useState(0); // percentage
-  const [speedDelta, setSpeedDelta] = useState(0); // km/h
+  const [cdaDelta, setCdaDelta] = useState(0);
+  const [powerDelta, setPowerDelta] = useState(0);
+  const [speedDelta, setSpeedDelta] = useState(0);
 
   const profile = result.profile;
   const baseCda = result.cda;
   const baseCrr = result.crr;
   const n = profile.distance_km.length;
-
-  // Compute headwind per point from wind data + rider bearing
-  // We don't have bearing in ProfileData, but we have wind_speed and the
-  // original v_air vs v_ground relationship. Approximate headwind as:
-  // headwind ≈ v_air - v_ground (from the original analysis)
   const avgPower = result.avg_power_w;
   const avgRho = result.avg_rho;
+  const totalTime = result.ride_duration_s;
+  const avgDt = totalTime / Math.max(n, 1);
+  const mass = 76; // cancels in relative comparison
+
+  // What fixed options make sense for each vary param
+  const fixedOptions: Record<VaryParam, { id: FixedParam; label: string }[]> = {
+    cda:   [{ id: "power", label: "Puissance fixée → impact sur vitesse" },
+            { id: "speed", label: "Vitesse fixée → impact sur puissance" }],
+    power: [{ id: "power", label: "CdA fixé → impact sur vitesse" },
+            { id: "speed", label: "Vitesse fixée → impact sur puissance" }],
+    speed: [{ id: "power", label: "Puissance fixée → puissance nécessaire" },
+            { id: "speed", label: "CdA fixé → puissance nécessaire" }],
+  };
+
+  const resetSliders = () => { setCdaDelta(0); setPowerDelta(0); setSpeedDelta(0); };
 
   const simData = useMemo(() => {
     if (n < 10) return [];
 
     const dist = profile.distance_km;
     const pMeasured = profile.power_measured;
-    const vReal = dist.map((_, i) => {
-      // Estimate ground speed from distance differences
-      if (i === 0) return 0;
-      const dd = (dist[i] - dist[i - 1]) * 1000; // meters
-      // We don't have dt per point in ProfileData, assume 1s sampling
-      return Math.max(dd, 0);
-    });
-
-    // Better approach: use power_modeled and power_measured to infer
-    // actual conditions. We have rho, gradient can be estimated from altitude.
-
     const altReal = profile.altitude_real;
     const rhoArr = profile.rho;
-    const windSpeed = profile.wind_speed_ms;
 
-    // Estimate gradient from altitude
-    const gradients: number[] = [];
-    for (let i = 0; i < n; i++) {
-      if (i === 0 || dist[i] === dist[i - 1]) {
-        gradients.push(0);
-      } else {
+    const gradients: number[] = [0];
+    for (let i = 1; i < n; i++) {
+      const dd = (dist[i] - dist[i - 1]) * 1000;
+      if (dd > 0.1) {
         const dh = (altReal[i] || 0) - (altReal[i - 1] || 0);
-        const dd = (dist[i] - dist[i - 1]) * 1000;
-        gradients.push(dd > 0 ? Math.max(-0.25, Math.min(0.25, dh / dd)) : 0);
-      }
-    }
-
-    // Estimate ground speed from distance (assume 1s intervals, downsampled)
-    // The profile is downsampled to max 5000 points, so dt varies
-    const totalDist = dist[n - 1] - dist[0]; // km
-    const totalTime = result.ride_duration_s;
-    const avgDt = totalTime / n; // seconds per sample
-
-    const groundSpeeds: number[] = [];
-    for (let i = 0; i < n; i++) {
-      if (i === 0) {
-        groundSpeeds.push(result.avg_speed_kmh / 3.6);
+        gradients.push(Math.max(-0.25, Math.min(0.25, dh / dd)));
       } else {
-        const dd = (dist[i] - dist[i - 1]) * 1000;
-        const v = dd / avgDt;
-        groundSpeeds.push(Math.max(v, 0.1));
+        gradients.push(gradients[i - 1] || 0);
       }
     }
 
-    // Headwind estimate: use wind_speed as approximate headwind component
-    // (rough — we don't have bearing in the profile, but it's the best we can do)
-    // Actually, we can compute it from P_measured and the model:
-    // P*eta = 0.5*CdA*rho*Va²*V + Crr*m*g*V + m*g*grad*V
-    // Va = V + headwind → headwind = Va - V
-    // But we don't have Va directly. Use wind_speed * cos(angle) ≈ 0 on average
-    // Simplification: headwind = 0 for the simulation (relative comparison still valid)
+    const groundSpeeds: number[] = [result.avg_speed_kmh / 3.6];
+    for (let i = 1; i < n; i++) {
+      const dd = (dist[i] - dist[i - 1]) * 1000;
+      groundSpeeds.push(Math.max(dd / avgDt, 0.1));
+    }
 
-    const simCda = baseCda + (mode === "cda" ? cdaDelta : 0);
-    const simCrr = baseCrr;
-
-    // Build output data
     const output: { d: number; vReal: number; vSim: number; pReal: number; pSim: number }[] = [];
 
     for (let i = 1; i < n; i++) {
@@ -182,40 +123,58 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       const rho = rhoArr[i] || avgRho;
       const grad = gradients[i];
       const vGround = groundSpeeds[i];
-      const headwind = 0; // simplified
+      const pRaw = powerProfile === "smooth" ? avgPower : (pMeasured[i] || avgPower);
 
-      const pReal = powerProfile === "smooth" ? avgPower : (pMeasured[i] || avgPower);
-      let pSim = pReal;
-      let vSim = vGround;
+      // Baseline: solve V from real P and real CdA (consistent model)
+      const vBase = solveSpeed(pRaw, baseCda, baseCrr, rho, mass, grad, vGround);
+      const pBase = pRaw;
 
-      if (mode === "cda") {
-        // Same power, new CdA → what speed?
-        vSim = solveSpeed(pReal, simCda, baseCrr, rho, result.avg_speed_kmh > 0 ? 76 : 76, grad, headwind, vGround);
-      } else if (mode === "power") {
-        // Power changed by powerDelta %
-        pSim = pReal * (1 + powerDelta / 100);
-        vSim = solveSpeed(pSim, baseCda, baseCrr, rho, 76, grad, headwind, vGround);
-      } else if (mode === "speed") {
-        // Speed changed → what power needed?
-        vSim = vGround + speedDelta / 3.6;
-        if (vSim > 0) {
-          pSim = computePower(vSim, baseCda, baseCrr, rho, 76, grad, headwind);
+      let vSim = vBase;
+      let pSim = pBase;
+
+      if (vary === "cda") {
+        const newCda = baseCda + cdaDelta;
+        if (fixed === "power") {
+          // P fixed, CdA changes → solve new V
+          vSim = solveSpeed(pBase, newCda, baseCrr, rho, mass, grad, vBase);
+          pSim = pBase;
+        } else {
+          // V fixed, CdA changes → compute new P
+          vSim = vBase;
+          pSim = computePower(vBase, newCda, baseCrr, rho, mass, grad);
         }
+      } else if (vary === "power") {
+        const newP = pBase * (1 + powerDelta / 100);
+        if (fixed === "power") {
+          // "CdA fixed" → P changes, solve new V
+          vSim = solveSpeed(newP, baseCda, baseCrr, rho, mass, grad, vBase);
+          pSim = newP;
+        } else {
+          // V fixed, P changes → compute what P is needed (just show new P)
+          vSim = vBase;
+          pSim = newP;
+        }
+      } else {
+        // vary === "speed"
+        const newV = vBase + speedDelta / 3.6;
+        vSim = Math.max(newV, 0.01);
+        // In both sub-modes, compute power needed at new speed
+        pSim = computePower(vSim, baseCda, baseCrr, rho, mass, grad);
       }
 
       output.push({
         d,
-        vReal: vGround * 3.6,
+        vReal: vBase * 3.6,
         vSim: Math.max(vSim, 0) * 3.6,
-        pReal,
+        pReal: pBase,
         pSim: Math.max(pSim, 0),
       });
     }
 
     return output;
-  }, [n, mode, cdaDelta, powerDelta, speedDelta, powerProfile, baseCda, baseCrr, avgPower, avgRho, profile, result]);
+  }, [n, vary, fixed, cdaDelta, powerDelta, speedDelta, powerProfile, baseCda, baseCrr, avgPower, avgRho, avgDt, mass, profile, result]);
 
-  // Summary stats
+  // Summary
   const summary = useMemo(() => {
     if (simData.length === 0) return null;
     const avgVReal = simData.reduce((s, d) => s + d.vReal, 0) / simData.length;
@@ -223,149 +182,136 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
     const avgPReal = simData.reduce((s, d) => s + d.pReal, 0) / simData.length;
     const avgPSim = simData.reduce((s, d) => s + d.pSim, 0) / simData.length;
 
-    const totalDistKm = profile.distance_km[n - 1] - profile.distance_km[0];
-    const timeReal = result.ride_duration_s;
-    const timeSim = avgVSim > 0 ? (totalDistKm / (avgVSim / 3.6)) * 1000 : timeReal;
+    let timeReal = 0, timeSim = 0;
+    for (const pt of simData) {
+      timeReal += avgDt;
+      timeSim += pt.vSim > 0.1 ? (pt.vReal / pt.vSim) * avgDt : avgDt;
+    }
 
-    return {
-      avgVReal, avgVSim, deltaV: avgVSim - avgVReal,
-      avgPReal, avgPSim, deltaP: avgPSim - avgPReal,
-      timeReal, timeSim, deltaTime: timeSim - timeReal,
-    };
-  }, [simData, n, profile, result]);
+    return { avgVReal, avgVSim, deltaV: avgVSim - avgVReal,
+             avgPReal, avgPSim, deltaP: avgPSim - avgPReal,
+             timeReal, timeSim, deltaTime: timeSim - timeReal };
+  }, [simData, avgDt]);
 
   const fmtTime = (s: number) => {
-    const h = Math.floor(Math.abs(s) / 3600);
-    const m = Math.floor((Math.abs(s) % 3600) / 60);
-    const sec = Math.floor(Math.abs(s) % 60);
+    const abs = Math.abs(s);
+    const h = Math.floor(abs / 3600);
+    const m = Math.floor((abs % 3600) / 60);
+    const sec = Math.floor(abs % 60);
     const sign = s < 0 ? "-" : "+";
     return h > 0 ? `${sign}${h}h${m.toString().padStart(2, "0")}m${sec.toString().padStart(2, "0")}s`
       : `${sign}${m}m${sec.toString().padStart(2, "0")}s`;
   };
 
-  // Downsample for chart
   const chartData = useMemo(() => {
     if (simData.length <= 500) return simData;
     const step = Math.ceil(simData.length / 500);
     return simData.filter((_, i) => i % step === 0);
   }, [simData]);
 
+  const isChanged = cdaDelta !== 0 || powerDelta !== 0 || speedDelta !== 0;
+
+  // Decide what to show in chart: V or P
+  const showPowerChart = (vary === "cda" && fixed === "speed") ||
+                          (vary === "speed") ||
+                          (vary === "power" && fixed === "speed");
+
   return (
     <div className="bg-panel border border-border rounded-lg p-4 space-y-4">
       <h3 className="text-sm font-semibold flex items-center gap-2">
         <SlidersHorizontal size={16} className="text-teal" />
         Simulateur What-If
-        <InfoTooltip text="Faites varier un paramètre et voyez l'impact sur votre sortie. Les autres paramètres (météo, parcours, masse) restent identiques à la sortie réelle." />
+        <InfoTooltip text="Faites varier un paramètre et voyez l'impact sur la sortie. Le modèle recalcule point par point avec l'équation de Martin, en gardant parcours et météo identiques." />
       </h3>
 
-      {/* Mode selector */}
+      {/* Vary selector */}
       <div className="flex gap-1">
         {([
-          { id: "cda" as SimMode, label: "Varier le CdA" },
-          { id: "power" as SimMode, label: "Varier la puissance" },
-          { id: "speed" as SimMode, label: "Varier la vitesse" },
+          { id: "cda" as VaryParam, label: "Varier le CdA" },
+          { id: "power" as VaryParam, label: "Varier la puissance" },
+          { id: "speed" as VaryParam, label: "Varier la vitesse" },
         ]).map((m) => (
-          <button
-            key={m.id}
-            onClick={() => setMode(m.id)}
+          <button key={m.id}
+            onClick={() => { setVary(m.id); setFixed(fixedOptions[m.id][0].id); resetSliders(); }}
             className={`flex-1 px-3 py-1.5 text-xs rounded transition ${
-              mode === m.id ? "bg-teal text-white font-semibold" : "bg-bg border border-border text-muted hover:text-text"
-            }`}
-          >
+              vary === m.id ? "bg-teal text-white font-semibold" : "bg-bg border border-border text-muted hover:text-text"
+            }`}>
             {m.label}
           </button>
         ))}
       </div>
 
-      {/* Power profile selector */}
-      <div className="flex items-center gap-3 text-xs">
-        <span className="text-muted">Profil de puissance :</span>
-        <button
-          onClick={() => setPowerProfile("real")}
-          className={`px-2 py-1 rounded ${powerProfile === "real" ? "bg-info/20 text-info font-semibold" : "text-muted"}`}
-        >
-          Réel (avec intervalles)
-        </button>
-        <button
-          onClick={() => setPowerProfile("smooth")}
-          className={`px-2 py-1 rounded ${powerProfile === "smooth" ? "bg-info/20 text-info font-semibold" : "text-muted"}`}
-        >
-          Lissé (puissance constante)
-        </button>
+      {/* Fixed param selector */}
+      <div className="flex gap-1">
+        {fixedOptions[vary].map((opt) => (
+          <button key={opt.id}
+            onClick={() => { setFixed(opt.id); resetSliders(); }}
+            className={`flex-1 px-2 py-1 text-[11px] rounded transition ${
+              fixed === opt.id ? "bg-info/20 text-info font-semibold border border-info/30" : "bg-bg border border-border text-muted hover:text-text"
+            }`}>
+            {opt.label}
+          </button>
+        ))}
       </div>
+
+      {/* Power profile (only when power is an input, not output) */}
+      {!(vary === "cda" && fixed === "speed") && vary !== "speed" && (
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-muted">Profil de puissance :</span>
+          <button onClick={() => setPowerProfile("real")}
+            className={`px-2 py-1 rounded ${powerProfile === "real" ? "bg-info/20 text-info font-semibold" : "text-muted"}`}>
+            Réel (avec intervalles)
+          </button>
+          <button onClick={() => setPowerProfile("smooth")}
+            className={`px-2 py-1 rounded ${powerProfile === "smooth" ? "bg-info/20 text-info font-semibold" : "text-muted"}`}>
+            Lissé (puissance constante)
+          </button>
+        </div>
+      )}
 
       {/* Slider */}
       <div>
-        {mode === "cda" && (
+        {vary === "cda" && (
           <>
             <label className="block text-xs text-muted mb-1">
               CdA : <span className="text-teal font-mono font-semibold">{(baseCda + cdaDelta).toFixed(3)} m²</span>
-              <span className="ml-2 text-muted">
-                ({cdaDelta >= 0 ? "+" : ""}{cdaDelta.toFixed(3)} vs réel {baseCda.toFixed(3)})
-              </span>
+              <span className="ml-2">({cdaDelta >= 0 ? "+" : ""}{cdaDelta.toFixed(3)} vs réel {baseCda.toFixed(3)})</span>
             </label>
-            <input
-              type="range"
-              min={-0.15}
-              max={0.15}
-              step={0.005}
-              value={cdaDelta}
-              onChange={(e) => setCdaDelta(parseFloat(e.target.value))}
-              className="w-full accent-teal"
-            />
+            <input type="range" min={-0.15} max={0.15} step={0.005} value={cdaDelta}
+              onChange={(e) => setCdaDelta(parseFloat(e.target.value))} className="w-full accent-teal" />
             <div className="flex justify-between text-[10px] text-muted">
-              <span>{(baseCda - 0.15).toFixed(2)}</span>
-              <span className="text-teal">actuel</span>
+              <span>{Math.max(baseCda - 0.15, 0.05).toFixed(2)}</span>
+              <span className="text-teal cursor-pointer" onClick={() => setCdaDelta(0)}>actuel</span>
               <span>{(baseCda + 0.15).toFixed(2)}</span>
             </div>
           </>
         )}
-
-        {mode === "power" && (
+        {vary === "power" && (
           <>
             <label className="block text-xs text-muted mb-1">
               Puissance : <span className="text-teal font-mono font-semibold">{powerDelta >= 0 ? "+" : ""}{powerDelta}%</span>
-              <span className="ml-2 text-muted">
-                ({(avgPower * (1 + powerDelta / 100)).toFixed(0)} W vs {avgPower.toFixed(0)} W réel)
-              </span>
+              <span className="ml-2">({(avgPower * (1 + powerDelta / 100)).toFixed(0)} W vs {avgPower.toFixed(0)} W)</span>
             </label>
-            <input
-              type="range"
-              min={-30}
-              max={30}
-              step={1}
-              value={powerDelta}
-              onChange={(e) => setPowerDelta(parseInt(e.target.value))}
-              className="w-full accent-teal"
-            />
+            <input type="range" min={-30} max={30} step={1} value={powerDelta}
+              onChange={(e) => setPowerDelta(parseInt(e.target.value))} className="w-full accent-teal" />
             <div className="flex justify-between text-[10px] text-muted">
               <span>-30%</span>
-              <span className="text-teal">actuel</span>
+              <span className="text-teal cursor-pointer" onClick={() => setPowerDelta(0)}>actuel</span>
               <span>+30%</span>
             </div>
           </>
         )}
-
-        {mode === "speed" && (
+        {vary === "speed" && (
           <>
             <label className="block text-xs text-muted mb-1">
               Vitesse : <span className="text-teal font-mono font-semibold">{speedDelta >= 0 ? "+" : ""}{speedDelta.toFixed(1)} km/h</span>
-              <span className="ml-2 text-muted">
-                ({(result.avg_speed_kmh + speedDelta).toFixed(1)} vs {result.avg_speed_kmh.toFixed(1)} km/h réel)
-              </span>
+              <span className="ml-2">({(result.avg_speed_kmh + speedDelta).toFixed(1)} vs {result.avg_speed_kmh.toFixed(1)} km/h)</span>
             </label>
-            <input
-              type="range"
-              min={-10}
-              max={10}
-              step={0.5}
-              value={speedDelta}
-              onChange={(e) => setSpeedDelta(parseFloat(e.target.value))}
-              className="w-full accent-teal"
-            />
+            <input type="range" min={-10} max={10} step={0.5} value={speedDelta}
+              onChange={(e) => setSpeedDelta(parseFloat(e.target.value))} className="w-full accent-teal" />
             <div className="flex justify-between text-[10px] text-muted">
               <span>-10 km/h</span>
-              <span className="text-teal">actuel</span>
+              <span className="text-teal cursor-pointer" onClick={() => setSpeedDelta(0)}>actuel</span>
               <span>+10 km/h</span>
             </div>
           </>
@@ -373,7 +319,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       </div>
 
       {/* Summary */}
-      {summary && (cdaDelta !== 0 || powerDelta !== 0 || speedDelta !== 0) && (
+      {summary && isChanged && (
         <div className="grid grid-cols-3 gap-3 text-center">
           <div className="bg-bg rounded p-2">
             <div className="text-[10px] text-muted uppercase">Vitesse moy.</div>
@@ -383,7 +329,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
               <span className="text-teal font-semibold">{summary.avgVSim.toFixed(1)}</span>
               <span className="text-xs text-muted"> km/h</span>
             </div>
-            <div className={`text-xs font-mono ${summary.deltaV > 0 ? "text-emerald-400" : summary.deltaV < 0 ? "text-coral" : "text-muted"}`}>
+            <div className={`text-xs font-mono ${summary.deltaV > 0.05 ? "text-emerald-400" : summary.deltaV < -0.05 ? "text-coral" : "text-muted"}`}>
               {summary.deltaV >= 0 ? "+" : ""}{summary.deltaV.toFixed(1)} km/h
             </div>
           </div>
@@ -395,36 +341,32 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
               <span className="text-teal font-semibold">{summary.avgPSim.toFixed(0)}</span>
               <span className="text-xs text-muted"> W</span>
             </div>
-            <div className={`text-xs font-mono ${summary.deltaP < 0 ? "text-emerald-400" : summary.deltaP > 0 ? "text-coral" : "text-muted"}`}>
+            <div className={`text-xs font-mono ${summary.deltaP < -0.5 ? "text-emerald-400" : summary.deltaP > 0.5 ? "text-coral" : "text-muted"}`}>
               {summary.deltaP >= 0 ? "+" : ""}{summary.deltaP.toFixed(0)} W
             </div>
           </div>
           <div className="bg-bg rounded p-2">
             <div className="text-[10px] text-muted uppercase">Temps estimé</div>
             <div className="font-mono text-sm">
-              <span className="text-teal font-semibold">{fmtTime(summary.deltaTime)}</span>
+              <span className={summary.deltaTime < -1 ? "text-emerald-400 font-semibold" : summary.deltaTime > 1 ? "text-coral font-semibold" : "text-muted"}>
+                {fmtTime(summary.deltaTime)}
+              </span>
             </div>
-            <div className="text-xs text-muted">
-              sur {(profile.distance_km[n - 1]).toFixed(0)} km
-            </div>
+            <div className="text-xs text-muted">sur {profile.distance_km[n - 1].toFixed(0)} km</div>
           </div>
         </div>
       )}
 
       {/* Chart */}
-      {chartData.length > 10 && (cdaDelta !== 0 || powerDelta !== 0 || speedDelta !== 0) && (
+      {chartData.length > 10 && isChanged && (
         <ResponsiveContainer width="100%" height={180}>
           <LineChart data={chartData}>
             <CartesianGrid stroke="#262633" />
             <XAxis dataKey="d" stroke="#8b8ba0" fontSize={10} unit=" km" />
-            <YAxis
-              stroke="#8b8ba0"
-              fontSize={10}
-              unit={mode === "speed" ? " W" : " km/h"}
-            />
+            <YAxis stroke="#8b8ba0" fontSize={10} unit={showPowerChart ? " W" : " km/h"} />
             <Tooltip contentStyle={{ background: "#14141c", border: "1px solid #262633" }} />
             <Legend />
-            {mode === "speed" ? (
+            {showPowerChart ? (
               <>
                 <Line type="monotone" dataKey="pReal" stroke="#8b8ba0" dot={false} name="P réelle" strokeWidth={1} />
                 <Line type="monotone" dataKey="pSim" stroke="#1D9E75" dot={false} name="P simulée" strokeWidth={2} />
@@ -439,7 +381,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
         </ResponsiveContainer>
       )}
 
-      {(cdaDelta === 0 && powerDelta === 0 && speedDelta === 0) && (
+      {!isChanged && (
         <p className="text-xs text-muted text-center py-4">
           Déplacez le slider pour simuler un changement et voir son impact sur la sortie.
         </p>

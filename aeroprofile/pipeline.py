@@ -633,7 +633,7 @@ def _rolling_cda(df: pd.DataFrame, mass: float, eta: float, window_s: int) -> np
     num = eta * P - Crr_typ * mass * _G * np.cos(theta) * V - mass * _G * np.sin(theta) * V - mass * acc * V
     den = 0.5 * rho * np.sign(Va) * Va * Va * V
     with np.errstate(divide="ignore", invalid="ignore"):
-        inst = np.where((np.abs(den) > 1e-3) & valid_mask, num / den, np.nan)
+        inst = np.where(np.abs(den) > 1e-3, num / den, np.nan)
     # Clip to physical range: CdA outside [0, 0.8] is noise, not signal.
     inst = np.where((inst >= 0) & (inst <= 0.8), inst, np.nan)
 

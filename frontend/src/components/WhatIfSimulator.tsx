@@ -122,7 +122,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
     const calibFactor = rawAvg > 0.1 ? targetAvg / rawAvg : 1;
     const groundSpeeds = rawSpeeds.map((v) => v * calibFactor);
 
-    const output: { d: number; vReal: number; vSim: number; pReal: number; pSim: number; cdaSim: number }[] = [];
+    const output: { d: number; vReal: number; vSim: number; pReal: number; pSim: number; cdaSim: number; cdaValid: boolean }[] = [];
 
     for (let i = 1; i < n; i++) {
       const d = dist[i];
@@ -137,6 +137,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       let vSim = vBase;
       let pSim = pRaw;
       let cdaEq = baseCda;
+      let cdaValid = false;
 
       if (vary === "cda") {
         const newCda = baseCda + cdaDelta;
@@ -155,19 +156,21 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
           pSim = newP;
         } else {
           // Speed fixed, power changes → equivalent CdA
-          // At same speed, more power means higher equivalent CdA
-          // Solve: newP * eta = 0.5 * CdA_eq * rho * V³ + Crr*m*g*V + m*g*grad*V
-          // CdA_eq = (newP * eta - Crr*m*g*cos(θ)*V - m*g*sin(θ)*V) / (0.5*rho*V³)
+          // Only meaningful on flat + fast + pedalling segments where aero dominates
           vSim = vBase;
           pSim = newP;
-          if (vGround > 0.5) {
+          const isFlatFast = Math.abs(grad) < 0.02 && vGround > 8 && pRaw > 100;
+          if (isFlatFast && vGround > 0.5) {
             const ct = Math.cos(Math.atan(grad));
             const st = Math.sin(Math.atan(grad));
             const pNonAero = baseCrr * mass * G * ct * vGround + mass * G * st * vGround;
             const den = 0.5 * rho * vGround * vGround * vGround;
             if (den > 1) {
-              cdaEq = (newP * ETA - pNonAero) / den;
-              cdaEq = Math.max(0.05, Math.min(0.8, cdaEq));
+              const eq = (newP * ETA - pNonAero) / den;
+              if (eq > 0.05 && eq < 0.8) {
+                cdaEq = eq;
+                cdaValid = true;
+              }
             }
           }
         }
@@ -190,6 +193,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
         pReal: pRaw,
         pSim: Math.max(pSim, 0),
         cdaSim: cdaEq,
+        cdaValid,
       });
     }
 
@@ -210,7 +214,10 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       timeSim += pt.vSim > 0.1 ? (pt.vReal / pt.vSim) * avgDt : avgDt;
     }
 
-    const avgCdaSim = simData.reduce((s, d) => s + d.cdaSim, 0) / simData.length;
+    const validCda = simData.filter((d) => d.cdaValid);
+    const avgCdaSim = validCda.length > 0
+      ? validCda.reduce((s, d) => s + d.cdaSim, 0) / validCda.length
+      : baseCda;
 
     return { avgVReal, avgVSim, deltaV: avgVSim - avgVReal,
              avgPReal, avgPSim, deltaP: avgPSim - avgPReal,

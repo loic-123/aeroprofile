@@ -121,8 +121,29 @@ export default function HistoryPage() {
                     <div>Vélo : <span className="text-text">{e.bikeType}</span> · <span className="text-text">{e.positionLabel}</span></div>
                     <div>Crr : <span className="text-text font-mono">{e.crrFixed != null ? `${e.crrFixed.toFixed(4)} (fixé)` : "auto"}</span></div>
                     <div>Prior CdA : <span className="text-text font-mono">
-                      {e.cdaPriorMean != null ? `${e.cdaPriorMean.toFixed(2)} ± ${e.cdaPriorSigma?.toFixed(2)}` : "défaut"}
+                      {e.cdaPriorMean != null && e.cdaPriorMean > 0 ? `${e.cdaPriorMean.toFixed(2)} ± ${e.cdaPriorSigma?.toFixed(2)}` : "aucun"}
                     </span></div>
+                    {e.maxNrmse != null && (
+                      <div>Seuil qualité : <span className="text-text font-mono">{e.maxNrmse >= 9.9 ? "désactivé" : `${(e.maxNrmse * 100).toFixed(0)}%`}</span></div>
+                    )}
+                    {e.useCache != null && (
+                      <div>Cache : <span className="text-text">{e.useCache ? "activé" : "désactivé"}</span></div>
+                    )}
+                    {e.dateFrom && e.dateTo && (
+                      <div className="md:col-span-3">Période : <span className="text-text font-mono">{e.dateFrom} → {e.dateTo}</span></div>
+                    )}
+                    {e.minDistanceKm != null && (
+                      <div>Distance : <span className="text-text font-mono">{e.minDistanceKm}–{e.maxDistanceKm} km</span></div>
+                    )}
+                    {e.maxElevationM != null && (
+                      <div>D+ max : <span className="text-text font-mono">{e.maxElevationM} m</span></div>
+                    )}
+                    {e.minDurationH != null && (
+                      <div>Durée min : <span className="text-text font-mono">{Math.round(e.minDurationH * 60)} min</span></div>
+                    )}
+                    {e.excludeGroup != null && (
+                      <div>Groupe exclu : <span className="text-text">{e.excludeGroup ? "oui" : "non"}</span></div>
+                    )}
                   </div>
 
                   {/* Mini CdA evolution */}

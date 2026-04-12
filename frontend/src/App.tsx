@@ -148,6 +148,8 @@ export default function App() {
         crrFixed: opts.crr_fixed ?? null,
         cdaPriorMean: posPreset?.cdaPrior ?? null,
         cdaPriorSigma: posPreset?.cdaSigma ?? null,
+        maxNrmse: MAX_NRMSE,
+        useCache: opts.useCache ?? true,
         nRides: goodForHistory.length,
         nExcluded: results.length - goodForHistory.length,
         nTotalPoints: goodForHistory.reduce((a, r) => a + (r.result?.valid_points || 0), 0),

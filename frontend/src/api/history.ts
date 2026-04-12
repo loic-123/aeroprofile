@@ -28,6 +28,18 @@ export interface HistoryEntry {
   crrFixed: number | null;
   cdaPriorMean: number | null;
   cdaPriorSigma: number | null;
+  // Quality threshold
+  maxNrmse: number | null;
+  // Cache setting
+  useCache: boolean | null;
+  // Intervals-specific: date range + ride filters
+  dateFrom?: string;
+  dateTo?: string;
+  minDistanceKm?: number;
+  maxDistanceKm?: number;
+  maxElevationM?: number;
+  minDurationH?: number;
+  excludeGroup?: boolean;
 
   // Stats
   nRides: number;

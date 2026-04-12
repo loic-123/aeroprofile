@@ -326,6 +326,8 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           crrFixed: crrVal && crrVal > 0 ? crrVal : null,
           cdaPriorMean: posP?.cdaPrior || null,
           cdaPriorSigma: posP?.cdaSigma || null,
+          maxNrmse: MAX_NRMSE,
+          useCache: useLocalCache,
           nRides: good.length,
           nExcluded: done.length - good.length,
           nTotalPoints: good.reduce((a, r) => a + (r.result?.valid_points || 0), 0),

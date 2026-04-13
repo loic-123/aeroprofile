@@ -152,6 +152,105 @@ def _compute_derivatives(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+async def preprocess(
+    filepath: str | Path,
+    mass_kg: float,
+    eta: float = ETA_DEFAULT,
+    wind_height_factor: float = 0.7,
+    fetch_wx: bool = True,
+    tiled_weather: bool = True,
+    drop_descents: bool = True,
+    min_block_seconds: int = 60,
+) -> tuple[pd.DataFrame, RideData, bool]:
+    """Run only the preprocessing steps of the pipeline (no solver).
+
+    Returns (df, ride, weather_ok). The df contains all the columns needed
+    by the solvers (v_ground, v_air, rho, power, dt, altitude_smooth,
+    filter_valid, etc.) but no CdA/Crr estimates.
+
+    Used by the hierarchical batch endpoint to avoid duplicating the
+    parsing/weather/filters logic.
+    """
+    ride = parse_file(filepath)
+    validate_ride(ride)
+
+    df = _ride_to_df(ride)
+    df = _compute_derivatives(df)
+
+    # Weather
+    lat_c = float(df["lat"].mean())
+    lon_c = float(df["lon"].mean())
+    ride_date = df["timestamp"].iloc[0].date()
+    total_km = float(df["distance"].iloc[-1]) / 1000.0 if len(df) > 1 else 0.0
+
+    def _no_wind_fallback():
+        return pd.DataFrame({
+            "wind_speed_ms": np.zeros(len(df)),
+            "wind_dir_deg": np.zeros(len(df)),
+            "temperature_c": df["temperature_pt"].fillna(15.0).to_numpy(),
+            "humidity_pct": np.full(len(df), 50.0),
+            "surface_pressure_hpa": np.full(len(df), 1013.25),
+        })
+
+    weather_ok = True
+    if fetch_wx:
+        wx = None
+        import os
+        _max_tiles = int(os.environ.get("AEROPROFILE_MAX_TILES", "20"))
+        _tile_km = float(os.environ.get("AEROPROFILE_TILE_KM", "5.0"))
+        if tiled_weather and total_km > 15.0:
+            try:
+                tiles = await fetch_weather_tiled(
+                    df["lat"].to_numpy(), df["lon"].to_numpy(), ride_date,
+                    tile_km=_tile_km, max_tiles=_max_tiles,
+                )
+                if tiles:
+                    wx = interpolate_tiled_weather(tiles, df["timestamp"].tolist())
+            except Exception:
+                pass
+        if wx is None:
+            try:
+                hourly = await fetch_weather(lat_c, lon_c, ride_date)
+                wx = interpolate_weather(hourly, df["timestamp"].tolist())
+            except Exception:
+                wx = _no_wind_fallback()
+                weather_ok = False
+    else:
+        wx = _no_wind_fallback()
+        weather_ok = False
+
+    df = pd.concat([df, wx], axis=1)
+
+    df["v_air"] = compute_v_air(
+        df["v_ground"].to_numpy(),
+        df["bearing"].to_numpy(),
+        df["wind_speed_ms"].to_numpy(),
+        df["wind_dir_deg"].to_numpy(),
+        wind_height_factor=wind_height_factor,
+    )
+    df["rho"] = compute_rho(
+        df["altitude_smooth"].to_numpy(),
+        df["temperature_c"].to_numpy(),
+        df["humidity_pct"].to_numpy(),
+        df["surface_pressure_hpa"].to_numpy(),
+    )
+    df["yaw_deg"] = compute_yaw_angle(
+        df["v_ground"].to_numpy(),
+        df["bearing"].to_numpy(),
+        df["wind_speed_ms"].to_numpy(),
+        df["wind_dir_deg"].to_numpy(),
+    )
+    df["cda_yaw_factor"] = cda_yaw_correction(df["yaw_deg"].to_numpy())
+
+    df = apply_filters(
+        df,
+        mass=mass_kg,
+        min_block_seconds=min_block_seconds,
+        drop_descents=drop_descents,
+    )
+    return df, ride, weather_ok
+
+
 async def analyze(
     filepath: str | Path,
     mass_kg: float,
@@ -164,10 +263,28 @@ async def analyze(
     min_block_seconds: int = 60,
     bike_type: str | None = None,
     cda_prior_override: tuple[float, float] | None = None,
+    disable_prior: bool = False,
 ) -> AnalysisResult:
     bcfg = get_bike_config(bike_type)
+    # Disable the CdA prior entirely (used in multi-ride mode where the
+    # aggregation handles the regularization via inverse-variance weighting).
+    # Without this, every ride would be shrunk toward the prior centre, and
+    # the bias would persist through the aggregate average (Gelman BDA3 ch.5).
+    if disable_prior:
+        from aeroprofile.bike_types import BikeTypeConfig
+        # When the prior is disabled, also widen the solver bounds to the
+        # full physical range so the solver can find the true MLE without
+        # being forced into the bike-type box. The aggregation step will
+        # filter out implausible per-ride estimates via quality weighting.
+        bcfg = BikeTypeConfig(
+            label=bcfg.label,
+            cda_prior_mean=0.0,  # signals "no prior" downstream (sigma=0 disables)
+            cda_prior_sigma=0.0,
+            cda_lower=0.10,
+            cda_upper=0.80,
+        )
     # Allow frontend position slider to override the CdA prior
-    if cda_prior_override is not None:
+    elif cda_prior_override is not None:
         mean, sigma = cda_prior_override
         if mean > 0 and sigma > 0:
             from aeroprofile.bike_types import BikeTypeConfig
@@ -302,8 +419,8 @@ async def analyze(
             sol = SolverResult(
                 cda=wi["cda"],
                 crr=wi["crr"],
-                cda_ci=(float("nan"), float("nan")),
-                crr_ci=(float("nan"), float("nan")),
+                cda_ci=wi.get("cda_ci", (float("nan"), float("nan"))),
+                crr_ci=wi.get("crr_ci", (float("nan"), float("nan"))),
                 r_squared=wi["r_squared"],
                 residuals=wi["residuals"],
                 n_points=wi["n_points"],
@@ -439,8 +556,8 @@ async def analyze(
                     if wi2 is not None and bcfg.cda_lower <= wi2["cda"] <= bcfg.cda_upper:
                         sol = SolverResult(
                             cda=wi2["cda"], crr=wi2["crr"],
-                            cda_ci=(float("nan"), float("nan")),
-                            crr_ci=(float("nan"), float("nan")),
+                            cda_ci=wi2.get("cda_ci", (float("nan"), float("nan"))),
+                            crr_ci=wi2.get("crr_ci", (float("nan"), float("nan"))),
                             r_squared=wi2["r_squared"],
                             residuals=wi2["residuals"],
                             n_points=wi2["n_points"],

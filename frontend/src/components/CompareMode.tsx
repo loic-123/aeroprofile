@@ -107,15 +107,18 @@ function aggregate(r: RiderEntry, bikeType: BikeType = "road"): RiderAgg | null 
   const worstNrmse = Math.max(...nrmses);
   const nrmseSpan = worstNrmse - bestNrmse;
 
+  // Inverse-variance weighted aggregation: w = (1/sigma²) × quality
   let totalW = 0;
   let sumCda = 0, sumCrr = 0, sumRmse = 0, sumSpeed = 0, sumPower = 0;
   for (let j = 0; j < good.length; j++) {
     const res = good[j].result!;
-    // Linear quality: best → 3.0, worst → 1.0
     const qualityW = nrmseSpan > 0.001
       ? 3.0 - 2.0 * (nrmses[j] - bestNrmse) / nrmseSpan
       : 2.0;
-    const w = Math.max(res.valid_points, 1) * qualityW;
+    const ciWidth = (res.cda_ci_high || 0) - (res.cda_ci_low || 0);
+    const sigma = ciWidth > 0 ? Math.max(ciWidth / 3.92, 0.001) : 0.05;
+    const invVar = 1 / (sigma * sigma);
+    const w = invVar * qualityW;
     totalW += w;
     sumCda += res.cda * w;
     sumCrr += res.crr * w;
@@ -242,16 +245,21 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           const posPreset = POSITION_PRESETS_BY_BIKE[bikeType][rider.positionIdx];
           const crrVal = rider.crrFixed ? parseFloat(rider.crrFixed.replace(",", ".")) : undefined;
           const crr = crrVal && crrVal > 0 ? crrVal : undefined;
+          // CompareMode is multi-ride per rider → disable prior. The aggregate
+          // inverse-variance weighting handles the regularization.
+          const isMulti = rider.rides.length > 1;
           const cacheOpts: CacheOpts = {
             mass_kg: rider.mass, bike_type: bikeType, crr_fixed: crr,
-            cda_prior_mean: posPreset?.cdaPrior,
-            cda_prior_sigma: posPreset?.cdaSigma,
+            cda_prior_mean: isMulti ? undefined : posPreset?.cdaPrior,
+            cda_prior_sigma: isMulti ? undefined : posPreset?.cdaSigma,
           };
           const fromCache = useLocalCache ? getCached(rd.file, cacheOpts) : null;
           const res = fromCache || await analyze({
             file: rd.file, mass_kg: rider.mass, bike_type: bikeType,
             crr_fixed: crr,
-            cda_prior_mean: posPreset?.cdaPrior, cda_prior_sigma: posPreset?.cdaSigma,
+            cda_prior_mean: isMulti ? undefined : posPreset?.cdaPrior,
+            cda_prior_sigma: isMulti ? undefined : posPreset?.cdaSigma,
+            disable_prior: isMulti,
           });
           if (!fromCache) setCache(rd.file, res, cacheOpts);
           setRiders((rs) =>

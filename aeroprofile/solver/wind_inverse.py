@@ -174,9 +174,13 @@ def solve_with_wind(
         res_alt = _block_aligned_residuals(ve, target, block_starts)
 
         # Priors
+        # NOTE: prior weight is INDEPENDENT of the residual (Gelman BDA3 ch.14).
+        # Multiplying by RMSE was a confusion between Tikhonov regularization
+        # and Bayesian prior. With noisy data, the likelihood is mechanically
+        # flatter — the prior already dominates the posterior naturally,
+        # without needing to scale its weight up.
         extras = []
-        rms_alt = max(1.0, float(np.sqrt(np.mean(res_alt * res_alt))))
-        pw = 0.3 * np.sqrt(n) * rms_alt
+        pw = 0.3 * np.sqrt(n)
 
         # Wind prior per segment
         for s in range(n_seg):
@@ -210,9 +214,11 @@ def solve_with_wind(
     lb = np.array(lb_list)
     ub = np.array(ub_list)
 
-    # Multi-start on CdA
-    mid = (cda_lower + cda_upper) / 2
-    cda_starts = [cda_lower + 0.02, mid, cda_upper - 0.02]
+    # Multi-start on CdA — denser sweep across the bounds to avoid local minima.
+    # Critical: with the wind_inverse model (many parameters), the cost surface
+    # has multiple valleys and the result depends on the starting point.
+    # Use 5 starts uniformly spaced across the bounds.
+    cda_starts = list(np.linspace(cda_lower + 0.02, cda_upper - 0.02, 5))
     best = None
     for c0 in cda_starts:
         x0_try = x0.copy()
@@ -241,9 +247,30 @@ def solve_with_wind(
     ss_tot = float(np.sum((target - target.mean()) ** 2))
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
 
+    # Confidence intervals from Hessian (drop prior rows from residuals)
+    n_data = len(res_alt)
+    p_total = len(best.x)
+    cda_ci = (float("nan"), float("nan"))
+    crr_ci = (float("nan"), float("nan"))
+    if n_data > p_total:
+        try:
+            # Use only data residuals (first n_data) for CI estimation
+            jac_data = best.jac[:n_data, :]
+            fun_data = best.fun[:n_data]
+            s2 = float(np.sum(fun_data ** 2)) / max(n_data - p_total, 1)
+            cov = s2 * np.linalg.inv(jac_data.T @ jac_data)
+            se = np.sqrt(np.maximum(np.diag(cov), 0.0))
+            cda_ci = (float(cda - 1.96 * se[0]), float(cda + 1.96 * se[0]))
+            if has_crr:
+                crr_ci = (float(crr - 1.96 * se[1]), float(crr + 1.96 * se[1]))
+        except (np.linalg.LinAlgError, ValueError):
+            pass
+
     return {
         "cda": float(cda),
         "crr": float(crr),
+        "cda_ci": cda_ci,
+        "crr_ci": crr_ci,
         "r_squared": r2,
         "residuals": res_alt,
         "n_points": n,

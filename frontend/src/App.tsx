@@ -6,9 +6,9 @@ import BlogIndex from "./pages/BlogIndex";
 import IntervalsPage from "./pages/IntervalsPage";
 import { ARTICLES } from "./pages/articles";
 import { BlogProvider } from "./components/BlogLayout";
-import { analyze } from "./api/client";
+import { analyze, analyzeBatch } from "./api/client";
 import { getCached, setCache, type CacheOpts } from "./api/cache";
-import type { AnalysisResult } from "./types";
+import type { AnalysisResult, HierarchicalAnalysisResult } from "./types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, type BikeType } from "./types";
 import { Wind, Users, User, FileText, Loader2, BookOpen, Link2, Clock } from "lucide-react";
 import { saveToHistory, type HistoryEntry } from "./api/history";
@@ -45,6 +45,9 @@ export default function App() {
   const [bikeType, setBikeType] = useState<BikeType>("road");
   const [lastMass, setLastMass] = useState(75);
   const [lastMaxNrmse, setLastMaxNrmse] = useState(DEFAULT_MAX_NRMSE);
+  const [hierResult, setHierResult] = useState<HierarchicalAnalysisResult | null>(null);
+  const [hierLoading, setHierLoading] = useState(false);
+  const [hierError, setHierError] = useState<string | null>(null);
 
   const handleAnalyze = async (
     files: File[],
@@ -84,10 +87,15 @@ export default function App() {
         results.push({ file, result: fromCache, excluded: nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
+          // In multi-file mode, disable per-ride CdA prior. The aggregate
+          // inverse-variance weighting handles the regularization correctly.
+          // Single-file mode keeps the prior as a soft stabilizer.
+          const isMultiRide = files.length > 1;
           const res = await analyze({
             file, mass_kg, ...opts, bike_type: bt,
-            cda_prior_mean: posPreset?.cdaPrior,
-            cda_prior_sigma: posPreset?.cdaSigma,
+            cda_prior_mean: isMultiRide ? undefined : posPreset?.cdaPrior,
+            cda_prior_sigma: isMultiRide ? undefined : posPreset?.cdaSigma,
+            disable_prior: isMultiRide,
           });
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
           results.push({ file, result: res, excluded: nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
@@ -98,6 +106,24 @@ export default function App() {
       }
       setDoneCount(fi + 1);
       setRides([...results]);
+    }
+
+    // Hierarchical analysis (in parallel, only for multi-file mode)
+    if (files.length >= 2) {
+      setHierLoading(true);
+      setHierError(null);
+      setHierResult(null);
+      analyzeBatch({
+        files,
+        mass_kg,
+        crr_fixed: opts.crr_fixed,
+        bike_type: bt,
+      })
+        .then((r) => setHierResult(r))
+        .catch((e) => setHierError(e.message || String(e)))
+        .finally(() => setHierLoading(false));
+    } else {
+      setHierResult(null);
     }
 
     // Select the best ride (lowest nRMSE among non-excluded) for detail view
@@ -183,11 +209,20 @@ export default function App() {
     const bestN = Math.min(...nrmses);
     const worstN = Math.max(...nrmses);
     const span = worstN - bestN;
+    // Inverse-variance weighted aggregation (DerSimonian-Laird, fixed effects).
+    // Each ride contributes w_i = (1/σ_i²) × quality_i where σ_i comes from the
+    // solver's confidence interval (Hessian at MAP estimate). Rides with tighter
+    // CI naturally weigh more. The quality factor (nRMSE-based) is kept as a
+    // multiplicative reliability discount on top of the statistical variance.
     let totalW = 0, sumCda = 0, sumCrr = 0, sumPow = 0, sumRho = 0, sumRmse = 0;
     for (let j = 0; j < goodRides.length; j++) {
       const res = goodRides[j].result!;
       const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
-      const w = Math.max(res.valid_points, 1) * qw;
+      // Per-ride sigma from CI95: sigma = (high - low) / (2 * 1.96)
+      const ciWidth = (res.cda_ci_high || 0) - (res.cda_ci_low || 0);
+      const sigma = ciWidth > 0 ? Math.max(ciWidth / 3.92, 0.001) : 0.05;
+      const invVar = 1 / (sigma * sigma);
+      const w = invVar * qw;
       totalW += w;
       sumCda += res.cda * w;
       sumCrr += res.crr * w;
@@ -408,8 +443,8 @@ export default function App() {
                           <div className="flex items-center gap-3 flex-wrap">
                             <div>
                               <div className="text-xs text-muted uppercase tracking-wide flex items-center">
-                                CdA moyen ({goodRides.length} sortie{goodRides.length > 1 ? "s" : ""} retenue{goodRides.length > 1 ? "s" : ""} sur {rides.length})
-                                <InfoTooltip text="Moyenne pondérée par le nombre de points valides × qualité (1/nRMSE). Les sorties avec nRMSE > 45% sont exclues. L'IC95 reflète la dispersion entre rides." />
+                                CdA moyen ({goodRides.length} sortie{goodRides.length > 1 ? "s" : ""} retenue{goodRides.length > 1 ? "s" : ""} sur {rides.length}) — méthode inverse-variance
+                                <InfoTooltip text="Méthode A : chaque ride est analysée séparément, puis agrégée par moyenne pondérée par 1/σ² (Hessienne) × qualité (1/nRMSE). C'est l'approche standard en méta-analyse fixed-effects." />
                               </div>
                               <div className="text-3xl font-mono font-bold text-teal mt-1">
                                 CdA = {aggCda.toFixed(3)}
@@ -455,6 +490,56 @@ export default function App() {
                             </div>
                           </div>
                         </div>
+
+                        {/* Hierarchical (Method B) banner — for comparison */}
+                        {(hierLoading || hierResult || hierError) && (
+                          <div className="bg-panel border border-info/40 rounded-lg p-4">
+                            <div className="text-xs text-muted uppercase tracking-wide flex items-center">
+                              CdA moyen — méthode hiérarchique (random-effects)
+                              <InfoTooltip text="Méthode B : optimisation conjointe sur toutes les rides simultanément, avec un seul Crr partagé et des CdAᵢ par ride contraints à varier autour d'un μ commun (modèle random-effects, DerSimonian & Laird 1986, Gelman BDA3 ch.5). Mathématiquement plus rigoureuse — partage l'information entre rides." />
+                            </div>
+                            {hierLoading && (
+                              <div className="text-sm text-muted mt-2 flex items-center gap-2">
+                                <Loader2 className="animate-spin" size={14} />
+                                Optimisation hiérarchique en cours…
+                              </div>
+                            )}
+                            {hierError && (
+                              <div className="text-sm text-coral mt-1">Erreur : {hierError}</div>
+                            )}
+                            {hierResult && (
+                              <div className="flex items-center gap-3 flex-wrap mt-1">
+                                <div>
+                                  <div className="text-3xl font-mono font-bold text-info">
+                                    CdA = {hierResult.mu_cda.toFixed(3)}
+                                    <span className="text-sm text-muted font-normal ml-2">
+                                      IC95 [{hierResult.mu_cda_ci_low.toFixed(3)} – {hierResult.mu_cda_ci_high.toFixed(3)}]
+                                    </span>
+                                  </div>
+                                  {aggCda !== null && Math.abs(hierResult.mu_cda - aggCda) > 0.001 && (
+                                    <div className="text-xs text-muted mt-0.5">
+                                      Δ vs inverse-variance : {(hierResult.mu_cda - aggCda >= 0 ? "+" : "")}{(hierResult.mu_cda - aggCda).toFixed(4)}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="ml-auto flex gap-6 text-right">
+                                  <div>
+                                    <div className="text-xs text-muted">Crr partagé</div>
+                                    <div className="text-xl font-mono text-info">{hierResult.crr.toFixed(4)}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-muted">τ inter-rides</div>
+                                    <div className="text-xl font-mono text-muted">±{hierResult.tau.toFixed(3)}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-muted">Rides utilisées</div>
+                                    <div className="text-xl font-mono text-muted">{hierResult.n_rides}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Position + References + Derived metrics */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

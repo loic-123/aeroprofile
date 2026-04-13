@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from typing import List
 
 import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
-from aeroprofile.api.schemas import AnalysisResultOut, AnomalyOut, ProfileData
-from aeroprofile.pipeline import analyze
+from aeroprofile.api.schemas import (
+    AnalysisResultOut, AnomalyOut, ProfileData,
+    HierarchicalAnalysisOut, HierarchicalRideSummary,
+)
+from aeroprofile.pipeline import analyze, preprocess
+from aeroprofile.solver.hierarchical import solve_hierarchical
+from aeroprofile.bike_types import get_bike_config
 
 router = APIRouter()
 
@@ -88,6 +94,7 @@ async def analyze_endpoint(
     bike_type: str = Form("road"),
     cda_prior_mean: float | None = Form(None),
     cda_prior_sigma: float | None = Form(None),
+    disable_prior: bool = Form(False),
 ):
     ext = Path(file.filename or "").suffix.lower()
     if ext not in (".fit", ".gpx", ".tcx"):
@@ -107,6 +114,7 @@ async def analyze_endpoint(
             wind_height_factor=wind_height_factor,
             bike_type=bike_type,
             cda_prior_override=(cda_prior_mean, cda_prior_sigma) if cda_prior_mean is not None else None,
+            disable_prior=disable_prior,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -164,4 +172,108 @@ async def analyze_endpoint(
         filter_summary=result.filter_summary,
         anomalies=[AnomalyOut(**a.to_dict()) for a in result.anomalies],
         profile=_df_to_profile(result.df),
+    )
+
+
+@router.post("/analyze-batch", response_model=HierarchicalAnalysisOut)
+async def analyze_batch_endpoint(
+    files: List[UploadFile] = File(...),
+    mass_kg: float = Form(...),
+    crr_fixed: float | None = Form(None),
+    eta: float = Form(0.977),
+    bike_type: str = Form("road"),
+    max_nrmse: float = Form(0.45),
+):
+    """Hierarchical (random-effects) joint analysis of N rides.
+
+    Pre-processes each file (parse, weather, filters), then runs a single
+    joint optimisation over all rides simultaneously: shared Crr,
+    individual CdA_i constrained to follow N(mu, tau²). Returns the
+    "annual average" CdA (mu) with its CI and the per-ride CdA_i.
+
+    This is mathematically more rigorous than per-ride MLE + post-hoc
+    averaging (DerSimonian & Laird 1986, Gelman BDA3 ch.5).
+    """
+    if len(files) < 2:
+        raise HTTPException(status_code=400, detail="Au moins 2 fichiers requis pour le mode hiérarchique.")
+
+    bcfg = get_bike_config(bike_type)
+
+    # Pre-process each file: parse, weather, filters (no solver)
+    all_dfs = []
+    summaries = []
+    for f in files:
+        ext = Path(f.filename or "").suffix.lower()
+        if ext not in (".fit", ".gpx", ".tcx"):
+            continue
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+            content = await f.read()
+            tmp.write(content)
+            tmp_path = Path(tmp.name)
+        try:
+            df, ride, _wx_ok = await preprocess(tmp_path, mass_kg=mass_kg, eta=eta)
+            all_dfs.append((f.filename, df, ride))
+        except Exception as e:
+            summaries.append(HierarchicalRideSummary(
+                label=f.filename or "unknown", cda=0.0, cda_sigma=0.0,
+                r_squared=0.0, nrmse=0.0, avg_power_w=0.0, avg_speed_kmh=0.0,
+                valid_points=0, ride_date="", excluded=True,
+                exclusion_reason=f"Preprocessing failed: {e}",
+            ))
+        finally:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+
+    if len(all_dfs) < 2:
+        raise HTTPException(status_code=422, detail="Moins de 2 fichiers valides après preprocessing.")
+
+    # Joint hierarchical solve
+    try:
+        h_result = solve_hierarchical(
+            [df for (_, df, _) in all_dfs],
+            mass=mass_kg, eta=eta,
+            crr_fixed=crr_fixed,
+            cda_lower=bcfg.cda_lower if not bcfg.cda_prior_sigma == 0 else 0.10,
+            cda_upper=bcfg.cda_upper if not bcfg.cda_prior_sigma == 0 else 0.80,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur du solveur hiérarchique : {e}")
+
+    # Build per-ride summaries
+    for i, (fname, df, ride) in enumerate(all_dfs):
+        cda_i = h_result.per_ride_cda[i]
+        sigma_i = h_result.per_ride_sigma[i]
+        r2_i = h_result.per_ride_r2[i]
+        valid = df[df["filter_valid"]]
+        avg_p = float(valid["power"].mean()) if len(valid) > 0 else 0.0
+        avg_v = float(valid["v_ground"].mean() * 3.6) if len(valid) > 0 else 0.0
+        # Quick nRMSE estimate from R² (rough)
+        nrmse_approx = max(0.0, 1.0 - r2_i)
+        ride_date = df["timestamp"].iloc[0].date().isoformat() if len(df) > 0 else ""
+        summaries.append(HierarchicalRideSummary(
+            label=fname or f"ride_{i}",
+            cda=_f(cda_i),
+            cda_sigma=_f(sigma_i),
+            r_squared=_f(r2_i),
+            nrmse=_f(nrmse_approx),
+            avg_power_w=_f(avg_p),
+            avg_speed_kmh=_f(avg_v),
+            valid_points=int(df["filter_valid"].sum()),
+            ride_date=ride_date,
+            excluded=False,
+        ))
+
+    return HierarchicalAnalysisOut(
+        mu_cda=_f(h_result.mu_cda),
+        mu_cda_ci_low=_f(h_result.mu_cda_ci[0]),
+        mu_cda_ci_high=_f(h_result.mu_cda_ci[1]),
+        tau=_f(h_result.tau),
+        crr=_f(h_result.crr),
+        crr_ci_low=_f(h_result.crr_ci[0]),
+        crr_ci_high=_f(h_result.crr_ci[1]),
+        n_rides=h_result.n_rides,
+        n_points_total=h_result.n_points_total,
+        rides=summaries,
     )

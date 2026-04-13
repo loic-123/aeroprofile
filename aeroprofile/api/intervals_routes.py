@@ -134,6 +134,7 @@ async def analyze_ride(
     bike_type: str = Form("road"),
     cda_prior_mean: Optional[float] = Form(None),
     cda_prior_sigma: Optional[float] = Form(None),
+    disable_prior: bool = Form(False),
 ):
     """Download a single activity .FIT and run the analysis pipeline."""
     client = IntervalsClient(api_key, athlete_id)
@@ -155,6 +156,7 @@ async def analyze_ride(
             eta=eta,
             bike_type=bike_type,
             cda_prior_override=(cda_prior_mean, cda_prior_sigma) if cda_prior_mean is not None else None,
+            disable_prior=disable_prior,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))

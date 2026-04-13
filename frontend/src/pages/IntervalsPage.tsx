@@ -158,8 +158,10 @@ export default function IntervalsPage() {
         results.push({ activity: act, result: fromCache, excluded: nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
-          const posPreset = POSITION_PRESETS_BY_BIKE[bikeType][positionIdx];
-          const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, posPreset?.cdaPrior, posPreset?.cdaSigma);
+          // Intervals mode is always multi-ride → disable per-ride prior.
+          // Aggregation uses inverse-variance weighting which handles the
+          // regularization without bias toward the prior centre.
+          const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, undefined, undefined, true);
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
           results.push({ activity: act, result: res, excluded: nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
           setCacheInterval(act.id, res, cacheOpts);
@@ -254,11 +256,15 @@ export default function IntervalsPage() {
     const bestN = Math.min(...nrmses);
     const worstN = Math.max(...nrmses);
     const span = worstN - bestN;
+    // Inverse-variance weighted aggregation
     let totalW = 0, sumCda = 0, sumCrr = 0, sumPow = 0, sumRho = 0, sumRmse = 0;
     for (let j = 0; j < goodRides.length; j++) {
       const res = goodRides[j].result!;
       const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
-      const w = Math.max(res.valid_points, 1) * qw;
+      const ciWidth = (res.cda_ci_high || 0) - (res.cda_ci_low || 0);
+      const sigma = ciWidth > 0 ? Math.max(ciWidth / 3.92, 0.001) : 0.05;
+      const invVar = 1 / (sigma * sigma);
+      const w = invVar * qw;
       totalW += w;
       sumCda += res.cda * w;
       sumCrr += res.crr * w;

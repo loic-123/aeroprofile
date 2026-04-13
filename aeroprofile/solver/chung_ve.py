@@ -94,11 +94,13 @@ def _residuals_ve(params, V, V_air, rho, P, dt, alt_real, mass, eta,
     else:
         res = ve - target
     n = len(res)
-    prior_weight = 0.3 * np.sqrt(n) * max(1.0, float(np.sqrt(np.mean(res * res))))
+    # Prior weight is INDEPENDENT of the residual (Gelman BDA3 ch.14).
+    # See wind_inverse.py for the full explanation.
+    prior_weight = 0.3 * np.sqrt(n)
     extras = []
     if crr_prior_mean is not None and crr_prior_sigma is not None:
         extras.append(prior_weight * (Crr - crr_prior_mean) / crr_prior_sigma)
-    if cda_prior_mean is not None and cda_prior_sigma is not None:
+    if cda_prior_mean is not None and cda_prior_sigma is not None and cda_prior_sigma > 0:
         extras.append(prior_weight * (CdA - cda_prior_mean) / cda_prior_sigma)
     if extras:
         return np.concatenate([res, np.array(extras)])

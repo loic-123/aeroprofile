@@ -83,6 +83,33 @@ export interface ProfileData {
   lon: number[];
 }
 
+export interface HierarchicalRideSummary {
+  label: string;
+  cda: number;
+  cda_sigma: number;
+  r_squared: number;
+  nrmse: number;
+  avg_power_w: number;
+  avg_speed_kmh: number;
+  valid_points: number;
+  ride_date: string;
+  excluded: boolean;
+  exclusion_reason?: string;
+}
+
+export interface HierarchicalAnalysisResult {
+  mu_cda: number;
+  mu_cda_ci_low: number;
+  mu_cda_ci_high: number;
+  tau: number;
+  crr: number;
+  crr_ci_low: number;
+  crr_ci_high: number;
+  n_rides: number;
+  n_points_total: number;
+  rides: HierarchicalRideSummary[];
+}
+
 export interface AnalysisResult {
   cda: number;
   cda_ci_low: number;

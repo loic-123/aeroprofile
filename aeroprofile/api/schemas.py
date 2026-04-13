@@ -71,3 +71,32 @@ class AnalysisResultOut(BaseModel):
 
     anomalies: list[AnomalyOut]
     profile: ProfileData
+
+
+class HierarchicalRideSummary(BaseModel):
+    """Per-ride results in a hierarchical batch analysis."""
+    label: str                       # filename or activity label
+    cda: float
+    cda_sigma: float
+    r_squared: float
+    nrmse: float
+    avg_power_w: float
+    avg_speed_kmh: float
+    valid_points: int
+    ride_date: str
+    excluded: bool = False
+    exclusion_reason: Optional[str] = None
+
+
+class HierarchicalAnalysisOut(BaseModel):
+    """Result of a hierarchical multi-ride analysis."""
+    mu_cda: float                    # main parameter: mean CdA across rides
+    mu_cda_ci_low: float
+    mu_cda_ci_high: float
+    tau: float                        # inter-ride standard deviation
+    crr: float
+    crr_ci_low: float
+    crr_ci_high: float
+    n_rides: int
+    n_points_total: int
+    rides: list[HierarchicalRideSummary]

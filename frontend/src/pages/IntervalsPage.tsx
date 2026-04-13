@@ -4,6 +4,7 @@ import {
   connect,
   listActivities,
   analyzeRide,
+  analyzeBatchIntervals,
   DEFAULT_FILTERS,
   type AthleteProfile,
   type ActivitySummary,
@@ -11,7 +12,7 @@ import {
 } from "../api/intervals";
 import { getCachedInterval, setCacheInterval, type CacheOpts } from "../api/cache";
 import { saveToHistory } from "../api/history";
-import type { AnalysisResult } from "../types";
+import type { AnalysisResult, HierarchicalAnalysisResult } from "../types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
 import InfoTooltip from "../components/InfoTooltip";
 import CdATotem from "../components/CdATotem";
@@ -75,6 +76,9 @@ export default function IntervalsPage() {
   const [doneCount, setDoneCount] = useState(0);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [viewTab, setViewTab] = useState<"overview" | "detail">("overview");
+  const [hierResult, setHierResult] = useState<HierarchicalAnalysisResult | null>(null);
+  const [hierLoading, setHierLoading] = useState(false);
+  const [hierError, setHierError] = useState<string | null>(null);
 
   // Persist credentials
   useEffect(() => {
@@ -139,13 +143,15 @@ export default function IntervalsPage() {
     setRides([]);
     setSelectedIdx(0);
     setViewTab("overview");
+    setHierResult(null);
+    setHierError(null);
     const MAX_NRMSE = maxNrmse >= 100 ? 999 : maxNrmse / 100;
     const crr = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : undefined;
-    const posPresetForCache = POSITION_PRESETS_BY_BIKE[bikeType][positionIdx];
     const cacheOpts: CacheOpts = {
       mass_kg: mass, crr_fixed: crr, bike_type: bikeType,
-      cda_prior_mean: posPresetForCache?.cdaPrior,
-      cda_prior_sigma: posPresetForCache?.cdaSigma,
+      cda_prior_mean: undefined,
+      cda_prior_sigma: undefined,
+      disable_prior: true,
     };
     const { minCda: MIN_CDA, maxCda: MAX_CDA } = BIKE_TYPE_CONFIG[bikeType];
 
@@ -155,7 +161,8 @@ export default function IntervalsPage() {
       const fromCache = useCache ? getCachedInterval(act.id, cacheOpts) : null;
       if (fromCache) {
         const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
-        results.push({ activity: act, result: fromCache, excluded: nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
+        const qBad = fromCache.quality_status && fromCache.quality_status !== "ok";
+        results.push({ activity: act, result: fromCache, excluded: !!qBad || nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
           // Intervals mode is always multi-ride → disable per-ride prior.
@@ -163,7 +170,8 @@ export default function IntervalsPage() {
           // regularization without bias toward the prior centre.
           const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, undefined, undefined, true);
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
-          results.push({ activity: act, result: res, excluded: nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
+          const qBad = res.quality_status && res.quality_status !== "ok";
+          results.push({ activity: act, result: res, excluded: !!qBad || nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
           setCacheInterval(act.id, res, cacheOpts);
         } catch (e: any) {
           results.push({ activity: act, error: e.message, excluded: true });
@@ -181,6 +189,30 @@ export default function IntervalsPage() {
           (b.result!.rmse_w / Math.max(b.result!.avg_power_w, 1)),
       )[0];
       setSelectedIdx(results.indexOf(best));
+    }
+
+    // Hierarchical (Method B) joint analysis on the good rides — runs in parallel
+    // with history save so the user can see Method A immediately.
+    let hierPromise: Promise<HierarchicalAnalysisResult | null> = Promise.resolve(null);
+    if (good.length >= 2) {
+      setHierLoading(true);
+      hierPromise = analyzeBatchIntervals(
+        apiKey,
+        athleteId,
+        good.map((r) => r.activity.id),
+        mass,
+        crr,
+        bikeType,
+      )
+        .then((r) => {
+          setHierResult(r);
+          return r;
+        })
+        .catch((e) => {
+          setHierError(e.message || String(e));
+          return null;
+        })
+        .finally(() => setHierLoading(false));
     }
 
     // Save to history
@@ -203,6 +235,7 @@ export default function IntervalsPage() {
         hLow = hCda - 1.96 * se; hHigh = hCda + 1.96 * se;
       }
       const posP = POSITION_PRESETS_BY_BIKE[bikeType][positionIdx];
+      const hier = await hierPromise;
       saveToHistory({
         id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         timestamp: new Date().toISOString(),
@@ -218,6 +251,10 @@ export default function IntervalsPage() {
         cdaPriorSigma: posP?.cdaSigma ?? null,
         maxNrmse: MAX_NRMSE,
         useCache,
+        disablePrior: true,
+        aggregationMethod: "inverse_var",
+        hierarchicalMu: hier?.mu_cda,
+        hierarchicalTau: hier?.tau,
         dateFrom: oldest,
         dateTo: newest,
         minDistanceKm: filters.min_distance_km,
@@ -694,6 +731,55 @@ export default function IntervalsPage() {
                 </div>
               </div>
 
+              {/* Method B (hierarchical) banner */}
+              {(hierLoading || hierResult || hierError) && (
+                <div className="bg-panel border border-info/40 rounded-lg p-4">
+                  <div className="text-xs text-muted uppercase tracking-wide flex items-center mb-2">
+                    Méthode B — Hiérarchique random-effects
+                    <InfoTooltip text="Optimisation conjointe sur toutes les rides : 1 Crr unique partagé, des CdA_i par ride contraints à varier autour d'un μ commun avec écart-type inter-rides τ. Réf. DerSimonian-Laird (1986), Gelman BDA3 ch.5." />
+                  </div>
+                  {hierLoading && (
+                    <div className="flex items-center gap-2 text-muted text-sm">
+                      <Loader2 className="animate-spin" size={14} />
+                      Calcul de l'optimisation jointe (peut prendre plusieurs minutes)…
+                    </div>
+                  )}
+                  {hierError && (
+                    <div className="text-coral text-sm">Échec : {hierError}</div>
+                  )}
+                  {hierResult && (
+                    <div className="flex items-center gap-6 flex-wrap">
+                      <div>
+                        <div className="text-xs text-muted">μ CdA</div>
+                        <div className="text-xl font-mono text-info">
+                          {hierResult.mu_cda.toFixed(3)}
+                          <span className="text-xs text-muted font-normal ml-2">
+                            IC95 [{hierResult.mu_cda_ci_low.toFixed(3)} – {hierResult.mu_cda_ci_high.toFixed(3)}]
+                          </span>
+                        </div>
+                        {aggCda !== null && Math.abs(hierResult.mu_cda - aggCda) > 0.001 && (
+                          <div className="text-xs text-muted mt-0.5">
+                            Δ vs inverse-variance : {(hierResult.mu_cda - aggCda >= 0 ? "+" : "")}{(hierResult.mu_cda - aggCda).toFixed(4)}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted">Crr partagé</div>
+                        <div className="text-xl font-mono text-info">{hierResult.crr.toFixed(4)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted">τ (variance inter-rides)</div>
+                        <div className="text-xl font-mono text-muted">±{hierResult.tau.toFixed(3)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted">N rides</div>
+                        <div className="text-xl font-mono text-muted">{hierResult.n_rides}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Position + Derived metrics */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-panel border border-border rounded-lg p-4 flex justify-center">
@@ -762,6 +848,9 @@ export default function IntervalsPage() {
                     } else if (r.result) {
                       nrmseVal = (r.result.rmse_w || 0) / Math.max(r.result.avg_power_w, 1);
                       reason = `${r.activity.name}\nCdA ${r.result.cda.toFixed(3)} • nRMSE ${(nrmseVal*100).toFixed(0)}% • ±${r.result.rmse_w.toFixed(0)}W`;
+                      if (r.result.quality_status && r.result.quality_status !== "ok" && r.result.quality_reason) {
+                        reason += `\n\n⚠ Exclue : ${r.result.quality_reason}`;
+                      }
                     }
                     return (
                       <button
@@ -803,14 +892,10 @@ export default function IntervalsPage() {
                   </span>
                 </div>
                 <p className="text-[10px] text-muted mt-2 leading-relaxed">
-                  Une sortie est exclue si son erreur de modélisation (nRMSE) dépasse {maxNrmse}%
-                  ou si le CdA estimé tombe hors de la plage du type de vélo
-                  ({BIKE_TYPE_CONFIG[bikeType].minCda}–{BIKE_TYPE_CONFIG[bikeType].maxCda} m²).
-                  Les sorties en groupe (mots-clés dans le titre) sont exclues avant l'analyse.
-                  Le seuil à 45% garantit que seules les rides où le modèle physique
-                  fonctionne bien contribuent à la moyenne — les rides bruitées sont
-                  trop sensibles aux paramètres pour être fiables.
-                  Survolez une sortie exclue pour voir la raison.
+                  Une sortie est exclue si nRMSE &gt; {maxNrmse}%, si le CdA estimé tombe hors
+                  de [{BIKE_TYPE_CONFIG[bikeType].minCda}–{BIKE_TYPE_CONFIG[bikeType].maxCda} m²],
+                  ou si le solveur tape une borne / est non-identifiable (Hessienne mal
+                  conditionnée). Survolez une sortie exclue pour voir la raison exacte.
                 </p>
               </div>
             </div>

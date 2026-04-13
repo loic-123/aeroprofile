@@ -7,7 +7,7 @@
 import type { AnalysisResult } from "../types";
 
 const CACHE_PREFIX = "aeroprofile_cache_";
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v5";
 
 export interface CacheOpts {
   mass_kg: number;
@@ -17,13 +17,12 @@ export interface CacheOpts {
   bike_type?: string;
   cda_prior_mean?: number;
   cda_prior_sigma?: number;
+  disable_prior?: boolean;
 }
 
 function fileKey(file: File, opts?: CacheOpts): string {
-  // Include analysis options in the key so different mass/crr/eta give
-  // different cache entries (not stale results from a previous config).
   const optsStr = opts
-    ? `:m${opts.mass_kg}:crr${opts.crr_fixed ?? "auto"}:eta${opts.eta ?? "def"}:wf${opts.wind_height_factor ?? "def"}:bt${opts.bike_type ?? "road"}:pm${opts.cda_prior_mean ?? "def"}:ps${opts.cda_prior_sigma ?? "def"}`
+    ? `:m${opts.mass_kg}:crr${opts.crr_fixed ?? "auto"}:eta${opts.eta ?? "def"}:wf${opts.wind_height_factor ?? "def"}:bt${opts.bike_type ?? "road"}:pm${opts.cda_prior_mean ?? "def"}:ps${opts.cda_prior_sigma ?? "def"}:dp${opts.disable_prior ? 1 : 0}`
     : "";
   const raw = `${CACHE_VERSION}:${file.name}:${file.size}:${file.lastModified}${optsStr}`;
   let h = 5381;
@@ -63,7 +62,7 @@ export function setCache(file: File, result: AnalysisResult, opts?: CacheOpts): 
  */
 function intervalsKey(activityId: string, opts?: CacheOpts): string {
   const optsStr = opts
-    ? `:m${opts.mass_kg}:crr${opts.crr_fixed ?? "auto"}:eta${opts.eta ?? "def"}:bt${opts.bike_type ?? "road"}:pm${opts.cda_prior_mean ?? "def"}:ps${opts.cda_prior_sigma ?? "def"}`
+    ? `:m${opts.mass_kg}:crr${opts.crr_fixed ?? "auto"}:eta${opts.eta ?? "def"}:bt${opts.bike_type ?? "road"}:pm${opts.cda_prior_mean ?? "def"}:ps${opts.cda_prior_sigma ?? "def"}:dp${opts.disable_prior ? 1 : 0}`
     : "";
   const raw = `${CACHE_VERSION}:intervals:${activityId}${optsStr}`;
   let h = 5381;

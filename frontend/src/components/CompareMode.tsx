@@ -1,9 +1,9 @@
 import { useState, useRef, useCallback } from "react";
 import { Upload, Trash2, Loader2, Trophy, Wind, Activity, User, AlertTriangle, X, FileText } from "lucide-react";
-import { analyze } from "../api/client";
+import { analyze, analyzeBatch } from "../api/client";
 import { getCached, setCache, type CacheOpts } from "../api/cache";
 import { saveToHistory } from "../api/history";
-import type { AnalysisResult } from "../types";
+import type { AnalysisResult, HierarchicalAnalysisResult } from "../types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
 import PositionSchematic from "./PositionSchematic";
 import InfoTooltip from "./InfoTooltip";
@@ -82,9 +82,11 @@ function aggregate(r: RiderEntry, bikeType: BikeType = "road"): RiderAgg | null 
   const done = r.rides.filter((rd) => rd.status === "done" && rd.result);
   if (done.length === 0) return null;
 
-  // Filter to "good" rides only — using nRMSE (= RMSE / avg_power)
+  // Filter to "good" rides only — using quality_status from backend gate
+  // (bound_hit / non_identifiable / high_nrmse) AND legacy nRMSE/CdA bounds
   let good = done.filter((rd) => {
     const res = rd.result!;
+    if (res.quality_status && res.quality_status !== "ok") return false;
     const avgP = res.avg_power_w || 1;
     const nrmse = (res.rmse_w || 0) / avgP;
     return nrmse <= MAX_NRMSE && res.cda >= MIN_CDA && res.cda <= MAX_CDA;
@@ -182,6 +184,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
   const [running, setRunning] = useState(false);
   const [bikeType, setBikeType] = useState<BikeType>("road");
   const [useLocalCache, setUseLocalCache] = useState(true);
+  const [hierByRider, setHierByRider] = useState<Record<string, HierarchicalAnalysisResult | null>>({});
 
   const updateRider = (id: string, patch: Partial<RiderEntry>) =>
     setRiders((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -252,6 +255,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
             mass_kg: rider.mass, bike_type: bikeType, crr_fixed: crr,
             cda_prior_mean: isMulti ? undefined : posPreset?.cdaPrior,
             cda_prior_sigma: isMulti ? undefined : posPreset?.cdaSigma,
+            disable_prior: isMulti,
           };
           const fromCache = useLocalCache ? getCached(rd.file, cacheOpts) : null;
           const res = fromCache || await analyze({
@@ -292,6 +296,31 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
         }
       }
     }
+    // Hierarchical (Method B) per rider, in parallel — only when ≥ 2 rides
+    const hierResults: Record<string, HierarchicalAnalysisResult | null> = {};
+    await Promise.all(
+      riders.map(async (rider) => {
+        if (rider.rides.length < 2) {
+          hierResults[rider.id] = null;
+          return;
+        }
+        const crrVal = rider.crrFixed ? parseFloat(rider.crrFixed.replace(",", ".")) : undefined;
+        const crr = crrVal && crrVal > 0 ? crrVal : undefined;
+        try {
+          const r = await analyzeBatch({
+            files: rider.rides.map((rd) => rd.file),
+            mass_kg: rider.mass,
+            crr_fixed: crr,
+            bike_type: bikeType,
+          });
+          hierResults[rider.id] = r;
+        } catch {
+          hierResults[rider.id] = null;
+        }
+      }),
+    );
+    setHierByRider(hierResults);
+
     // Save to history per rider
     for (const rider of riders) {
       const done = rider.rides.filter((rd) => rd.status === "done" && rd.result);
@@ -336,6 +365,10 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           cdaPriorSigma: posP?.cdaSigma || null,
           maxNrmse: MAX_NRMSE,
           useCache: useLocalCache,
+          disablePrior: rider.rides.length > 1,
+          aggregationMethod: rider.rides.length > 1 ? "inverse_var" : "single",
+          hierarchicalMu: hierResults[rider.id]?.mu_cda,
+          hierarchicalTau: hierResults[rider.id]?.tau,
           nRides: good.length,
           nExcluded: done.length - good.length,
           nTotalPoints: good.reduce((a, r) => a + (r.result?.valid_points || 0), 0),
@@ -589,6 +622,14 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                           [{a.cdaLow.toFixed(3)} – {a.cdaHigh.toFixed(3)}]
                         </div>
                       )}
+                      {hierByRider[a.rider.id] && (
+                        <div
+                          className="text-[10px] text-info font-mono mt-0.5"
+                          title="Méthode B : modèle hiérarchique random-effects (DerSimonian–Laird)"
+                        >
+                          μ={hierByRider[a.rider.id]!.mu_cda.toFixed(3)} τ=±{hierByRider[a.rider.id]!.tau.toFixed(3)}
+                        </div>
+                      )}
                     </td>
                     <td className="text-right text-teal">{a.crr.toFixed(4)}</td>
                     <td className="text-right">{drag(a).toFixed(1)} N</td>
@@ -834,6 +875,9 @@ function RiderRow({
                   tooltip = `Erreur : ${rd.error || "analyse échouée"}`;
                 } else if (rd.status === "done" && rd.result) {
                   tooltip = `${rd.file.name}\nCdA ${rd.result.cda.toFixed(3)} • nRMSE ${(nrmse * 100).toFixed(0)}% • ±${rd.result.rmse_w.toFixed(0)}W`;
+                  if (rd.result.quality_status && rd.result.quality_status !== "ok" && rd.result.quality_reason) {
+                    tooltip += `\n\n⚠ Exclue : ${rd.result.quality_reason}`;
+                  }
                 }
                 return (
                 <span

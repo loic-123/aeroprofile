@@ -121,6 +121,8 @@ export interface AnalysisResult {
   crr_was_fixed: boolean;
   solver_method: string;
   solver_note: string;
+  quality_status?: "ok" | "bound_hit" | "non_identifiable" | "high_nrmse";
+  quality_reason?: string;
   cda_climb: number | null;
   cda_descent: number | null;
   cda_flat: number | null;

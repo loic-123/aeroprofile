@@ -68,14 +68,16 @@ export default function App() {
     setTotalFiles(files.length);
     setDoneCount(0);
 
+    const isMultiRideTop = files.length > 1;
     const cacheOpts: CacheOpts = {
       mass_kg,
       crr_fixed: opts.crr_fixed,
       eta: opts.eta,
       wind_height_factor: opts.wind_height_factor,
       bike_type: bt,
-      cda_prior_mean: posPreset?.cdaPrior,
-      cda_prior_sigma: posPreset?.cdaSigma,
+      cda_prior_mean: isMultiRideTop ? undefined : posPreset?.cdaPrior,
+      cda_prior_sigma: isMultiRideTop ? undefined : posPreset?.cdaSigma,
+      disable_prior: isMultiRideTop,
     };
     const results: RideAnalysis[] = [];
     for (let fi = 0; fi < files.length; fi++) {
@@ -84,7 +86,8 @@ export default function App() {
       const fromCache = opts.useCache !== false ? getCached(file, cacheOpts) : null;
       if (fromCache) {
         const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
-        results.push({ file, result: fromCache, excluded: nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
+        const qBad = fromCache.quality_status && fromCache.quality_status !== "ok";
+        results.push({ file, result: fromCache, excluded: !!qBad || nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
           // In multi-file mode, disable per-ride CdA prior. The aggregate
@@ -98,7 +101,8 @@ export default function App() {
             disable_prior: isMultiRide,
           });
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
-          results.push({ file, result: res, excluded: nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
+          const qBad = res.quality_status && res.quality_status !== "ok";
+          results.push({ file, result: res, excluded: !!qBad || nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
           setCache(file, res, cacheOpts);
         } catch (e: any) {
           results.push({ file, error: e.message || String(e), excluded: true });
@@ -109,18 +113,25 @@ export default function App() {
     }
 
     // Hierarchical analysis (in parallel, only for multi-file mode)
+    let hierPromise: Promise<HierarchicalAnalysisResult | null> = Promise.resolve(null);
     if (files.length >= 2) {
       setHierLoading(true);
       setHierError(null);
       setHierResult(null);
-      analyzeBatch({
+      hierPromise = analyzeBatch({
         files,
         mass_kg,
         crr_fixed: opts.crr_fixed,
         bike_type: bt,
       })
-        .then((r) => setHierResult(r))
-        .catch((e) => setHierError(e.message || String(e)))
+        .then((r) => {
+          setHierResult(r);
+          return r;
+        })
+        .catch((e) => {
+          setHierError(e.message || String(e));
+          return null;
+        })
         .finally(() => setHierLoading(false));
     } else {
       setHierResult(null);
@@ -161,6 +172,7 @@ export default function App() {
       }
       const fileNames = files.map((f) => f.name);
       const label = files.length === 1 ? fileNames[0] : `${goodForHistory.length} sortie${goodForHistory.length > 1 ? "s" : ""} (${fileNames[0]}${files.length > 1 ? "…" : ""})`;
+      const hier = await hierPromise;
       saveToHistory({
         id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         timestamp: new Date().toISOString(),
@@ -176,6 +188,10 @@ export default function App() {
         cdaPriorSigma: posPreset?.cdaSigma ?? null,
         maxNrmse: MAX_NRMSE,
         useCache: opts.useCache ?? true,
+        disablePrior: isMultiRideTop,
+        aggregationMethod: files.length === 1 ? "single" : "inverse_var",
+        hierarchicalMu: hier?.mu_cda,
+        hierarchicalTau: hier?.tau,
         nRides: goodForHistory.length,
         nExcluded: results.length - goodForHistory.length,
         nTotalPoints: goodForHistory.reduce((a, r) => a + (r.result?.valid_points || 0), 0),
@@ -609,6 +625,9 @@ export default function App() {
                               } else if (r.result) {
                                 nrmseVal = (r.result.rmse_w || 0) / Math.max(r.result.avg_power_w, 1);
                                 tooltip = `${r.file.name}\nCdA ${r.result.cda.toFixed(3)} • nRMSE ${(nrmseVal*100).toFixed(0)}% • ±${r.result.rmse_w.toFixed(0)}W`;
+                                if (r.result.quality_status && r.result.quality_status !== "ok" && r.result.quality_reason) {
+                                  tooltip += `\n\n⚠ Exclue : ${r.result.quality_reason}`;
+                                }
                               }
                               return (
                               <button
@@ -650,8 +669,8 @@ export default function App() {
                             </span>
                           </div>
                           <p className="text-[10px] text-muted mt-2 leading-relaxed">
-                            Exclusion : nRMSE &gt; 45% ou CdA hors [{BIKE_TYPE_CONFIG[bikeType].minCda}–{BIKE_TYPE_CONFIG[bikeType].maxCda}] m².
-                            Les rides bruitées (nRMSE élevé) sont trop sensibles aux paramètres pour être fiables.
+                            Exclusion : nRMSE &gt; 45%, CdA hors [{BIKE_TYPE_CONFIG[bikeType].minCda}–{BIKE_TYPE_CONFIG[bikeType].maxCda}] m²,
+                            ou solveur dégénéré (tape une borne / non-identifiable). Survolez une ride exclue pour la raison exacte.
                           </p>
                         </div>
                       </div>

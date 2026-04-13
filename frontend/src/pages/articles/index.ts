@@ -5,6 +5,7 @@ import Solvers from "./solvers";
 import Filters from "./filters";
 import YawAngle from "./yaw-angle";
 import BayesianPriors from "./bayesian-priors";
+import AggregationMethods from "./aggregation-methods";
 import DraftingDetection from "./drafting-detection";
 import IterativeRefinement from "./iterative-refinement";
 import WCdaMetric from "./w-cda-metric";
@@ -18,6 +19,7 @@ export const ARTICLES: Record<string, () => JSX.Element> = {
   "filters": Filters,
   "yaw-angle": YawAngle,
   "bayesian-priors": BayesianPriors,
+  "aggregation-methods": AggregationMethods,
   "drafting-detection": DraftingDetection,
   "iterative-refinement": IterativeRefinement,
   "w-cda-metric": WCdaMetric,

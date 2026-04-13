@@ -67,6 +67,15 @@ class AnalysisResult:
     rmse_w: float = 0.0  # RMSE of power residuals in watts
     mae_w: float = 0.0   # mean absolute error in watts
     weather_ok: bool = True  # False if weather API failed → fallback no-wind
+    # Quality gate (set at the very end of analyze()):
+    #   "ok"               : the estimate is usable
+    #   "bound_hit"        : solver hit a CdA or Crr bound → degenerate solution
+    #   "non_identifiable" : Hessian sigma on CdA > 0.05 → model can't separate params
+    #   "high_nrmse"       : nRMSE > 60% → model fails to fit power
+    # These rides should be excluded from any aggregation. The reason is exposed
+    # to the UI so the user knows WHY a ride was dropped.
+    quality_status: str = "ok"
+    quality_reason: str = ""
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -272,16 +281,17 @@ async def analyze(
     # the bias would persist through the aggregate average (Gelman BDA3 ch.5).
     if disable_prior:
         from aeroprofile.bike_types import BikeTypeConfig
-        # When the prior is disabled, also widen the solver bounds to the
-        # full physical range so the solver can find the true MLE without
-        # being forced into the bike-type box. The aggregation step will
-        # filter out implausible per-ride estimates via quality weighting.
+        # Disable the soft Gaussian prior but KEEP the bike-type physical bounds.
+        # Bounds are physical realism (no road cyclist has CdA<0.20 or >0.55),
+        # not a consequence of the prior. Removing the bounds caused the solver
+        # to diverge to the upper bound on noisy rides where CdA/Crr separation
+        # is ambiguous.
         bcfg = BikeTypeConfig(
             label=bcfg.label,
-            cda_prior_mean=0.0,  # signals "no prior" downstream (sigma=0 disables)
+            cda_prior_mean=0.0,
             cda_prior_sigma=0.0,
-            cda_lower=0.10,
-            cda_upper=0.80,
+            cda_lower=bcfg.cda_lower,
+            cda_upper=bcfg.cda_upper,
         )
     # Allow frontend position slider to override the CdA prior
     elif cda_prior_override is not None:
@@ -652,6 +662,59 @@ async def analyze(
         sol.cda, sol.crr, sol.cda_ci, sol.residuals, df, mass_kg, eta
     )
 
+    # --- Quality gate ---
+    # Mark the ride as unusable for aggregation if any of the following holds:
+    #   1. CdA or Crr hit a bound (within 1% tolerance) → degenerate solution,
+    #      the true minimum is outside the feasible box, the returned value is
+    #      meaningless ("planched against the wall").
+    #   2. Hessian sigma on CdA > 0.05 → likelihood is too flat, CdA and Crr
+    #      cannot be separated on this ride. Any returned value is essentially
+    #      one point on a degenerate manifold of equally-valid solutions.
+    #   3. nRMSE on power > 60% → the model fails to reproduce the measured
+    #      power; whatever CdA came out of the solver is fitted to noise.
+    quality_status = "ok"
+    quality_reason = ""
+
+    cda_bound_tol = 0.005  # ~1% of the typical bike-type range
+    if sol.cda <= bcfg.cda_lower + cda_bound_tol:
+        quality_status = "bound_hit"
+        quality_reason = f"Solveur bloqué à la borne inférieure CdA ({sol.cda:.3f} ≈ {bcfg.cda_lower:.2f}). Modèle non applicable sur cette sortie."
+    elif sol.cda >= bcfg.cda_upper - cda_bound_tol:
+        quality_status = "bound_hit"
+        quality_reason = f"Solveur bloqué à la borne supérieure CdA ({sol.cda:.3f} ≈ {bcfg.cda_upper:.2f}). Modèle non applicable sur cette sortie."
+    elif not sol.crr_was_fixed:
+        # Crr bounds in the solvers are typically ~[0.0015, 0.012]
+        if sol.crr <= 0.0016:
+            quality_status = "bound_hit"
+            quality_reason = f"Solveur bloqué à la borne inférieure Crr ({sol.crr:.5f}). Le solveur veut Crr<0.0015, physiquement impossible."
+        elif sol.crr >= 0.0119:
+            quality_status = "bound_hit"
+            quality_reason = f"Solveur bloqué à la borne supérieure Crr ({sol.crr:.5f}). Le solveur veut Crr>0.012, physiquement impossible."
+
+    if quality_status == "ok":
+        cda_sigma_hess = (
+            (sol.cda_ci[1] - sol.cda_ci[0]) / 3.92
+            if (sol.cda_ci[0] is not None and sol.cda_ci[1] is not None
+                and not (np.isnan(sol.cda_ci[0]) or np.isnan(sol.cda_ci[1])))
+            else float("nan")
+        )
+        if not np.isnan(cda_sigma_hess) and cda_sigma_hess > 0.05:
+            quality_status = "non_identifiable"
+            quality_reason = (
+                f"Modèle non-identifiable sur cette sortie (σ_CdA = {cda_sigma_hess:.3f} m², "
+                f"IC95 trop large). Probablement vent mal estimé, drafting non détecté, "
+                f"ou capteur de puissance déréglé."
+            )
+
+    if quality_status == "ok":
+        nrmse = rmse_w / max(float(df["power"].mean()), 1.0)
+        if nrmse > 0.60:
+            quality_status = "high_nrmse"
+            quality_reason = (
+                f"nRMSE = {nrmse * 100:.0f}% : les résidus du modèle sont plus grands "
+                f"que la moitié du signal. Le modèle ne reproduit pas la puissance mesurée."
+            )
+
     # Summary stats
     filter_summary = {name: int(df[name].sum()) for name in FILTER_NAMES}
     if ve_excluded_count > 0:
@@ -692,6 +755,8 @@ async def analyze(
         df=df,
         crr_was_fixed=sol.crr_was_fixed,
         weather_ok=weather_ok,
+        quality_status=quality_status,
+        quality_reason=quality_reason,
     )
 
 

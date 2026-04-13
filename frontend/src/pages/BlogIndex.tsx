@@ -40,8 +40,14 @@ const ARTICLES = [
   {
     slug: "bayesian-priors",
     title: "Priors bayésiens : comment stabiliser le solveur",
-    desc: "Quand les données sont insuffisantes, un prior doux empêche le solveur de diverger. Explication intuitive et mathématique.",
+    desc: "Quand les données sont insuffisantes, un prior doux empêche le solveur de diverger. Explication intuitive et mathématique. Inclut le piège du prior en multi-rides.",
     tags: ["statistiques", "avancé"],
+  },
+  {
+    slug: "aggregation-methods",
+    title: "Méthodes d'agrégation multi-rides : inverse-variance vs hiérarchique",
+    desc: "Comment AeroProfile combine N rides en un seul CdA représentatif : moyenne pondérée par la précision (méthode A) et modèle hiérarchique random-effects (méthode B). Référence DerSimonian-Laird 1986.",
+    tags: ["statistiques", "multi-rides", "avancé"],
   },
   {
     slug: "iterative-refinement",

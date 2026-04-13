@@ -1,4 +1,4 @@
-import type { AnalysisResult } from "../types";
+import type { AnalysisResult, HierarchicalAnalysisResult } from "../types";
 
 const API = "/api/intervals";
 
@@ -95,6 +95,29 @@ export async function analyzeRide(
   if (cdaPriorMean && cdaPriorMean > 0 && !disablePrior) fd.append("cda_prior_mean", String(cdaPriorMean));
   if (cdaPriorSigma && cdaPriorSigma > 0 && !disablePrior) fd.append("cda_prior_sigma", String(cdaPriorSigma));
   const res = await fetch(`${API}/analyze-ride`, { method: "POST", body: fd });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function analyzeBatchIntervals(
+  apiKey: string,
+  athleteId: string,
+  activityIds: string[],
+  massKg: number,
+  crrFixed?: number | null,
+  bikeType?: string,
+): Promise<HierarchicalAnalysisResult> {
+  const fd = new FormData();
+  fd.append("api_key", apiKey);
+  fd.append("athlete_id", athleteId);
+  fd.append("activity_ids", activityIds.join(","));
+  fd.append("mass_kg", String(massKg));
+  if (crrFixed != null) fd.append("crr_fixed", String(crrFixed));
+  if (bikeType) fd.append("bike_type", bikeType);
+  const res = await fetch(`${API}/analyze-batch`, { method: "POST", body: fd });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || `HTTP ${res.status}`);

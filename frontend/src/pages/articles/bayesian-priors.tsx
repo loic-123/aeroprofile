@@ -180,29 +180,64 @@ export default function BayesianPriors() {
         </P>
       </Section>
 
-      <Section title="Sensibilité et poids adaptatif">
+      <Section title="Sensibilité et poids du prior">
         <P>
-          Le poids effectif du prior dans la fonction objectif est :
+          Le poids du prior dans la fonction objectif est :
         </P>
-        <Formula>{String.raw`w_{\text{eff}} = 0.3 \cdot \sqrt{N} \cdot \max\!\bigl(1,\; \text{RMSE}\bigr)`}</Formula>
+        <Formula>{String.raw`w_{\text{eff}} = 0.3 \cdot \sqrt{N}`}</Formula>
         <P>
-          Ce mécanisme garantit que :
+          Le facteur <Tex>{String.raw`\sqrt{N}`}</Tex> garantit qu'avec
+          beaucoup de données, le prior pèse relativement <em>moins</em>
+          (la somme des résidus croît en <Tex>{String.raw`N`}</Tex>, le prior
+          en <Tex>{String.raw`\sqrt{N}`}</Tex>).
         </P>
-        <ul className="list-disc ml-6 space-y-1 text-text">
-          <li>
-            Avec <strong>beaucoup de données</strong>{" "}
-            (<Tex>{String.raw`N`}</Tex> grand),{" "}
-            <Tex>{String.raw`w_{\text{eff}}`}</Tex> croît
-            en <Tex>{String.raw`\sqrt{N}`}</Tex>, mais la somme des résidus
-            croît en <Tex>{String.raw`N`}</Tex> — donc le prior pèse
-            relativement <em>moins</em>.
-          </li>
-          <li>
-            Avec <strong>peu de données</strong> ou des données très bruitées
-            (RMSE élevé), le prior pèse <em>davantage</em>, stabilisant le
-            solveur.
-          </li>
-        </ul>
+        <Warning>
+          <strong>Correction d'avril 2026.</strong> L'ancienne formule
+          était <Tex>{String.raw`w_{\text{eff}} = 0.3\sqrt{N}\cdot\max(1,\text{RMSE})`}</Tex>{" "}
+          : elle <em>multipliait</em> le poids par le RMSE, donc le prior pesait{" "}
+          <strong>plus</strong> quand les données étaient bruitées. C'est
+          l'inverse du formalisme bayésien standard : avec des données bruitées,
+          la vraisemblance est mécaniquement plus plate, et le prior domine
+          déjà naturellement la posterieure sans avoir besoin de monter son
+          poids. Le facteur RMSE confondait régularisation de Tikhonov (où on
+          peut ajuster <Tex>{String.raw`\lambda`}</Tex> librement) et prior
+          bayésien (où le poids vient directement
+          de <Tex>{String.raw`1/\sigma^2`}</Tex>). Sur 30 rides bruitées de
+          notre dataset de test, le bug créait un écart{" "}
+          <Tex>{String.raw`\Delta C_dA = 0.044`}</Tex> selon le prior choisi
+          par l'utilisateur ; après correction, l'écart tombe à{" "}
+          <Tex>{String.raw`\Delta C_dA \approx 0.0001`}</Tex> (440× moins).
+          Réf. Gelman BDA3 ch. 14, Bishop PRML §3.3.
+        </Warning>
+      </Section>
+
+      <Section title="Le piège du prior en multi-rides">
+        <P>
+          Même avec le poids correct, appliquer un prior par ride pose un
+          problème spécifique au multi-rides : <strong>le shrinkage est
+          systématique</strong>. Chaque ride <Tex>{String.raw`i`}</Tex> retourne
+          une estimation MAP <Tex>{String.raw`\hat{C}_{dA,i}`}</Tex> légèrement
+          tirée vers le centre du prior <Tex>{String.raw`\mu_0`}</Tex>. Quand on
+          moyenne <Tex>{String.raw`N`}</Tex> rides, ce biais persiste — aucun
+          théorème de grands nombres ne le sauve, car il n'est pas stochastique.
+        </P>
+        <P>
+          La conséquence : si l'utilisateur change le prior CdA (par exemple
+          de <em>"Aéro drops" (0.30)</em> à <em>"Relâchée tops" (0.40)</em>),
+          le CdA agrégé sur le même batch de rides bouge dans la même direction,
+          alors qu'il devrait rester stable. Pour Laurette (rides bruitées,
+          nRMSE 35–46%), l'écart atteignait <Tex>{String.raw`0.044\;\text{m}^2`}</Tex>{" "}
+          — inacceptable pour un outil de mesure.
+        </P>
+        <P>
+          La solution est <strong>de désactiver le prior CdA dès que plus
+          d'une ride est analysée</strong>. La régularisation est alors fournie
+          par l'agrégation inverse-variance ou le modèle hiérarchique
+          random-effects (voir l'article <em>Méthodes d'agrégation
+          multi-rides</em>). Le prior reste actif en mode single-file, où
+          il sert de filet de sécurité quand une seule ride mal contrainte
+          ne suffit pas à séparer CdA et Crr.
+        </P>
       </Section>
 
       <Section title="Impact mesuré">

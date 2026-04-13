@@ -32,6 +32,16 @@ export interface HistoryEntry {
   maxNrmse: number | null;
   // Cache setting
   useCache: boolean | null;
+  // Multi-ride: whether the prior was disabled (always true for n>=2 since the fix)
+  disablePrior?: boolean;
+  // Aggregation method used to compute the headline CdA on multi-ride entries.
+  //   "inverse_var" : Method A (per-ride MLE + inverse-variance mean)
+  //   "hierarchical": Method B (joint random-effects, mu/tau/Crr)
+  //   "single"      : single-file analysis, no aggregation
+  aggregationMethod?: "inverse_var" | "hierarchical" | "single";
+  // Method B output (when available)
+  hierarchicalMu?: number;
+  hierarchicalTau?: number;
   // Intervals-specific: date range + ride filters
   dateFrom?: string;
   dateTo?: string;

@@ -31,6 +31,7 @@ Returns: dict with mu, tau, crr, per_ride [(cda_i, sigma_i, residuals_i)].
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -40,6 +41,8 @@ from scipy.optimize import least_squares
 
 from aeroprofile.physics.constants import ETA_DEFAULT
 from aeroprofile.solver.chung_ve import _virtual_elevation_vec
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -127,6 +130,15 @@ def solve_hierarchical(
     n_rides = len(rides_data)
     if n_rides == 0:
         raise ValueError("No valid rides for hierarchical solve")
+    logger.info(
+        "HIERARCHICAL start: n_rides=%d crr_fixed=%s cda_bounds=[%.2f,%.2f] "
+        "tau_bounds=[0.005,0.40] prior=(%s,%s)",
+        n_rides,
+        f"{crr_fixed:.5f}" if crr_fixed is not None else "None (estimated)",
+        cda_lower, cda_upper,
+        f"{cda_prior_mean:.3f}" if cda_prior_mean is not None else "None",
+        f"{cda_prior_sigma:.3f}" if cda_prior_sigma is not None else "None",
+    )
 
     # Parameter layout
     has_crr = crr_fixed is None
@@ -211,6 +223,14 @@ def solve_hierarchical(
     result = least_squares(residuals, x0=x0, bounds=(lb, ub), method="trf", max_nfev=2000)
 
     mu, tau, crr, cdas = _unpack(result.x)
+    _tau_at_ceiling = tau >= 0.395  # within 1% of the 0.40 hard bound
+    _tau_at_floor = tau <= 0.006
+    logger.info(
+        "HIERARCHICAL solve done: μ=%.3f τ=%.3f crr=%.5f cost=%.3f "
+        "| τ at ceiling=%s (ub=0.40) | τ at floor=%s (lb=0.005) | nfev=%d",
+        mu, tau, crr, result.cost,
+        _tau_at_ceiling, _tau_at_floor, result.nfev,
+    )
 
     # Confidence intervals from Hessian
     n_data = sum(rd["n"] for rd in rides_data)  # rough estimate of effective n

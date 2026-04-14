@@ -428,8 +428,26 @@ async def analyze_batch_intervals(
                 ride_date="", excluded=True, exclusion_reason=reason,
             ))
 
-    if len(all_dfs) < 2:
-        raise HTTPException(status_code=422, detail="Moins de 2 rides valides après preprocessing.")
+    if len(all_dfs) < 5:
+        # Method B estimates τ (inter-ride standard deviation) as a free
+        # parameter. Below n=5, τ is essentially arbitrary (it collapses to
+        # the floor or the ceiling depending on the optimiser's initial
+        # guess). The inverse-variance aggregation (Method A) already
+        # handles small n correctly — we just refuse to mislead the user
+        # with a "hierarchical" estimate that isn't really hierarchical.
+        _log.info(
+            "METHOD_B skipped: only %d valid rides, minimum required is 5 "
+            "(τ is ill-defined below that threshold)",
+            len(all_dfs),
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=f"Méthode B nécessite au moins 5 sorties valides "
+                   f"(seulement {len(all_dfs)} disponibles après le preprocessing). "
+                   "En dessous de 5 rides, τ (la variance inter-rides) ne peut pas "
+                   "être estimée de façon fiable — la moyenne pondérée (méthode A) "
+                   "est plus honnête pour ce volume de données."
+        )
 
     # Fallback on bike-type default prior if the user didn't override.
     eff_prior_mean = cda_prior_mean if cda_prior_mean and cda_prior_mean > 0 else bcfg.cda_prior_mean

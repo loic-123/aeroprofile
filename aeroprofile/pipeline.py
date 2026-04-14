@@ -471,12 +471,35 @@ async def analyze(
         min_block_seconds=min_block_seconds,
         drop_descents=drop_descents,
     )
+    _n_total_filters = len(df)
+    _n_valid_filters = int(df["filter_valid"].sum())
+    _per_filter_counts = {name: int(df[name].sum()) for name in FILTER_NAMES}
+    logger.info(
+        "FILTERS: kept %d/%d points (%.0f%%) | drop_descents=%s min_block=%ds "
+        "| breakdown: %s",
+        _n_valid_filters, _n_total_filters,
+        100 * _n_valid_filters / max(_n_total_filters, 1),
+        drop_descents, min_block_seconds,
+        ", ".join(f"{k}={v}" for k, v in _per_filter_counts.items() if v > 0),
+    )
 
-    # Check variety → maybe fix Crr
+    # Check variety → maybe fix Crr. When the user didn't pin a Crr and the
+    # speed variety is too low (< 1.5 m/s std), we fall back to 0.005 — log
+    # explicitly so the decision is traceable.
     insufficient, _msg = check_speed_variety(df[df["filter_valid"]]["v_ground"].to_numpy())
     effective_crr_fixed = crr_fixed
     if insufficient and crr_fixed is None:
         effective_crr_fixed = 0.005
+        logger.info(
+            "CRR_FALLBACK: v_std insufficient → effective_crr_fixed=0.00500 "
+            "(threshold 1.5 m/s, user did not set crr_fixed)"
+        )
+    elif crr_fixed is not None:
+        logger.info("CRR_FIXED by user: %.5f", crr_fixed)
+    else:
+        logger.info(
+            "CRR_FREE: solver will estimate Crr (crr_fixed is None and speed variety OK)"
+        )
 
     # --- Input stats log (before solver cascade) ---
     _valid_df = df[df["filter_valid"]]
@@ -639,6 +662,18 @@ async def analyze(
             and _chung_inside_bounds
             and chung.r_squared_elev > max(best_r2, 0.0)
         )
+        logger.info(
+            "CASCADE chung_ve result: CdA=%.3f Crr=%.5f R²=%.3f | "
+            "inside_bounds=%s (bounds+tol=[%.3f, %.3f]) | "
+            "improves_main=%s (main R²=%.3f, threshold 0.3) | "
+            "takes_over=%s",
+            chung.cda, chung.crr, chung.r_squared_elev,
+            _chung_inside_bounds,
+            bcfg.cda_lower + 0.005, bcfg.cda_upper - 0.005,
+            chung.r_squared_elev > max(best_r2, 0.0) if sol is not None else False,
+            best_r2,
+            _chung_improves,
+        )
         if _chung_improves:
             sol = SolverResult(
                 cda=chung.cda,
@@ -702,6 +737,13 @@ async def analyze(
             solver_confidence = "medium"
         else:
             solver_confidence = "low"
+        logger.info(
+            "CROSSCHECK confidence=%s | main=%.3f chung=%.3f Δ=%.3f "
+            "(thresholds: <0.02 high, <0.05 medium, ≥0.05 low)",
+            solver_confidence, sol.cda, chung_cda, solver_cross_check_delta,
+        )
+    else:
+        logger.info("CROSSCHECK confidence=unknown (chung did not produce a CdA)")
 
     # Virtual elevation (pass 1)
     df["altitude_virtual"] = virtual_elevation(df, sol.cda, sol.crr, mass_kg, eta)
@@ -767,18 +809,37 @@ async def analyze(
         # Combine with existing filter_valid
         valid_pass1 = df["filter_valid"].to_numpy()
         valid_pass2 = valid_pass1 & filter_ve_ok
-        # Only re-solve if we excluded a meaningful but not excessive fraction.
-        # If >30% of valid points fail VE, the model is globally bad and
-        # trimming won't help — it'd just remove most data.
         n_excluded_by_ve = int(valid_pass1.sum() - valid_pass2.sum())
         n_valid_pass1 = int(valid_pass1.sum())
         pct_excluded = n_excluded_by_ve / max(n_valid_pass1, 1)
+        n_valid_pass2 = int(valid_pass2.sum())
+        logger.info(
+            "VE PASS2 scan: drift_rate_thr=%.2f m/s drift_detrend_thr=%.0f m "
+            "| excluded %d/%d points (%.1f%%) → pass2 n=%d",
+            drift_rate_threshold, drift_detrend_threshold,
+            n_excluded_by_ve, n_valid_pass1, 100 * pct_excluded, n_valid_pass2,
+        )
+        # Only re-solve if we excluded a meaningful but not excessive fraction.
+        # If >30% of valid points fail VE, the model is globally bad and
+        # trimming won't help — it'd just remove most data.
         if pct_excluded > 0.30:
-            # Too many points fail → skip refinement, keep pass-1 result
+            logger.info(
+                "VE PASS2 skipped: exclusion fraction %.1f%% > 30%% threshold "
+                "(model globally mismatched, trimming would help). Keeping pass 1.",
+                100 * pct_excluded,
+            )
             n_excluded_by_ve = 0
         ve_excluded_count = n_excluded_by_ve
-        n_valid_pass2 = int(valid_pass2.sum())
+        if n_excluded_by_ve > 0 and (n_excluded_by_ve <= 20 or n_valid_pass2 < 100):
+            logger.info(
+                "VE PASS2 skipped: excluded=%d (need >20) or pass2 n=%d (need >=100). Keeping pass 1.",
+                n_excluded_by_ve, n_valid_pass2,
+            )
         if n_excluded_by_ve > 20 and n_valid_pass2 >= 100:
+            logger.info(
+                "VE PASS2 triggered: solver=%s pass1(CdA=%.3f R²=%.3f) — re-solving on %d pts",
+                solver_method, sol.cda, best_r2, n_valid_pass2,
+            )
             # Temporarily swap filter_valid for the re-solve
             df["filter_valid_original"] = df["filter_valid"].copy()
             df["filter_valid"] = valid_pass2
@@ -1139,6 +1200,31 @@ async def analyze(
     # NOTE: No backend nRMSE gate. The frontend slider is the only nRMSE filter —
     # the user must stay in control of which rides to keep by quality percentile.
     # Backend gates only catch solver pathologies (bound_hit, non_identifiable).
+
+    # --- Quality gate trace: log every input the gate consulted and the
+    # final verdict, so a future reader of the log can see WHY a ride got
+    # a specific status without rerunning the pipeline. ---
+    _bias_str = f"{power_bias_ratio:.2f}" if power_bias_ratio is not None else "n/a"
+    _cda_sigma_hess = (
+        (sol.cda_ci[1] - sol.cda_ci[0]) / 3.92
+        if (sol.cda_ci[0] is not None and sol.cda_ci[1] is not None
+            and not (np.isnan(sol.cda_ci[0]) or np.isnan(sol.cda_ci[1])))
+        else float("nan")
+    )
+    _valid_ratio_final = float(df["filter_valid"].sum()) / max(len(df), 1)
+    _cda_raw_delta = (
+        abs(sol.cda_raw - sol.cda) if sol.cda_raw is not None else float("nan")
+    )
+    logger.info(
+        "GATE inputs: cda=%.3f (bounds=[%.2f,%.2f] tol=%.3f) | σ_H=%.3f (thr=0.05) | "
+        "bias=%s (hard: |b-1|>0.20 or >0.15+bound; warn: >0.10) | "
+        "valid_ratio=%.2f (insufficient thr=0.25) | "
+        "|cda_raw-cda|=%.3f (prior_dominated thr=0.05) | "
+        "→ verdict=%s",
+        sol.cda, bcfg.cda_lower, bcfg.cda_upper, cda_bound_tol,
+        _cda_sigma_hess if not np.isnan(_cda_sigma_hess) else -1.0,
+        _bias_str, _valid_ratio_final, _cda_raw_delta, quality_status,
+    )
 
     # --- Debug log per ride (solver diagnostics) ---
     _sigma_hess = (

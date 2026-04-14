@@ -623,7 +623,13 @@ function RollingStdTimeline({
   >;
   if (valid.length < 2) return null;
   const maxStd = Math.max(...valid.map((p) => p.std));
-  const targetStd = 0.02; // "good" threshold
+  // σ interpretation thresholds:
+  //   < GOOD (0.03)    — good: rides are reproducible
+  //   GOOD..WARN (0.05)— moderate: aggregate is OK, individual rides so-so
+  //   > WARN           — bad: individual rides are unreliable
+  const GOOD_STD = 0.03;
+  const WARN_STD = 0.05;
+  const targetStd = GOOD_STD;
 
   // Color by sensor quality
   const color = (q: string | null): string => {
@@ -671,14 +677,48 @@ function RollingStdTimeline({
           Stabilité du CdA (écart-type glissant sur 10 sorties)
         </h3>
         <span className="text-[10px] text-muted font-mono">
-          {valid.length} fenêtres · cible σ &lt; {targetStd.toFixed(2)}
+          {valid.length} fenêtres · <span className="text-teal">σ&lt;{GOOD_STD.toFixed(2)}</span> bon · <span className="text-warn">&lt;{WARN_STD.toFixed(2)}</span> moyen · <span className="text-coral">&gt;{WARN_STD.toFixed(2)}</span> peu fiable
         </span>
       </div>
       <p className="text-[11px] text-muted mb-2 leading-tight">
-        Une baisse brutale = changement de capteur ou meilleure calibration. Les zones colorées en fond représentent les périodes où le même capteur était utilisé.
+        Écart-type (σ) de votre CdA sur les 10 dernières sorties à chaque date.
+        Plus c'est bas, plus vos estimations sont reproductibles. Une baisse
+        brutale = changement de capteur ou meilleure calibration. Les zones
+        horizontales indiquent le niveau de fiabilité (vert = bon, jaune =
+        moyen, rouge = peu fiable). Le fond teinté par capteur est
+        volontairement discret pour ne pas masquer les seuils.
       </p>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
-        {/* Phase background bands */}
+        {/* Horizontal σ interpretation bands: green = good, yellow = moderate,
+            red = unreliable. The y coordinates are clamped into the plot area
+            in case maxStd is below a threshold. */}
+        {(() => {
+          const yGood = Math.max(yOf(GOOD_STD), PT);
+          const yWarn = Math.max(yOf(WARN_STD), PT);
+          const yBase = H - PB;
+          return (
+            <>
+              {/* Red zone: σ > WARN_STD (top of the plot) */}
+              {yWarn > PT && (
+                <rect x={PL} y={PT} width={innerW} height={yWarn - PT}
+                  fill="#e4572e" opacity={0.06} />
+              )}
+              {/* Yellow zone: GOOD_STD < σ <= WARN_STD */}
+              {yGood > yWarn && (
+                <rect x={PL} y={yWarn} width={innerW} height={yGood - yWarn}
+                  fill="#f59e0b" opacity={0.06} />
+              )}
+              {/* Green zone: σ <= GOOD_STD */}
+              {yBase > yGood && (
+                <rect x={PL} y={yGood} width={innerW} height={yBase - yGood}
+                  fill="#3ba99c" opacity={0.06} />
+              )}
+            </>
+          );
+        })()}
+        {/* Phase background bands — coloured per sensor quality. Low opacity
+            so they don't dominate the visual when the rider stayed on a
+            single low-quality sensor for a long time. */}
         {phases.map((p, i) => {
           const x1 = xOf(p.start);
           const x2 = xOf(p.end);
@@ -691,23 +731,31 @@ function RollingStdTimeline({
               width={x2 - x1}
               height={innerH}
               fill={color(p.quality)}
-              opacity={0.08}
+              opacity={0.03}
             />
           );
         })}
-        {/* Target line */}
+        {/* Threshold lines */}
         <line
-          x1={PL}
-          x2={W - PR}
-          y1={yOf(targetStd)}
-          y2={yOf(targetStd)}
-          stroke="#3ba99c"
-          strokeDasharray="3,3"
-          opacity={0.5}
+          x1={PL} x2={W - PR}
+          y1={yOf(GOOD_STD)} y2={yOf(GOOD_STD)}
+          stroke="#3ba99c" strokeDasharray="3,3" opacity={0.6}
         />
-        <text x={PL - 4} y={yOf(targetStd) + 3} fill="#3ba99c" fontSize="9" textAnchor="end" fontFamily="monospace">
-          {targetStd.toFixed(2)}
+        <text x={PL - 4} y={yOf(GOOD_STD) + 3} fill="#3ba99c" fontSize="9" textAnchor="end" fontFamily="monospace">
+          {GOOD_STD.toFixed(2)}
         </text>
+        {yOf(WARN_STD) > PT + 3 && (
+          <>
+            <line
+              x1={PL} x2={W - PR}
+              y1={yOf(WARN_STD)} y2={yOf(WARN_STD)}
+              stroke="#f59e0b" strokeDasharray="3,3" opacity={0.5}
+            />
+            <text x={PL - 4} y={yOf(WARN_STD) + 3} fill="#f59e0b" fontSize="9" textAnchor="end" fontFamily="monospace">
+              {WARN_STD.toFixed(2)}
+            </text>
+          </>
+        )}
         {/* Y axis */}
         <text x={PL - 4} y={PT + 4} fill="#6b7280" fontSize="9" textAnchor="end" fontFamily="monospace">
           {yMax.toFixed(2)}

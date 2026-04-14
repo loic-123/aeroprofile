@@ -97,6 +97,18 @@ class AnalysisResult:
     # suggests a mis-calibrated sensor. None = not enough flat-pedaling points.
     power_bias_ratio: Optional[float] = None
     power_bias_n_points: int = 0
+    # Solver cross-check (P2): Chung VE is ALWAYS run after the main solver so
+    # we can compare its CdA estimate to the selected solver's. The delta is
+    # a structural uncertainty indicator (not captured by the Hessian CI) —
+    # when the two solvers agree, the CdA is robust to the wind-treatment
+    # choice; when they disagree, the ride is sensitive to wind fitting and
+    # the user should treat the result with care.
+    #   confidence = "high"   when |delta| < 0.02
+    #   confidence = "medium" when 0.02 <= |delta| < 0.05
+    #   confidence = "low"    when |delta| >= 0.05
+    chung_cda: Optional[float] = None
+    solver_cross_check_delta: Optional[float] = None
+    solver_confidence: str = "unknown"
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -309,7 +321,6 @@ async def analyze(
     power_meter_name: str | None = None,
     gear_id: str | None = None,
     gear_name: str | None = None,
-    benchmark_chung_ve: bool = False,
 ) -> AnalysisResult:
     bcfg = get_bike_config(bike_type)
     # Disable the CdA prior entirely (used in multi-ride mode where the
@@ -583,80 +594,71 @@ async def analyze(
     except Exception as _e:
         logger.warning("CASCADE wind_inverse raised: %s", _e)
 
-    # --- Chung VE fallback: run when we have no solver result yet OR the
-    # current one is poor (R² < 0.3). Runs unconditionally if sol is still
-    # None (e.g. Martin LS was skipped AND wind_inverse returned None).
-    # The benchmark_chung_ve flag (per-request from the UI, or via the
-    # AEROPROFILE_BENCHMARK_SOLVERS=1 env var as a global default) also
-    # runs Chung VE on every ride so the log can compare the two solvers
-    # side-by-side. The result never replaces a winning wind_inverse —
-    # it's diagnostic-only.
-    import os as _os_bench
-    _benchmark = (
-        benchmark_chung_ve
-        or _os_bench.environ.get("AEROPROFILE_BENCHMARK_SOLVERS") == "1"
+    # --- Chung VE cross-check (P2) ---
+    # Chung VE runs unconditionally on every ride. Its CdA is stored on the
+    # result as `chung_cda` so the UI can surface a solver-agreement badge,
+    # and it also acts as a fallback: if the main cascade returned nothing
+    # or a very poor fit (R² < 0.3), Chung's result replaces the winner.
+    # Otherwise it stays diagnostic-only.
+    chung_cda: Optional[float] = None
+    logger.info(
+        "CASCADE %s → try chung_ve (cross-check) ===",
+        "no solver result yet" if sol is None else f"R²={best_r2:.3f}",
     )
-    if sol is None or best_r2 < 0.3 or _benchmark:
-        logger.info(
-            "CASCADE %s → try chung_ve ===",
-            "no solver result yet" if sol is None else f"R²={best_r2:.3f} < 0.3",
+    try:
+        chung = solve_chung_ve(
+            df,
+            mass=mass_kg,
+            eta=eta,
+            crr_fixed=effective_crr_fixed,
+            cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
+            cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
         )
-        try:
-            chung = solve_chung_ve(
-                df,
-                mass=mass_kg,
-                eta=eta,
-                crr_fixed=effective_crr_fixed,
-                cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
-                cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
+        chung_cda = float(chung.cda)
+        _chung_improves = (
+            sol is None
+            and bcfg.cda_lower <= chung.cda <= bcfg.cda_upper
+        ) or (
+            sol is not None
+            and best_r2 < 0.3
+            and bcfg.cda_lower <= chung.cda <= bcfg.cda_upper
+            and chung.r_squared_elev > max(best_r2, 0.0)
+        )
+        if _chung_improves:
+            sol = SolverResult(
+                cda=chung.cda,
+                crr=chung.crr,
+                cda_ci=chung.cda_ci,
+                crr_ci=chung.crr_ci,
+                r_squared=chung.r_squared_elev,
+                residuals=chung.residuals,
+                n_points=chung.n_points,
+                crr_was_fixed=(effective_crr_fixed is not None),
+                prior_adaptive_factor=float(getattr(chung, "prior_adaptive_factor", 1.0)),
+                cda_raw=getattr(chung, "cda_raw", None),
+                cda_raw_ci=getattr(chung, "cda_raw_ci", None),
             )
-            # In benchmark mode the Chung VE run is diagnostic-only: we log
-            # its CdA/Crr/R² but never overwrite a winning wind_inverse.
-            _chung_improves = (
-                not _benchmark
-                and bcfg.cda_lower <= chung.cda <= bcfg.cda_upper
-                and (sol is None or chung.r_squared_elev > max(best_r2, 0.0))
+            solver_method = "chung_ve"
+            solver_note = (
+                "Méthode Chung (Virtual Elevation) utilisée : les autres "
+                f"solveurs avaient R² < 0.3. R² reporté ici = qualité "
+                "de la reconstruction d'altitude."
             )
-            if _chung_improves:
-                sol = SolverResult(
-                    cda=chung.cda,
-                    crr=chung.crr,
-                    cda_ci=chung.cda_ci,
-                    crr_ci=chung.crr_ci,
-                    r_squared=chung.r_squared_elev,
-                    residuals=chung.residuals,
-                    n_points=chung.n_points,
-                    crr_was_fixed=(effective_crr_fixed is not None),
-                    prior_adaptive_factor=float(getattr(chung, "prior_adaptive_factor", 1.0)),
-                    cda_raw=getattr(chung, "cda_raw", None),
-                    cda_raw_ci=getattr(chung, "cda_raw_ci", None),
-                )
-                solver_method = "chung_ve"
-                solver_note = (
-                    "Méthode Chung (Virtual Elevation) utilisée : les autres "
-                    f"solveurs avaient R² < 0.3. R² reporté ici = qualité "
-                    "de la reconstruction d'altitude."
-                )
-                logger.info(
-                    "CASCADE chung_ve WINS: CdA=%.3f Crr=%.5f R²=%.3f",
-                    chung.cda, chung.crr, chung.r_squared_elev,
-                )
-            elif _benchmark:
-                # Benchmark comparison: both solvers ran, show both.
-                logger.info(
-                    "BENCHMARK chung_ve: CdA=%.3f Crr=%.5f R²=%.3f "
-                    "(wind_inverse kept: CdA=%.3f R²=%.3f)",
-                    chung.cda, chung.crr, chung.r_squared_elev,
-                    sol.cda if sol else float("nan"),
-                    best_r2,
-                )
-            else:
-                logger.info(
-                    "CASCADE chung_ve CdA=%.3f Crr=%.5f R²=%.3f — not selected",
-                    chung.cda, chung.crr, chung.r_squared_elev,
-                )
-        except Exception as _e:
-            logger.warning("CASCADE chung_ve raised: %s", _e)
+            logger.info(
+                "CASCADE chung_ve WINS: CdA=%.3f Crr=%.5f R²=%.3f",
+                chung.cda, chung.crr, chung.r_squared_elev,
+            )
+        else:
+            # Diagnostic log of the cross-check delta — replaces the old
+            # BENCHMARK line, always emitted now that Chung always runs.
+            _delta_cc = abs(chung.cda - sol.cda) if sol is not None else float("nan")
+            logger.info(
+                "CROSSCHECK chung_ve: CdA=%.3f R²=%.3f | Δ(chung−main)=%+.3f | main=%.3f",
+                chung.cda, chung.r_squared_elev, (chung.cda - sol.cda) if sol else float("nan"),
+                sol.cda if sol else float("nan"),
+            )
+    except Exception as _e:
+        logger.warning("CASCADE chung_ve raised: %s", _e)
 
     if sol is None:
         logger.error("CASCADE no solver succeeded")
@@ -862,6 +864,48 @@ async def analyze(
         sol.cda, sol.crr, sol.cda_ci, sol.residuals, df, mass_kg, eta
     )
 
+    # --- Power meter bias ratio (independent of the solver) ---
+    # Computed BEFORE the quality gate so the gate can use it to flag rides
+    # where the sensor is mis-calibrated. Previously this lived just before
+    # the final return and was therefore useless for quality classification.
+    power_bias_ratio: Optional[float] = None
+    power_bias_n_points = 0
+    try:
+        _v = df[df["filter_valid"]]
+        if len(_v) > 60:
+            _flat_mask = np.abs(_v["gradient"].to_numpy()) < 0.02
+            _pedal_mask = _v["power"].to_numpy() > 50.0
+            _m = _flat_mask & _pedal_mask
+            if _m.sum() >= 60:
+                _cda_prior = (
+                    bcfg.cda_prior_mean
+                    if (bcfg.cda_prior_mean is not None and bcfg.cda_prior_mean > 0)
+                    else 0.30
+                )
+                _crr_default = 0.005  # road tire reference
+                _p_theo = power_model(
+                    _v["v_ground"].to_numpy()[_m],
+                    _v["v_air"].to_numpy()[_m],
+                    _v["gradient"].to_numpy()[_m],
+                    _v["acceleration"].to_numpy()[_m],
+                    mass_kg, _cda_prior, _crr_default,
+                    _v["rho"].to_numpy()[_m], eta,
+                )
+                _p_meas = _v["power"].to_numpy()[_m]
+                _theo_mean = float(np.mean(_p_theo[(_p_theo > 20) & (_p_theo < 600)]))
+                _meas_mean = float(np.mean(_p_meas[(_p_meas > 20) & (_p_meas < 600)]))
+                if _theo_mean > 10:
+                    power_bias_ratio = _meas_mean / _theo_mean
+                    power_bias_n_points = int(_m.sum())
+                    logger.info(
+                        "POWER_BIAS ratio=%.2f (measured=%.0f W vs theoretical=%.0f W "
+                        "on %d flat-pedaling points, CdA_prior=%.2f Crr=%.4f)",
+                        power_bias_ratio, _meas_mean, _theo_mean, power_bias_n_points,
+                        _cda_prior, _crr_default,
+                    )
+    except Exception as _e:
+        logger.warning("Power bias ratio computation failed: %s", _e)
+
     # --- Quality gate ---
     # Mark the ride as unusable for aggregation if any of the following holds:
     #   1. CdA or Crr hit a bound (within 1% tolerance) → degenerate solution,
@@ -875,8 +919,34 @@ async def analyze(
     quality_status = "ok"
     quality_reason = ""
 
+    # P1 — sensor_miscalib: the power meter reads clearly off theory on the
+    # flat-pedaling portions. When this happens, the solver either gets
+    # pushed against a CdA bound (compensating in the only dimension it has
+    # left once Crr is fixed) or returns a physically implausible CdA. We
+    # flag the ride BEFORE the bound_hit classification so the user gets an
+    # actionable message ("check sensor calibration") instead of an opaque
+    # "solveur bloqué".
+    _bias_miscalib = (
+        power_bias_ratio is not None
+        and (power_bias_ratio < 0.85 or power_bias_ratio > 1.15)
+    )
     cda_bound_tol = 0.005  # ~1% of the typical bike-type range
-    if sol.cda <= bcfg.cda_lower + cda_bound_tol:
+    _cda_at_bound = (
+        sol.cda <= bcfg.cda_lower + cda_bound_tol
+        or sol.cda >= bcfg.cda_upper - cda_bound_tol
+    )
+    if _bias_miscalib and _cda_at_bound:
+        quality_status = "sensor_miscalib"
+        _pct = (power_bias_ratio - 1.0) * 100.0
+        _direction = "au-dessus" if power_bias_ratio > 1.0 else "en-dessous"
+        quality_reason = (
+            f"Capteur de puissance probablement décalibré ({_pct:+.0f}% "
+            f"{_direction} de la puissance théorique sur les portions plates). "
+            f"Le solveur a tapé la borne CdA ({sol.cda:.3f}) pour compenser — "
+            "ce n'est pas un problème algorithmique mais une calibration capteur. "
+            "Vérifie le zero-offset au départ de la prochaine sortie."
+        )
+    elif sol.cda <= bcfg.cda_lower + cda_bound_tol:
         quality_status = "bound_hit"
         quality_reason = f"Solveur bloqué à la borne inférieure CdA ({sol.cda:.3f} ≈ {bcfg.cda_lower:.2f}). Modèle non applicable sur cette sortie."
     elif sol.cda >= bcfg.cda_upper - cda_bound_tol:
@@ -955,6 +1025,22 @@ async def analyze(
                 "individuelle est moins fiable."
             )
 
+    # P2 — Solver cross-check confidence. Classify how well the selected
+    # solver and Chung VE agree on CdA. This is independent of the quality
+    # gate — a ride can be `ok` with `medium`/`low` confidence, in which
+    # case the UI shows a "solveurs en désaccord" badge without excluding
+    # the ride from aggregates.
+    solver_cross_check_delta: Optional[float] = None
+    solver_confidence = "unknown"
+    if chung_cda is not None:
+        solver_cross_check_delta = float(abs(chung_cda - sol.cda))
+        if solver_cross_check_delta < 0.02:
+            solver_confidence = "high"
+        elif solver_cross_check_delta < 0.05:
+            solver_confidence = "medium"
+        else:
+            solver_confidence = "low"
+
     # NOTE: No backend nRMSE gate. The frontend slider is the only nRMSE filter —
     # the user must stay in control of which rides to keep by quality percentile.
     # Backend gates only catch solver pathologies (bound_hit, non_identifiable).
@@ -1002,54 +1088,6 @@ async def analyze(
             "POWER_METER %s -> quality=%s category=%s",
             power_meter_name, _pmi.quality, _pmi.category,
         )
-
-    # --- Power meter bias ratio (independent of the solver) ---
-    # On the flat portions of the ride where the rider is actually pedaling,
-    # compute the power predicted by the bike-type PRIOR (CdA_prior, Crr_default)
-    # and compare it to the measured power. If the measured power is 35%+
-    # higher than the theoretical one, the meter is almost certainly biased
-    # high (stuck offset, bad zero-offset, temperature drift on 4iiii, …).
-    #
-    # This is a diagnostic signal independent of the solver's final CdA/Crr —
-    # useful to flag a mis-calibrated sensor BEFORE the user trusts the result.
-    power_bias_ratio: Optional[float] = None
-    power_bias_n_points = 0
-    try:
-        _v = df[df["filter_valid"]]
-        if len(_v) > 60:
-            _flat_mask = np.abs(_v["gradient"].to_numpy()) < 0.02
-            _pedal_mask = _v["power"].to_numpy() > 50.0
-            _m = _flat_mask & _pedal_mask
-            if _m.sum() >= 60:
-                _cda_prior = (
-                    bcfg.cda_prior_mean
-                    if (bcfg.cda_prior_mean is not None and bcfg.cda_prior_mean > 0)
-                    else 0.30
-                )
-                _crr_default = 0.005  # road tire reference
-                _p_theo = power_model(
-                    _v["v_ground"].to_numpy()[_m],
-                    _v["v_air"].to_numpy()[_m],
-                    _v["gradient"].to_numpy()[_m],
-                    _v["acceleration"].to_numpy()[_m],
-                    mass_kg, _cda_prior, _crr_default,
-                    _v["rho"].to_numpy()[_m], eta,
-                )
-                _p_meas = _v["power"].to_numpy()[_m]
-                # Robust mean: trim the 5% tails to ignore outliers
-                _theo_mean = float(np.mean(_p_theo[(_p_theo > 20) & (_p_theo < 600)]))
-                _meas_mean = float(np.mean(_p_meas[(_p_meas > 20) & (_p_meas < 600)]))
-                if _theo_mean > 10:
-                    power_bias_ratio = _meas_mean / _theo_mean
-                    power_bias_n_points = int(_m.sum())
-                    logger.info(
-                        "POWER_BIAS ratio=%.2f (measured=%.0f W vs theoretical=%.0f W "
-                        "on %d flat-pedaling points, CdA_prior=%.2f Crr=%.4f)",
-                        power_bias_ratio, _meas_mean, _theo_mean, power_bias_n_points,
-                        _cda_prior, _crr_default,
-                    )
-    except Exception as _e:
-        logger.warning("Power bias ratio computation failed: %s", _e)
 
     return AnalysisResult(
         solver_method=solver_method,
@@ -1099,6 +1137,9 @@ async def analyze(
         power_meter_warning=_pmi.warning,
         power_bias_ratio=power_bias_ratio,
         power_bias_n_points=power_bias_n_points,
+        chung_cda=chung_cda,
+        solver_cross_check_delta=solver_cross_check_delta,
+        solver_confidence=solver_confidence,
         gear_id=gear_id,
         gear_name=gear_name,
     )

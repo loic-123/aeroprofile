@@ -26,11 +26,19 @@ HOURLY_VARS = (
 
 
 async def fetch_weather(lat: float, lon: float, ride_date: date | str) -> dict:
+    """Backward-compatible wrapper that returns only the hourly dict."""
+    data, _ = await fetch_weather_ex(lat, lon, ride_date)
+    return data
+
+
+async def fetch_weather_ex(lat: float, lon: float, ride_date: date | str) -> tuple[dict, bool]:
     """Fetch hourly historical weather for one day at (lat, lon).
 
-    Returns the `hourly` dict from Open-Meteo, with keys:
-      time, temperature_2m, relativehumidity_2m, surface_pressure,
-      windspeed_10m, winddirection_10m, windgusts_10m.
+    Returns a tuple ``(hourly, from_cache)`` where ``hourly`` is the Open-Meteo
+    dict with keys time, temperature_2m, relativehumidity_2m, surface_pressure,
+    windspeed_10m, winddirection_10m, windgusts_10m. ``from_cache`` is True when
+    the call was served from the in-memory or disk cache — callers that batch
+    many requests can use it to skip their inter-request rate-limiting sleep.
 
     windspeed_10m is in km/h and winddirection_10m in degrees (meteorological).
     """
@@ -44,8 +52,8 @@ async def fetch_weather(lat: float, lon: float, ride_date: date | str) -> dict:
     # Check cache first
     cached = _cache_get(lat, lon, day_dt)
     if cached is not None:
-        logger.info("Open-Meteo cache hit lat=%.3f lon=%.3f date=%s", lat, lon, day)
-        return cached
+        logger.debug("Open-Meteo cache hit lat=%.3f lon=%.3f date=%s", lat, lon, day)
+        return cached, True
 
     # Decide endpoint: archive is authoritative but has a ~5-day lag.
     today = datetime.now(timezone.utc).date()
@@ -90,7 +98,7 @@ async def fetch_weather(lat: float, lon: float, ride_date: date | str) -> dict:
                 data = r.json()
                 if data.get("hourly", {}).get("time"):
                     _cache_put(lat, lon, day_dt, data["hourly"])
-                    return data["hourly"]
+                    return data["hourly"], False
         # Fallback to forecast with past_days
         past_days = max(1, min(7, (today - day_dt).days + 1))
         params_fc = {**params, "past_days": past_days, "forecast_days": 1}
@@ -98,4 +106,4 @@ async def fetch_weather(lat: float, lon: float, ride_date: date | str) -> dict:
         r.raise_for_status()
         data = r.json()
         _cache_put(lat, lon, day_dt, data["hourly"])
-        return data["hourly"]
+        return data["hourly"], False

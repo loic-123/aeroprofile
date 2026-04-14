@@ -16,7 +16,7 @@ from math import atan2, cos, radians, sin, sqrt
 import numpy as np
 import pandas as pd
 
-from aeroprofile.weather.open_meteo import fetch_weather
+from aeroprofile.weather.open_meteo import fetch_weather_ex
 from aeroprofile.weather.interpolation import interpolate_weather
 
 
@@ -72,19 +72,22 @@ async def fetch_weather_tiled(
     """
     anchors = _pick_tile_anchors(lats, lons, tile_km, max_tiles)
     tiles: list[tuple[int, dict]] = []
+    last_was_network = False
     for i, (idx, lat, lon) in enumerate(anchors):
+        # Only rate-limit between real network calls. On a warm cache (Method
+        # B re-runs, repeated analysis) every tile is a memory/disk hit and
+        # 20 × 0.3 s = 6 s of pure sleep per ride vanishes.
+        if last_was_network and i > 0:
+            await asyncio.sleep(0.3)
         try:
-            data = await fetch_weather(lat, lon, ride_date)
+            data, from_cache = await fetch_weather_ex(lat, lon, ride_date)
             if isinstance(data, dict):
                 tiles.append((idx, data))
+            last_was_network = not from_cache
         except Exception:
             # Skip failed tiles; the pipeline will fall back to a single
             # centroid fetch upstream if the list ends up empty.
-            pass
-        # 300 ms between requests keeps us well under Open-Meteo's
-        # published 600 calls/minute / 10 calls/second limit.
-        if i < len(anchors) - 1:
-            await asyncio.sleep(0.3)
+            last_was_network = True  # assume a failed request hit the network
     return tiles
 
 

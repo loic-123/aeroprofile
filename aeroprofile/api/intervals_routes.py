@@ -20,6 +20,7 @@ from aeroprofile.api.schemas import (
 )
 from aeroprofile.solver.hierarchical import solve_hierarchical
 from aeroprofile.bike_types import get_bike_config
+from aeroprofile.api import preprocess_cache as _pp_cache
 
 _log = logging.getLogger(__name__)
 
@@ -170,7 +171,6 @@ class SessionLogPayload(BaseModel):
     n_candidates: Optional[int] = None  # rides matching filters
     n_selected: Optional[int] = None    # after sensor filter etc
     sensor_filter: Optional[list[str]] = None  # e.g. ['FAVERO_ELECTRONICS 22']
-    benchmark_chung_ve: bool = False
 
 
 @router.post("/log-session")
@@ -183,7 +183,7 @@ async def log_session(payload: SessionLogPayload):
         "SESSION_START profile='%s'(%s) mode=%s mass=%s bike=%s pos='%s' "
         "crr=%s prior=(%s,%s) maxNrmse=%s "
         "dates=[%s..%s] dist=[%s..%s]km D+<%sm D+/km<%s dur>%sh excl_group=%s "
-        "n_cand=%s n_sel=%s sensors=%s benchmark=%s",
+        "n_cand=%s n_sel=%s sensors=%s",
         payload.profile_name, payload.profile_key, payload.mode,
         payload.mass_kg, payload.bike_type, payload.position_label,
         payload.crr_fixed, payload.cda_prior_mean, payload.cda_prior_sigma,
@@ -194,7 +194,6 @@ async def log_session(payload: SessionLogPayload):
         payload.exclude_group,
         payload.n_candidates, payload.n_selected,
         ",".join(payload.sensor_filter) if payload.sensor_filter else "all",
-        payload.benchmark_chung_ve,
     )
     return {"status": "ok"}
 
@@ -211,18 +210,17 @@ async def analyze_ride(
     cda_prior_mean: Optional[float] = Form(None),
     cda_prior_sigma: Optional[float] = Form(None),
     disable_prior: bool = Form(False),
-    benchmark_chung_ve: bool = Form(False),
 ):
     """Download a single activity .FIT and run the analysis pipeline."""
     _log.info(
         "REQUEST /intervals/analyze-ride activity_id=%s mass=%.1fkg bike=%s "
-        "crr_fixed=%s eta=%.3f prior(mean=%s sigma=%s disable=%s) benchmark=%s",
+        "crr_fixed=%s eta=%.3f prior(mean=%s sigma=%s disable=%s)",
         activity_id, mass_kg, bike_type,
         f"{crr_fixed:.5f}" if crr_fixed is not None else "auto",
         eta,
         f"{cda_prior_mean:.3f}" if cda_prior_mean is not None else "None",
         f"{cda_prior_sigma:.3f}" if cda_prior_sigma is not None else "None",
-        disable_prior, benchmark_chung_ve,
+        disable_prior,
     )
     client = IntervalsClient(api_key, athlete_id)
 
@@ -242,10 +240,15 @@ async def analyze_ride(
     except Exception as _e:
         _log.warning("Could not fetch activity metadata for %s: %s", activity_id, _e)
 
-    try:
-        fit_bytes = await client.download_fit(activity_id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Téléchargement échoué : {e}")
+    # Reuse cached bytes if a previous call (ride or batch) already fetched
+    # this activity. Saves a 5-15 s Intervals.icu round-trip per repeated hit.
+    fit_bytes = _pp_cache.get_fit(athlete_id, activity_id)
+    if fit_bytes is None:
+        try:
+            fit_bytes = await client.download_fit(activity_id)
+            _pp_cache.put_fit(athlete_id, activity_id, fit_bytes)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Téléchargement échoué : {e}")
 
     # Write to temp file for the pipeline
     with tempfile.NamedTemporaryFile(suffix=".fit", delete=False) as tmp:
@@ -264,7 +267,6 @@ async def analyze_ride(
             power_meter_name=pm_name,
             gear_id=gear_id,
             gear_name=gear_name,
-            benchmark_chung_ve=benchmark_chung_ve,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -314,6 +316,9 @@ def _build_analysis_out(result):
         power_meter_warning=result.power_meter_warning,
         power_bias_ratio=_f(result.power_bias_ratio) if result.power_bias_ratio is not None else None,
         power_bias_n_points=result.power_bias_n_points,
+        chung_cda=_f(result.chung_cda) if result.chung_cda is not None else None,
+        solver_cross_check_delta=_f(result.solver_cross_check_delta) if result.solver_cross_check_delta is not None else None,
+        solver_confidence=result.solver_confidence,
         gear_id=result.gear_id,
         gear_name=result.gear_name,
         ride_date=result.ride_date,
@@ -369,35 +374,59 @@ async def analyze_batch_intervals(
     bcfg = get_bike_config(bike_type)
     client = IntervalsClient(api_key, athlete_id)
 
+    # Parallel preprocess with a bounded concurrency to avoid hammering
+    # Intervals.icu (downloads) and Open-Meteo (weather). 4 rides in flight
+    # is a good balance: on a warm cache, the preprocess is CPU-bound and
+    # scales with cores; on a cold cache, the bottleneck is Open-Meteo's
+    # rate limit (10 req/s), well above 4 concurrent rides × ~20 tiles.
+    import asyncio
+    sem = asyncio.Semaphore(4)
+
+    async def _prep(aid: str):
+        async with sem:
+            # Fast path: preprocessed tuple is cached from a recent analyze-ride
+            cached = _pp_cache.get_prep(athlete_id, aid, mass_kg, eta)
+            if cached is not None:
+                df, ride, _wx_ok = cached
+                return ("ok", aid, df, ride)
+            # Next-fastest path: raw FIT bytes are cached → skip the download
+            fit_bytes = _pp_cache.get_fit(athlete_id, aid)
+            if fit_bytes is None:
+                try:
+                    fit_bytes = await client.download_fit(aid)
+                    _pp_cache.put_fit(athlete_id, aid, fit_bytes)
+                except Exception as e:
+                    return ("err", aid, f"Download failed: {e}")
+            with tempfile.NamedTemporaryFile(suffix=".fit", delete=False) as tmp:
+                tmp.write(fit_bytes)
+                tmp_path = Path(tmp.name)
+            try:
+                df, ride, wx_ok = await preprocess(tmp_path, mass_kg=mass_kg, eta=eta)
+                _pp_cache.put_prep(athlete_id, aid, mass_kg, eta, (df, ride, wx_ok))
+                return ("ok", aid, df, ride)
+            except Exception as e:
+                return ("err", aid, f"Preprocessing failed: {e}")
+            finally:
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
+
+    results = await asyncio.gather(*(_prep(aid) for aid in ids))
+
     all_dfs: list[tuple[str, object, object]] = []
     summaries: list[HierarchicalRideSummary] = []
-    for aid in ids:
-        try:
-            fit_bytes = await client.download_fit(aid)
-        except Exception as e:
-            summaries.append(HierarchicalRideSummary(
-                label=aid, cda=0.0, cda_sigma=0.0, r_squared=0.0, nrmse=0.0,
-                avg_power_w=0.0, avg_speed_kmh=0.0, valid_points=0,
-                ride_date="", excluded=True, exclusion_reason=f"Download failed: {e}",
-            ))
-            continue
-        with tempfile.NamedTemporaryFile(suffix=".fit", delete=False) as tmp:
-            tmp.write(fit_bytes)
-            tmp_path = Path(tmp.name)
-        try:
-            df, ride, _wx_ok = await preprocess(tmp_path, mass_kg=mass_kg, eta=eta)
+    for res in results:
+        if res[0] == "ok":
+            _, aid, df, ride = res
             all_dfs.append((aid, df, ride))
-        except Exception as e:
+        else:
+            _, aid, reason = res
             summaries.append(HierarchicalRideSummary(
                 label=aid, cda=0.0, cda_sigma=0.0, r_squared=0.0, nrmse=0.0,
                 avg_power_w=0.0, avg_speed_kmh=0.0, valid_points=0,
-                ride_date="", excluded=True, exclusion_reason=f"Preprocessing failed: {e}",
+                ride_date="", excluded=True, exclusion_reason=reason,
             ))
-        finally:
-            try:
-                tmp_path.unlink()
-            except OSError:
-                pass
 
     if len(all_dfs) < 2:
         raise HTTPException(status_code=422, detail="Moins de 2 rides valides après preprocessing.")

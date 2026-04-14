@@ -742,17 +742,75 @@ function RollingStdTimeline({
             </circle>
           );
         })}
-        {/* X axis — first/last date labels */}
-        {timeline.length > 0 && (
-          <>
-            <text x={PL} y={H - 8} fill="#6b7280" fontSize="9" textAnchor="start" fontFamily="monospace">
-              {timeline[0].date}
-            </text>
-            <text x={W - PR} y={H - 8} fill="#6b7280" fontSize="9" textAnchor="end" fontFamily="monospace">
-              {timeline[timeline.length - 1].date}
-            </text>
-          </>
-        )}
+        {/* X axis ticks: one tick per quarter-year boundary crossed in the
+            dataset, so the user can anchor regime changes to real dates.
+            For each quarter (Jan/Apr/Jul/Oct 1st), find the first timeline
+            point on or after that date and render a tick + label there. */}
+        {(() => {
+          if (timeline.length === 0) return null;
+          const firstDate = new Date(timeline[0].date);
+          const lastDate = new Date(timeline[timeline.length - 1].date);
+          const ticks: { label: string; idx: number }[] = [];
+          // Start from the first quarter ≥ firstDate
+          const startYear = firstDate.getFullYear();
+          const startQuarter = Math.floor(firstDate.getMonth() / 3);
+          let y = startYear;
+          let q = startQuarter;
+          // Advance to the first quarter *after* firstDate so the label is
+          // always distinct from the first data point's date.
+          q += 1;
+          if (q > 3) {
+            q = 0;
+            y += 1;
+          }
+          while (true) {
+            const qDate = new Date(y, q * 3, 1);
+            if (qDate > lastDate) break;
+            const qStr = qDate.toISOString().slice(0, 10);
+            // Find the first timeline index with date >= qStr
+            const idx = timeline.findIndex((p) => p.date >= qStr);
+            if (idx >= 0) {
+              ticks.push({
+                label: `${y}-${String(q * 3 + 1).padStart(2, "0")}`,
+                idx,
+              });
+            }
+            q += 1;
+            if (q > 3) {
+              q = 0;
+              y += 1;
+            }
+          }
+          // If we have more than 8 quarter ticks, keep every other one to
+          // avoid label collisions on tight screens.
+          const shown = ticks.length > 8 ? ticks.filter((_, i) => i % 2 === 0) : ticks;
+          return (
+            <>
+              {shown.map((t, i) => (
+                <g key={i}>
+                  <line
+                    x1={xOf(t.idx)}
+                    x2={xOf(t.idx)}
+                    y1={H - PB}
+                    y2={H - PB + 3}
+                    stroke="#6b7280"
+                    opacity={0.6}
+                  />
+                  <text
+                    x={xOf(t.idx)}
+                    y={H - 8}
+                    fill="#6b7280"
+                    fontSize="9"
+                    textAnchor="middle"
+                    fontFamily="monospace"
+                  >
+                    {t.label}
+                  </text>
+                </g>
+              ))}
+            </>
+          );
+        })()}
       </svg>
     </div>
   );

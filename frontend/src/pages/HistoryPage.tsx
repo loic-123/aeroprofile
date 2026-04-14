@@ -631,14 +631,6 @@ function RollingStdTimeline({
   const WARN_STD = 0.05;
   const targetStd = GOOD_STD;
 
-  // Color by sensor quality
-  const color = (q: string | null): string => {
-    if (q === "low") return "#e4572e";
-    if (q === "medium") return "#f59e0b";
-    if (q === "high") return "#3ba99c";
-    return "#6b7280";
-  };
-
   // Derive phase segments for background bands: consecutive rides with the
   // same sensor label form a phase. Dates at phase boundaries are highlighted.
   const phases: Array<{ start: number; end: number; label: string | null; quality: string | null }> = [];
@@ -659,16 +651,53 @@ function RollingStdTimeline({
 
   // SVG dimensions
   const W = 700;
-  const H = 120;
+  const H = 140; // a bit taller to fit the sensor legend row below the chart
   const PL = 40;
   const PR = 10;
   const PT = 15;
-  const PB = 25;
+  const PB = 40; // room for x-axis ticks and the sensor legend
   const innerW = W - PL - PR;
   const innerH = H - PT - PB;
-  const xOf = (i: number) => PL + (i / Math.max(timeline.length - 1, 1)) * innerW;
+
+  // Date-based x axis: turn each point's ISO date into an epoch timestamp
+  // and scale linearly between the first and last ride. This respects the
+  // real calendar spacing (a one-month gap takes 30× more horizontal
+  // space than a one-day gap) instead of placing every point at the same
+  // distance regardless of when it happened.
+  const tsOf = (dateStr: string) => new Date(dateStr).getTime();
+  const tsMin = tsOf(timeline[0].date);
+  const tsMax = tsOf(timeline[timeline.length - 1].date);
+  const tsRange = Math.max(tsMax - tsMin, 1); // avoid /0 on a single-day history
+  const xOfDate = (dateStr: string) =>
+    PL + ((tsOf(dateStr) - tsMin) / tsRange) * innerW;
+  const xOf = (i: number) => xOfDate(timeline[i].date);
   const yMax = Math.max(maxStd, targetStd * 2);
   const yOf = (s: number) => PT + (1 - s / yMax) * innerH;
+
+  // Distinct sensors in the order they first appear → assign a stable
+  // colour to each. Points and phase bands use the same palette so the
+  // user can read off which sensor drove each part of the curve.
+  const SENSOR_PALETTE = [
+    "#3ba99c", // teal
+    "#f59e0b", // amber
+    "#e4572e", // coral
+    "#8b5cf6", // violet
+    "#3b82f6", // blue
+    "#ec4899", // pink
+    "#10b981", // emerald
+    "#6b7280", // grey for unknown
+  ];
+  const sensorOrder: string[] = [];
+  for (const p of timeline) {
+    const key = p.sensorLabel || "__unknown__";
+    if (!sensorOrder.includes(key)) sensorOrder.push(key);
+  }
+  const sensorColor = (label: string | null): string => {
+    const key = label || "__unknown__";
+    const idx = sensorOrder.indexOf(key);
+    if (idx < 0) return SENSOR_PALETTE[SENSOR_PALETTE.length - 1];
+    return SENSOR_PALETTE[idx % SENSOR_PALETTE.length];
+  };
 
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
@@ -716,9 +745,9 @@ function RollingStdTimeline({
             </>
           );
         })()}
-        {/* Phase background bands — coloured per sensor quality. Low opacity
-            so they don't dominate the visual when the rider stayed on a
-            single low-quality sensor for a long time. */}
+        {/* Phase background bands — coloured per distinct sensor (same
+            palette as the points). Low opacity so the bands are visible
+            without drowning the reliability zones. */}
         {phases.map((p, i) => {
           const x1 = xOf(p.start);
           const x2 = xOf(p.end);
@@ -730,8 +759,8 @@ function RollingStdTimeline({
               y={PT}
               width={x2 - x1}
               height={innerH}
-              fill={color(p.quality)}
-              opacity={0.03}
+              fill={sensorColor(p.label)}
+              opacity={0.06}
             />
           );
         })}
@@ -763,28 +792,26 @@ function RollingStdTimeline({
         <text x={PL - 4} y={H - PB + 3} fill="#6b7280" fontSize="9" textAnchor="end" fontFamily="monospace">
           0
         </text>
-        {/* Std line */}
+        {/* Std line — uses calendar-based x positioning so gaps in time
+            are visible (a month with no rides leaves a wide flat segment). */}
         <polyline
           fill="none"
           stroke="#e9edf3"
           strokeWidth={1.5}
-          points={valid
-            .map((p) => {
-              const i = timeline.indexOf(p);
-              return `${xOf(i)},${yOf(p.std)}`;
-            })
-            .join(" ")}
+          points={valid.map((p) => `${xOfDate(p.date)},${yOf(p.std)}`).join(" ")}
         />
-        {/* Points, coloured by sensor quality */}
+        {/* Points, coloured by sensor identity (one colour per distinct
+            sensor label, matching the phase band + the legend row below). */}
         {valid.map((p, j) => {
-          const i = timeline.indexOf(p);
           return (
             <circle
               key={j}
-              cx={xOf(i)}
+              cx={xOfDate(p.date)}
               cy={yOf(p.std)}
-              r={2}
-              fill={color(p.sensorQuality)}
+              r={2.6}
+              fill={sensorColor(p.sensorLabel)}
+              stroke="#0c0f14"
+              strokeWidth={0.4}
             >
               <title>{`${p.date} · σ=${p.std.toFixed(3)}${p.sensorLabel ? `\n${p.sensorLabel}` : ""}`}</title>
             </circle>
@@ -798,65 +825,87 @@ function RollingStdTimeline({
           if (timeline.length === 0) return null;
           const firstDate = new Date(timeline[0].date);
           const lastDate = new Date(timeline[timeline.length - 1].date);
-          const ticks: { label: string; idx: number }[] = [];
-          // Start from the first quarter ≥ firstDate
+          // Build ticks at every quarter boundary that falls strictly
+          // inside the [firstDate, lastDate] span. Each tick's x position
+          // comes from the real calendar date (xOfDate), not from a ride
+          // index, so the spacing stays proportional to elapsed time.
+          const ticks: { label: string; dateStr: string }[] = [];
           const startYear = firstDate.getFullYear();
           const startQuarter = Math.floor(firstDate.getMonth() / 3);
           let y = startYear;
-          let q = startQuarter;
-          // Advance to the first quarter *after* firstDate so the label is
-          // always distinct from the first data point's date.
-          q += 1;
-          if (q > 3) {
-            q = 0;
-            y += 1;
-          }
+          let q = startQuarter + 1; // first quarter strictly after firstDate
+          if (q > 3) { q = 0; y += 1; }
           while (true) {
             const qDate = new Date(y, q * 3, 1);
             if (qDate > lastDate) break;
-            const qStr = qDate.toISOString().slice(0, 10);
-            // Find the first timeline index with date >= qStr
-            const idx = timeline.findIndex((p) => p.date >= qStr);
-            if (idx >= 0) {
-              ticks.push({
-                label: `${y}-${String(q * 3 + 1).padStart(2, "0")}`,
-                idx,
-              });
-            }
+            const dateStr = qDate.toISOString().slice(0, 10);
+            ticks.push({
+              label: `${y}-${String(q * 3 + 1).padStart(2, "0")}`,
+              dateStr,
+            });
             q += 1;
-            if (q > 3) {
-              q = 0;
-              y += 1;
-            }
+            if (q > 3) { q = 0; y += 1; }
           }
           // If we have more than 8 quarter ticks, keep every other one to
           // avoid label collisions on tight screens.
           const shown = ticks.length > 8 ? ticks.filter((_, i) => i % 2 === 0) : ticks;
           return (
             <>
-              {shown.map((t, i) => (
-                <g key={i}>
-                  <line
-                    x1={xOf(t.idx)}
-                    x2={xOf(t.idx)}
-                    y1={H - PB}
-                    y2={H - PB + 3}
-                    stroke="#6b7280"
-                    opacity={0.6}
-                  />
-                  <text
-                    x={xOf(t.idx)}
-                    y={H - 8}
-                    fill="#6b7280"
-                    fontSize="9"
-                    textAnchor="middle"
-                    fontFamily="monospace"
-                  >
-                    {t.label}
-                  </text>
-                </g>
-              ))}
+              {shown.map((t, i) => {
+                const x = xOfDate(t.dateStr);
+                return (
+                  <g key={i}>
+                    <line
+                      x1={x} x2={x}
+                      y1={H - PB} y2={H - PB + 3}
+                      stroke="#6b7280" opacity={0.6}
+                    />
+                    <text
+                      x={x}
+                      y={H - PB + 13}
+                      fill="#6b7280"
+                      fontSize="9"
+                      textAnchor="middle"
+                      fontFamily="monospace"
+                    >
+                      {t.label}
+                    </text>
+                  </g>
+                );
+              })}
             </>
+          );
+        })()}
+        {/* Sensor legend row below the x axis ticks */}
+        {(() => {
+          const sensorsWithPoints = sensorOrder.filter((s) =>
+            timeline.some((p) => (p.sensorLabel || "__unknown__") === s),
+          );
+          if (sensorsWithPoints.length === 0) return null;
+          const legendY = H - 4;
+          const colWidth = innerW / Math.max(sensorsWithPoints.length, 1);
+          return (
+            <g>
+              {sensorsWithPoints.map((s, i) => {
+                const cx = PL + i * colWidth + 6;
+                const label = s === "__unknown__" ? "Capteur inconnu" : s;
+                const display = label.length > 22 ? label.slice(0, 20) + "…" : label;
+                return (
+                  <g key={i}>
+                    <circle cx={cx} cy={legendY - 3} r={3} fill={sensorColor(s)} />
+                    <text
+                      x={cx + 6}
+                      y={legendY}
+                      fill="#9ca3af"
+                      fontSize="9"
+                      fontFamily="monospace"
+                    >
+                      {display}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
           );
         })()}
       </svg>

@@ -52,6 +52,12 @@ const DEFAULT_SETTINGS: ProfileSettings = {
   positionIdx: 2, // "Aéro (drops)" on road
   crrFixed: null,
   maxNrmse: 45,
+  intervalsFilters: {
+    // 10 m/km = 1% average grade. Excludes mountain rides where the aero
+    // signal is too weak to identify CdA reliably. User can relax this
+    // threshold via the slider in the Intervals filters block.
+    maxElevationPerKm: 10,
+  },
 };
 
 const DEFAULT_PROFILE: LocalProfile = {

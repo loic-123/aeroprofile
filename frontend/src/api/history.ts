@@ -75,8 +75,18 @@ export interface HistoryEntry {
   nExcluded: number;
   nTotalPoints: number;
 
-  // Per-ride CdA values (for sparkline / evolution)
-  rideCdas: { date: string; cda: number; nrmse: number }[];
+  // Per-ride CdA values (for sparkline / evolution). The optional fields
+  // are populated on newer entries and enable richer history views:
+  //   biasRatio: power-meter calibration ratio (for the bias histogram)
+  //   powerMeter: per-ride sensor label (when rides in one aggregate mix
+  //     different sensors; mostly useful in Intervals batches)
+  rideCdas: {
+    date: string;
+    cda: number;
+    nrmse: number;
+    biasRatio?: number;
+    powerMeter?: string;
+  }[];
 }
 
 /** Extract an athlete name from a legacy entry label. The label format for

@@ -309,6 +309,7 @@ async def analyze(
     power_meter_name: str | None = None,
     gear_id: str | None = None,
     gear_name: str | None = None,
+    benchmark_chung_ve: bool = False,
 ) -> AnalysisResult:
     bcfg = get_bike_config(bike_type)
     # Disable the CdA prior entirely (used in multi-ride mode where the
@@ -585,12 +586,16 @@ async def analyze(
     # --- Chung VE fallback: run when we have no solver result yet OR the
     # current one is poor (R² < 0.3). Runs unconditionally if sol is still
     # None (e.g. Martin LS was skipped AND wind_inverse returned None).
-    # When AEROPROFILE_BENCHMARK_SOLVERS=1 is set, we also run Chung VE on
-    # every ride (even winning wind_inverse) so the log can be used to
-    # compare the two solvers side-by-side. The result never replaces a
-    # winning wind_inverse though — it's diagnostic-only.
+    # The benchmark_chung_ve flag (per-request from the UI, or via the
+    # AEROPROFILE_BENCHMARK_SOLVERS=1 env var as a global default) also
+    # runs Chung VE on every ride so the log can compare the two solvers
+    # side-by-side. The result never replaces a winning wind_inverse —
+    # it's diagnostic-only.
     import os as _os_bench
-    _benchmark = _os_bench.environ.get("AEROPROFILE_BENCHMARK_SOLVERS") == "1"
+    _benchmark = (
+        benchmark_chung_ve
+        or _os_bench.environ.get("AEROPROFILE_BENCHMARK_SOLVERS") == "1"
+    )
     if sol is None or best_r2 < 0.3 or _benchmark:
         logger.info(
             "CASCADE %s → try chung_ve ===",
@@ -881,7 +886,29 @@ async def analyze(
         # Crr bounds in the solvers are typically ~[0.0015, 0.012]
         if sol.crr <= 0.0016:
             quality_status = "bound_hit"
-            quality_reason = f"Solveur bloqué à la borne inférieure Crr ({sol.crr:.5f}). Le solveur veut Crr<0.0015, physiquement impossible."
+            # When a low-quality sensor (single-side crank) hits the Crr
+            # lower bound, the solver is almost always compensating for a
+            # measured power that reads too high — i.e. a missing
+            # zero-offset. Give the user an actionable message in that case.
+            from aeroprofile.power_meter_quality import classify_power_meter as _cpm
+            _pmq = _cpm(power_meter_name).quality if power_meter_name else "unknown"
+            if _pmq == "low":
+                quality_reason = (
+                    f"Solveur bloqué à la borne inférieure Crr ({sol.crr:.5f}). "
+                    "**Cause probable sur ce capteur mono-jambe** : la puissance "
+                    "mesurée est trop élevée par rapport à la physique — le "
+                    "solveur tente de compenser en réduisant le roulement. "
+                    "C'est généralement le symptôme d'un **zero-offset manquant "
+                    "avant la sortie**. Pensez à lancer la calibration à chaque "
+                    "départ sur ce type de capteur."
+                )
+            else:
+                quality_reason = (
+                    f"Solveur bloqué à la borne inférieure Crr ({sol.crr:.5f}). "
+                    "Le solveur veut Crr<0.0015, physiquement impossible. "
+                    "Cause probable : la puissance mesurée est sur-estimée "
+                    "(biais capteur, drafting non détecté, ou vent arrière fort)."
+                )
         elif sol.crr >= 0.0119:
             quality_status = "bound_hit"
             quality_reason = f"Solveur bloqué à la borne supérieure Crr ({sol.crr:.5f}). Le solveur veut Crr>0.012, physiquement impossible."
@@ -910,15 +937,22 @@ async def analyze(
     # aggregates by default but display a ⓘ flag so the user knows.
     if quality_status == "ok" and sol.cda_raw is not None:
         _delta = abs(sol.cda_raw - sol.cda)
-        if _delta > 0.10:
+        # Threshold lowered from 0.10 to 0.05 after real-world observation:
+        # at 0.10, non_identifiable always caught the ride first because a
+        # prior that pulls the CdA by 0.10+ typically also widens σ_Hess
+        # above 0.05. Capturing the 0.05-0.10 middle band identifies rides
+        # where the prior moderately moved the estimate without the Hessian
+        # going degenerate — these are still informative but the user
+        # should know their CdA is partly the prior talking.
+        if _delta > 0.05:
             quality_status = "prior_dominated"
             quality_reason = (
                 f"Le prior a tiré le CdA de {sol.cda_raw:.3f} (MLE brut) à "
                 f"{sol.cda:.3f} (avec prior). Écart Δ={_delta:.3f} — les données "
                 "seules ne suffisaient pas à contraindre CdA/Crr, le résultat "
-                "reflète en grande partie la position choisie dans le sélecteur. "
+                "reflète en partie la position choisie dans le sélecteur. "
                 "La ride reste comptée dans l'agrégat, mais son estimation "
-                "individuelle est peu fiable."
+                "individuelle est moins fiable."
             )
 
     # NOTE: No backend nRMSE gate. The frontend slider is the only nRMSE filter —

@@ -918,7 +918,9 @@ function RiderRow({
                     <>
                       <span className="opacity-70">{rd.result.cda.toFixed(3)}</span>
                       <span className="opacity-40">{(nrmse * 100).toFixed(0)}%</span>
-                      {(rd.result.prior_adaptive_factor ?? 1) > 1.05 && (
+                      {(rd.result.prior_adaptive_factor ?? 1) > 2.0 ? (
+                        <span className="opacity-80 text-coral" title={`prior très fortement renforcé ×${(rd.result.prior_adaptive_factor ?? 1).toFixed(1)} — données peu informatives`}>⚡⚡</span>
+                      ) : (rd.result.prior_adaptive_factor ?? 1) > 1.05 && (
                         <span className="opacity-70 text-warn" title="prior renforcé">⚡</span>
                       )}
                       {rd.result.quality_status === "prior_dominated" && (

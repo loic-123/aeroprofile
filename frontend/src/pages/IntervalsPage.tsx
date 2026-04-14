@@ -5,6 +5,7 @@ import {
   listActivities,
   analyzeRide,
   analyzeBatchIntervals,
+  logAnalysisSession,
   DEFAULT_FILTERS,
   type AthleteProfile,
   type ActivitySummary,
@@ -148,8 +149,16 @@ export default function IntervalsPage() {
   const [excludeGroup, setExcludeGroup] = useState(
     initialSettings.intervalsFilters?.excludeGroup ?? true,
   );
+  // Pre-analysis sensor filter: lets the user exclude candidate rides
+  // by their power meter before the expensive analysis loop. Initialises
+  // empty (= "all"); first populated when the activity list loads.
+  const [sensorFilter, setSensorFilter] = useState<Set<string>>(new Set());
+  const [sensorFilterInitialised, setSensorFilterInitialised] = useState(false);
+  // Benchmark toggle: when on, every analysed ride also runs Chung VE
+  // (diagnostic-only, the final result stays wind_inverse when it wins).
+  const [benchmarkChungVe, setBenchmarkChungVe] = useState(false);
 
-  // Base filter — everything except the D+/km grade ratio
+  // Base filter — everything except the D+/km grade ratio and the sensor filter
   const passesBaseFilters = (a: typeof allActivities[number]) => {
     if (a.activity_type !== "Ride" && a.activity_type !== "GravelRide") return false;
     if (a.indoor) return false;
@@ -161,6 +170,14 @@ export default function IntervalsPage() {
     if (excludeGroup && GROUP_KEYWORDS.test(a.name)) return false;
     return true;
   };
+  // Sensor filter: applied on top of the base filters. An empty set means
+  // "don't filter by sensor" (show all rides). Use "__unknown__" for rides
+  // without a power_meter field.
+  const passesSensorFilter = (a: typeof allActivities[number]) => {
+    if (sensorFilter.size === 0) return true;
+    const key = a.power_meter || "__unknown__";
+    return sensorFilter.has(key);
+  };
   // D+/km exclusion on top of the base filters — tracked separately so we
   // can show "X rides excluded by grade filter" in the UI.
   const passesGradeFilter = (a: typeof allActivities[number]) => {
@@ -169,8 +186,45 @@ export default function IntervalsPage() {
     return a.elevation_gain_m / a.distance_km <= filters.max_elevation_per_km;
   };
   const baseFiltered = allActivities.filter(passesBaseFilters);
-  const filteredActivities = baseFiltered.filter(passesGradeFilter);
-  const excludedByGrade = baseFiltered.length - filteredActivities.length;
+  const afterGrade = baseFiltered.filter(passesGradeFilter);
+  const excludedByGrade = baseFiltered.length - afterGrade.length;
+  const filteredActivities = afterGrade.filter(passesSensorFilter);
+  const excludedBySensor = afterGrade.length - filteredActivities.length;
+  // Distinct sensors observed in the ride list, for the filter UI
+  const availableSensors = (() => {
+    const counts = new Map<string, number>();
+    let unknown = 0;
+    for (const a of baseFiltered) {
+      if (a.power_meter) counts.set(a.power_meter, (counts.get(a.power_meter) || 0) + 1);
+      else unknown++;
+    }
+    return {
+      list: [...counts.entries()].sort((x, y) => y[1] - x[1]),
+      unknown,
+    };
+  })();
+  // First time the sensor list becomes non-empty, seed the filter with
+  // everything selected so nothing gets accidentally excluded.
+  if (!sensorFilterInitialised && (availableSensors.list.length > 0 || availableSensors.unknown > 0)) {
+    const initial = new Set<string>();
+    for (const [k] of availableSensors.list) initial.add(k);
+    if (availableSensors.unknown > 0) initial.add("__unknown__");
+    setSensorFilter(initial);
+    setSensorFilterInitialised(true);
+  }
+  const toggleSensor = (k: string) => {
+    const next = new Set(sensorFilter);
+    if (next.has(k)) next.delete(k);
+    else next.add(k);
+    setSensorFilter(next);
+  };
+  const selectAllSensors = () => {
+    const next = new Set<string>();
+    for (const [k] of availableSensors.list) next.add(k);
+    if (availableSensors.unknown > 0) next.add("__unknown__");
+    setSensorFilter(next);
+  };
+  const selectNoSensors = () => setSensorFilter(new Set(["__none__"]));
 
   const doAnalyze = async () => {
     setAnalyzing(true);
@@ -198,6 +252,38 @@ export default function IntervalsPage() {
     };
     const { minCda: MIN_CDA, maxCda: MAX_CDA } = BIKE_TYPE_CONFIG[bikeType];
 
+    // Record the full session context in the backend log so the analyst
+    // post-hoc knows exactly which filters and profile were used for
+    // every ANALYZE line that follows.
+    const activeProf = profile;
+    await logAnalysisSession({
+      profile_key: activeProf?.id ? `intervals:${activeProf.id}` : `intervals:${athleteId}`,
+      profile_name: activeProf?.name,
+      mode: "intervals",
+      mass_kg: mass,
+      bike_type: bikeType,
+      position_label: posP?.label,
+      crr_fixed: crr ?? null,
+      cda_prior_mean: priorMean ?? null,
+      cda_prior_sigma: priorSigma ?? null,
+      max_nrmse: MAX_NRMSE,
+      oldest, newest,
+      min_distance_km: filters.min_distance_km,
+      max_distance_km: filters.max_distance_km,
+      max_elevation_m: filters.max_elevation_m,
+      max_elevation_per_km: filters.max_elevation_per_km,
+      min_duration_h: filters.min_duration_h,
+      exclude_group: excludeGroup,
+      n_candidates: baseFiltered.length,
+      n_selected: filteredActivities.length,
+      sensor_filter:
+        sensorFilter.size > 0 &&
+        sensorFilter.size < availableSensors.list.length + (availableSensors.unknown > 0 ? 1 : 0)
+          ? Array.from(sensorFilter)
+          : null,
+      benchmark_chung_ve: benchmarkChungVe,
+    });
+
     const results: RideResult[] = [];
     for (let i = 0; i < filteredActivities.length; i++) {
       const act = filteredActivities[i];
@@ -208,7 +294,7 @@ export default function IntervalsPage() {
         results.push({ activity: act, result: fromCache, excluded: !!qBad || nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
-          const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, priorMean, priorSigma, false);
+          const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, priorMean, priorSigma, false, benchmarkChungVe);
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
           const qBad = res.quality_status && res.quality_status !== "ok" && res.quality_status !== "prior_dominated";
           results.push({ activity: act, result: res, excluded: !!qBad || nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
@@ -367,6 +453,8 @@ export default function IntervalsPage() {
           date: r.result!.ride_date,
           cda: r.result!.cda,
           nrmse: (r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1),
+          biasRatio: r.result!.power_bias_ratio ?? undefined,
+          powerMeter: r.result!.power_meter_display ?? undefined,
         })),
       });
     }
@@ -639,6 +727,26 @@ export default function IntervalsPage() {
             </label>
           </div>
 
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => setBenchmarkChungVe(!benchmarkChungVe)}
+              className={`relative w-9 h-5 rounded-full transition-colors ${
+                benchmarkChungVe ? "bg-info" : "bg-border"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                  benchmarkChungVe ? "translate-x-4" : ""
+                }`}
+              />
+            </button>
+            <label className="text-xs text-muted">
+              Benchmark Chung VE {benchmarkChungVe ? "(activé — ~30% plus lent)" : "(désactivé)"}
+              <InfoTooltip text="Force l'exécution de Chung VE sur chaque ride, en plus de wind_inverse. Le résultat final n'est pas changé (wind_inverse gagne presque toujours), mais les logs contiennent alors les deux estimations côte à côte pour comparaison. Coût : ~30% de temps d'analyse en plus. Utile pour valider le choix du solveur." />
+            </label>
+          </div>
+
           {/* nRMSE threshold slider */}
           <div className="mt-3">
             <label className="block text-xs text-muted mb-1">
@@ -757,14 +865,53 @@ export default function IntervalsPage() {
                   Exclut les rides en montée : à pente forte, la traînée aéro est noyée dans la gravité et CdA devient non identifiable. 5 m/km (0.5%) = velodrome/route quasi plate ; 10 m/km (1%) = plat ondulé ; 15 m/km (1.5%) = vallonné léger.
                 </p>
               </div>
+              {listed && (availableSensors.list.length > 0 || availableSensors.unknown > 0) && (
+                <div className="mt-2 bg-bg border border-border rounded p-2">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] text-muted font-semibold">Filtrer par capteur de puissance :</span>
+                    <div className="flex items-center gap-1 text-[9px]">
+                      <button onClick={selectAllSensors} className="px-1.5 py-0.5 rounded border border-border hover:border-teal text-muted hover:text-teal">Tous</button>
+                      <button onClick={selectNoSensors} className="px-1.5 py-0.5 rounded border border-border hover:border-coral text-muted hover:text-coral">Aucun</button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableSensors.list.map(([k, n]) => {
+                      const checked = sensorFilter.has(k);
+                      return (
+                        <label key={k} className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border font-mono cursor-pointer ${
+                          checked ? "bg-teal/10 border-teal text-teal" : "bg-panel border-border text-muted hover:border-muted"
+                        }`}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleSensor(k)} className="accent-teal scale-75" />
+                          <span>{k}</span>
+                          <span className="opacity-60">({n})</span>
+                        </label>
+                      );
+                    })}
+                    {availableSensors.unknown > 0 && (
+                      <label className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border font-mono cursor-pointer ${
+                        sensorFilter.has("__unknown__") ? "bg-muted/20 border-muted text-text" : "bg-panel border-border text-muted"
+                      }`}>
+                        <input type="checkbox" checked={sensorFilter.has("__unknown__")} onChange={() => toggleSensor("__unknown__")} className="accent-teal scale-75" />
+                        <span>Capteur inconnu</span>
+                        <span className="opacity-60">({availableSensors.unknown})</span>
+                      </label>
+                    )}
+                  </div>
+                </div>
+              )}
               {listed && (
-                <div className="text-xs font-mono space-y-0.5">
+                <div className="text-xs font-mono space-y-0.5 mt-2">
                   <p className="text-teal">
                     → {filteredActivities.length} rides correspondent aux filtres
                   </p>
                   {excludedByGrade > 0 && (
                     <p className="text-warn opacity-80">
                       ⓘ {excludedByGrade} ride{excludedByGrade > 1 ? "s" : ""} exclue{excludedByGrade > 1 ? "s" : ""} par "pente moyenne max" ({filters.max_elevation_per_km} m/km) — CdA non identifiable sur dénivelé élevé.
+                    </p>
+                  )}
+                  {excludedBySensor > 0 && (
+                    <p className="text-info opacity-80">
+                      ⓘ {excludedBySensor} ride{excludedBySensor > 1 ? "s" : ""} exclue{excludedBySensor > 1 ? "s" : ""} par le filtre capteur.
                     </p>
                   )}
                 </div>
@@ -1060,7 +1207,9 @@ export default function IntervalsPage() {
                           <>
                             <span className="opacity-70">{r.result.cda.toFixed(3)}</span>
                             <span className="opacity-40">{(nrmseVal*100).toFixed(0)}%</span>
-                            {(r.result.prior_adaptive_factor ?? 1) > 1.05 && (
+                            {(r.result.prior_adaptive_factor ?? 1) > 2.0 ? (
+                              <span className="opacity-80 text-coral" title={`prior très fortement renforcé ×${(r.result.prior_adaptive_factor ?? 1).toFixed(1)} — données peu informatives`}>⚡⚡</span>
+                            ) : (r.result.prior_adaptive_factor ?? 1) > 1.05 && (
                               <span className="opacity-70 text-warn" title="prior renforcé">⚡</span>
                             )}
                             {r.result.quality_status === "prior_dominated" && (

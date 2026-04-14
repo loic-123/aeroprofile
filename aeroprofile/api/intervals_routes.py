@@ -49,6 +49,11 @@ class ActivityOut(BaseModel):
     average_watts: float
     has_power: bool
     indoor: bool
+    # Sensor metadata — lets the frontend filter the candidate list by
+    # power meter before spending time analysing each ride.
+    power_meter: Optional[str] = None
+    gear_id: Optional[str] = None
+    gear_name: Optional[str] = None
 
 
 class ListActivitiesResponse(BaseModel):
@@ -125,10 +130,73 @@ async def list_activities(
                 average_watts=a.average_watts,
                 has_power=a.has_power,
                 indoor=a.indoor,
+                power_meter=a.power_meter,
+                gear_id=a.gear_id,
+                gear_name=a.gear_name,
             )
             for a in rides
         ],
     )
+
+
+class SessionLogPayload(BaseModel):
+    """Arbitrary session-start metadata dump — used by the frontend to
+    record every user-facing parameter at the start of an analysis run
+    so the session log carries full context without threading each
+    parameter through the per-ride endpoint.
+
+    The frontend POSTs this once before calling /analyze-ride in a loop.
+    """
+    profile_key: Optional[str] = None
+    profile_name: Optional[str] = None
+    mode: str = "intervals"
+    mass_kg: Optional[float] = None
+    bike_type: Optional[str] = None
+    position_label: Optional[str] = None
+    crr_fixed: Optional[float] = None
+    cda_prior_mean: Optional[float] = None
+    cda_prior_sigma: Optional[float] = None
+    max_nrmse: Optional[float] = None
+    # Ride filters (Intervals)
+    oldest: Optional[str] = None
+    newest: Optional[str] = None
+    min_distance_km: Optional[float] = None
+    max_distance_km: Optional[float] = None
+    max_elevation_m: Optional[float] = None
+    max_elevation_per_km: Optional[float] = None
+    min_duration_h: Optional[float] = None
+    exclude_group: Optional[bool] = None
+    # Post-filter results
+    n_candidates: Optional[int] = None  # rides matching filters
+    n_selected: Optional[int] = None    # after sensor filter etc
+    sensor_filter: Optional[list[str]] = None  # e.g. ['FAVERO_ELECTRONICS 22']
+    benchmark_chung_ve: bool = False
+
+
+@router.post("/log-session")
+async def log_session(payload: SessionLogPayload):
+    """Dump a session-start metadata block to the log. Called once by the
+    frontend before launching an analysis loop so the log contains the
+    full context (profile, filters, sensor selection, ...) alongside
+    the per-ride ANALYZE lines."""
+    _log.info(
+        "SESSION_START profile='%s'(%s) mode=%s mass=%s bike=%s pos='%s' "
+        "crr=%s prior=(%s,%s) maxNrmse=%s "
+        "dates=[%s..%s] dist=[%s..%s]km D+<%sm D+/km<%s dur>%sh excl_group=%s "
+        "n_cand=%s n_sel=%s sensors=%s benchmark=%s",
+        payload.profile_name, payload.profile_key, payload.mode,
+        payload.mass_kg, payload.bike_type, payload.position_label,
+        payload.crr_fixed, payload.cda_prior_mean, payload.cda_prior_sigma,
+        payload.max_nrmse,
+        payload.oldest, payload.newest,
+        payload.min_distance_km, payload.max_distance_km,
+        payload.max_elevation_m, payload.max_elevation_per_km, payload.min_duration_h,
+        payload.exclude_group,
+        payload.n_candidates, payload.n_selected,
+        ",".join(payload.sensor_filter) if payload.sensor_filter else "all",
+        payload.benchmark_chung_ve,
+    )
+    return {"status": "ok"}
 
 
 @router.post("/analyze-ride", response_model=AnalysisResultOut)
@@ -143,17 +211,18 @@ async def analyze_ride(
     cda_prior_mean: Optional[float] = Form(None),
     cda_prior_sigma: Optional[float] = Form(None),
     disable_prior: bool = Form(False),
+    benchmark_chung_ve: bool = Form(False),
 ):
     """Download a single activity .FIT and run the analysis pipeline."""
     _log.info(
         "REQUEST /intervals/analyze-ride activity_id=%s mass=%.1fkg bike=%s "
-        "crr_fixed=%s eta=%.3f prior(mean=%s sigma=%s disable=%s)",
+        "crr_fixed=%s eta=%.3f prior(mean=%s sigma=%s disable=%s) benchmark=%s",
         activity_id, mass_kg, bike_type,
         f"{crr_fixed:.5f}" if crr_fixed is not None else "auto",
         eta,
         f"{cda_prior_mean:.3f}" if cda_prior_mean is not None else "None",
         f"{cda_prior_sigma:.3f}" if cda_prior_sigma is not None else "None",
-        disable_prior,
+        disable_prior, benchmark_chung_ve,
     )
     client = IntervalsClient(api_key, athlete_id)
 
@@ -195,6 +264,7 @@ async def analyze_ride(
             power_meter_name=pm_name,
             gear_id=gear_id,
             gear_name=gear_name,
+            benchmark_chung_ve=benchmark_chung_ve,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))

@@ -232,6 +232,11 @@ export default function HistoryPage() {
         <RollingStdTimeline timeline={timeline} />
       )}
 
+      {/* Bias ratio histogram — per-sensor distribution of the power-meter
+          calibration ratio. Spots sensors that systematically drift. */}
+      <BiasHistogram entries={filteredEntries} />
+
+
       {/* Multi-dimension filter blocks. Each block behaves independently but
           they compose via intersection: a history entry must match the
           selected keys in EVERY block to be displayed. */}
@@ -748,6 +753,168 @@ function RollingStdTimeline({
             </text>
           </>
         )}
+      </svg>
+    </div>
+  );
+}
+
+/** Per-sensor histogram of the power-meter calibration bias ratio.
+ *
+ *  A well-calibrated sensor sits at 1.0 ± 0.1. A sensor that drifts
+ *  shows a wide spread; a sensor that lies systematically shows a
+ *  shifted center. Comparing the histograms of two sensors for the
+ *  same rider lets the user see at a glance which one is more
+ *  reliable — not through some abstract metric, but from the raw
+ *  distribution of "how far the measured power was from the
+ *  theoretical value on each ride".
+ */
+function BiasHistogram({ entries }: { entries: HistoryEntry[] }) {
+  // Gather (sensor, biasRatio) pairs from rideCdas across all entries.
+  // Group by sensor; skip rides without bias data.
+  type Bin = { ratio: number; sensor: string };
+  const bins: Bin[] = [];
+  for (const e of entries) {
+    for (const rc of e.rideCdas) {
+      if (rc.biasRatio != null && Number.isFinite(rc.biasRatio)) {
+        bins.push({
+          ratio: rc.biasRatio,
+          sensor: rc.powerMeter || e.powerMeterLabel || "Inconnu",
+        });
+      }
+    }
+  }
+  if (bins.length < 10) return null;
+
+  // Group by sensor
+  const bySensor = new Map<string, number[]>();
+  for (const b of bins) {
+    const arr = bySensor.get(b.sensor) || [];
+    arr.push(b.ratio);
+    bySensor.set(b.sensor, arr);
+  }
+  const sensors = [...bySensor.keys()].sort();
+
+  // Shared bucketing: 0.6 -> 1.6 in 0.05 steps (20 buckets)
+  const MIN = 0.6;
+  const MAX = 1.6;
+  const N_BUCKETS = 20;
+  const bucketize = (vals: number[]): number[] => {
+    const out = new Array(N_BUCKETS).fill(0);
+    for (const v of vals) {
+      const clipped = Math.max(MIN, Math.min(MAX, v));
+      const idx = Math.min(N_BUCKETS - 1, Math.floor(((clipped - MIN) / (MAX - MIN)) * N_BUCKETS));
+      out[idx]++;
+    }
+    return out;
+  };
+
+  const COLORS: Record<number, string> = {
+    0: "#3ba99c",
+    1: "#f59e0b",
+    2: "#e4572e",
+    3: "#6b7280",
+  };
+
+  // SVG layout
+  const W = 700;
+  const H = 160;
+  const PL = 35;
+  const PR = 10;
+  const PT = 25;
+  const PB = 30;
+  const innerW = W - PL - PR;
+  const innerH = H - PT - PB;
+  const bucketW = innerW / N_BUCKETS;
+
+  // Compute max y across all sensors for shared scale
+  const bucketsBySensor = sensors.map((s) => ({
+    sensor: s,
+    buckets: bucketize(bySensor.get(s)!),
+    n: bySensor.get(s)!.length,
+    mean: bySensor.get(s)!.reduce((a, b) => a + b, 0) / bySensor.get(s)!.length,
+  }));
+  const maxY = Math.max(1, ...bucketsBySensor.map((b) => Math.max(...b.buckets)));
+
+  return (
+    <div className="bg-panel border border-border rounded-lg p-4">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-sm font-semibold">
+          Distribution du biais de calibration par capteur
+        </h3>
+        <span className="text-[10px] text-muted font-mono">
+          {bins.length} rides avec bias
+        </span>
+      </div>
+      <p className="text-[11px] text-muted mb-2 leading-tight">
+        Biais = puissance mesurée / puissance théorique (CdA prior, Crr=0.005)
+        sur les portions plates. Un capteur bien calibré centre à 1.0 avec une
+        distribution serrée. Un capteur qui dérive montre une distribution large ou décentrée.
+      </p>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
+        {/* Reference line at 1.0 */}
+        {(() => {
+          const x1 = PL + ((1.0 - MIN) / (MAX - MIN)) * innerW;
+          return (
+            <line
+              x1={x1}
+              x2={x1}
+              y1={PT}
+              y2={H - PB}
+              stroke="#3ba99c"
+              strokeDasharray="3,3"
+              opacity={0.6}
+            />
+          );
+        })()}
+        {/* X axis labels */}
+        {[0.6, 0.8, 1.0, 1.2, 1.4, 1.6].map((v, i) => (
+          <text
+            key={i}
+            x={PL + ((v - MIN) / (MAX - MIN)) * innerW}
+            y={H - PB + 12}
+            fill="#6b7280"
+            fontSize="9"
+            textAnchor="middle"
+            fontFamily="monospace"
+          >
+            {v.toFixed(1)}
+          </text>
+        ))}
+        {/* Stacked histogram bars per sensor (one colour per sensor) */}
+        {bucketsBySensor.map(({ sensor: _s, buckets }, sIdx) => {
+          const color = COLORS[sIdx % 4];
+          return buckets.map((n, i) => {
+            if (n === 0) return null;
+            const x = PL + i * bucketW;
+            const h = (n / maxY) * innerH;
+            const y = H - PB - h;
+            // Offset each sensor's bars slightly so they don't overlap
+            const offset = sIdx * (bucketW / sensors.length) * 0.9;
+            const w = bucketW / sensors.length * 0.85;
+            return (
+              <rect
+                key={`${sIdx}-${i}`}
+                x={x + offset}
+                y={y}
+                width={w}
+                height={h}
+                fill={color}
+                opacity={0.85}
+              >
+                <title>{`${bucketsBySensor[sIdx].sensor}: bucket ${(MIN + i * (MAX - MIN) / N_BUCKETS).toFixed(2)} → ${n} rides`}</title>
+              </rect>
+            );
+          });
+        })}
+        {/* Legend */}
+        {bucketsBySensor.map((s, i) => (
+          <g key={i} transform={`translate(${PL + i * 180}, 10)`}>
+            <rect width={10} height={10} fill={COLORS[i % 4]} />
+            <text x={14} y={9} fill="#e9edf3" fontSize="10" fontFamily="monospace">
+              {s.sensor.length > 20 ? s.sensor.slice(0, 18) + "…" : s.sensor} (n={s.n}, μ={s.mean.toFixed(2)})
+            </text>
+          </g>
+        ))}
       </svg>
     </div>
   );

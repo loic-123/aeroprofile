@@ -154,9 +154,14 @@ function PowerMeterBanner({ result }: { result: AnalysisResult }) {
   const biasN = result.power_bias_n_points ?? 0;
 
   // Bias ratio = measured_P / theoretical_P on flat-pedaling portions.
-  // 1.0 = perfectly calibrated; >1.35 = almost certainly mis-calibrated high.
-  const biasHigh = bias != null && biasN >= 60 && bias > 1.35;
-  const biasMild = bias != null && biasN >= 60 && bias > 1.20 && bias <= 1.35;
+  // 1.0 = perfectly calibrated. The "high bias" threshold adapts to the
+  // sensor quality: for a low-quality sensor (single-side crank like
+  // 4iiii/Stages), zero-offset drift is frequent and a 1.15 ratio already
+  // warrants a warning; for dual-side pedals we keep the stricter 1.35.
+  const biasHighThresh = quality === "low" ? 1.15 : 1.35;
+  const biasMildThresh = quality === "low" ? 1.08 : 1.20;
+  const biasHigh = bias != null && biasN >= 60 && bias > biasHighThresh;
+  const biasMild = bias != null && biasN >= 60 && bias > biasMildThresh && bias <= biasHighThresh;
   const biasLow = bias != null && biasN >= 60 && bias < 0.80;
   const biasAnomaly = biasHigh || biasLow;
 

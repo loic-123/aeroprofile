@@ -44,7 +44,7 @@ async def fetch_weather(lat: float, lon: float, ride_date: date | str) -> dict:
     # Check cache first
     cached = _cache_get(lat, lon, day_dt)
     if cached is not None:
-        logger.debug("Open-Meteo cache hit lat=%.3f lon=%.3f date=%s", lat, lon, day)
+        logger.info("Open-Meteo cache hit lat=%.3f lon=%.3f date=%s", lat, lon, day)
         return cached
 
     # Decide endpoint: archive is authoritative but has a ~5-day lag.

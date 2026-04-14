@@ -125,7 +125,8 @@ export default function IntervalsPage() {
 
   const [excludeGroup, setExcludeGroup] = useState(true);
 
-  const filteredActivities = allActivities.filter((a) => {
+  // Base filter — everything except the D+/km grade ratio
+  const passesBaseFilters = (a: typeof allActivities[number]) => {
     if (a.activity_type !== "Ride" && a.activity_type !== "GravelRide") return false;
     if (a.indoor) return false;
     if (!a.has_power) return false;
@@ -133,15 +134,19 @@ export default function IntervalsPage() {
     if (a.distance_km > filters.max_distance_km) return false;
     if (a.elevation_gain_m > filters.max_elevation_m) return false;
     if (a.moving_time_s / 3600 < filters.min_duration_h) return false;
-    // Reject rides that are mostly climbs: on steep averages, P_aero is
-    // dominated by P_grav, so CdA can't be identified reliably.
-    if (filters.max_elevation_per_km != null && a.distance_km > 0) {
-      const mPerKm = a.elevation_gain_m / a.distance_km;
-      if (mPerKm > filters.max_elevation_per_km) return false;
-    }
     if (excludeGroup && GROUP_KEYWORDS.test(a.name)) return false;
     return true;
-  });
+  };
+  // D+/km exclusion on top of the base filters — tracked separately so we
+  // can show "X rides excluded by grade filter" in the UI.
+  const passesGradeFilter = (a: typeof allActivities[number]) => {
+    if (filters.max_elevation_per_km == null) return true;
+    if (a.distance_km <= 0) return true;
+    return a.elevation_gain_m / a.distance_km <= filters.max_elevation_per_km;
+  };
+  const baseFiltered = allActivities.filter(passesBaseFilters);
+  const filteredActivities = baseFiltered.filter(passesGradeFilter);
+  const excludedByGrade = baseFiltered.length - filteredActivities.length;
 
   const doAnalyze = async () => {
     setAnalyzing(true);
@@ -249,6 +254,37 @@ export default function IntervalsPage() {
       }
       const posP = POSITION_PRESETS_BY_BIKE[bikeType][positionIdx];
       const hier = await hierPromise;
+
+      // Summarise power meter across the good rides — if they're all the same
+      // sensor, show its label; otherwise flag as "mixed".
+      const pmLabelCounts = new Map<string, number>();
+      const pmQualityCounts = new Map<string, number>();
+      const biasRatios: number[] = [];
+      for (const r of good) {
+        const lbl = r.result?.power_meter_display;
+        if (lbl) pmLabelCounts.set(lbl, (pmLabelCounts.get(lbl) || 0) + 1);
+        const q = r.result?.power_meter_quality;
+        if (q) pmQualityCounts.set(q, (pmQualityCounts.get(q) || 0) + 1);
+        const br = r.result?.power_bias_ratio;
+        if (br != null && (r.result?.power_bias_n_points ?? 0) >= 60) biasRatios.push(br);
+      }
+      const sortedLabels = [...pmLabelCounts.entries()].sort((a, b) => b[1] - a[1]);
+      const powerMeterLabel =
+        sortedLabels.length === 0
+          ? undefined
+          : sortedLabels.length === 1
+            ? sortedLabels[0][0]
+            : `Mixte (${sortedLabels.length} capteurs — principal : ${sortedLabels[0][0]})`;
+      // Use the worst quality across rides as the summary (conservative)
+      const qRank = { low: 0, medium: 1, unknown: 2, high: 3 } as Record<string, number>;
+      const worstQuality =
+        [...pmQualityCounts.keys()].sort((a, b) => qRank[a] - qRank[b])[0] as
+          | "low" | "medium" | "unknown" | "high" | undefined;
+      const medianBias =
+        biasRatios.length > 0
+          ? biasRatios.slice().sort((a, b) => a - b)[Math.floor(biasRatios.length / 2)]
+          : undefined;
+
       saveToHistory({
         id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         timestamp: new Date().toISOString(),
@@ -276,6 +312,9 @@ export default function IntervalsPage() {
         maxElevationPerKm: filters.max_elevation_per_km,
         minDurationH: filters.min_duration_h,
         excludeGroup,
+        powerMeterLabel,
+        powerMeterQuality: worstQuality,
+        powerBiasRatio: medianBias,
         nRides: good.length,
         nExcluded: results.length - good.length,
         nTotalPoints: good.reduce((a, r) => a + (r.result?.valid_points || 0), 0),
@@ -621,9 +660,16 @@ export default function IntervalsPage() {
                 </p>
               </div>
               {listed && (
-                <p className="text-xs text-teal font-mono">
-                  → {filteredActivities.length} rides correspondent aux filtres
-                </p>
+                <div className="text-xs font-mono space-y-0.5">
+                  <p className="text-teal">
+                    → {filteredActivities.length} rides correspondent aux filtres
+                  </p>
+                  {excludedByGrade > 0 && (
+                    <p className="text-warn opacity-80">
+                      ⓘ {excludedByGrade} ride{excludedByGrade > 1 ? "s" : ""} exclue{excludedByGrade > 1 ? "s" : ""} par "pente moyenne max" ({filters.max_elevation_per_km} m/km) — CdA non identifiable sur dénivelé élevé.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}

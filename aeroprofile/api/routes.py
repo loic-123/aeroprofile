@@ -182,6 +182,8 @@ async def analyze_endpoint(
         power_meter_display=result.power_meter_display,
         power_meter_quality=result.power_meter_quality,
         power_meter_warning=result.power_meter_warning,
+        power_bias_ratio=_f(result.power_bias_ratio) if result.power_bias_ratio is not None else None,
+        power_bias_n_points=result.power_bias_n_points,
         ride_date=result.ride_date,
         ride_distance_km=result.ride_distance_km,
         ride_duration_s=result.ride_duration_s,

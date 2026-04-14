@@ -51,6 +51,11 @@ export interface HistoryEntry {
   maxElevationPerKm?: number;
   minDurationH?: number;
   excludeGroup?: boolean;
+  // Sensor — stores the most-frequent power meter seen in the analysed rides
+  powerMeterLabel?: string;     // e.g. "Favero Assioma (Duo / Pro)" or "Mixed (2 meters)"
+  powerMeterQuality?: "high" | "medium" | "low" | "unknown";
+  // Median measured-vs-theoretical power bias ratio across the ok rides
+  powerBiasRatio?: number;
 
   // Stats
   nRides: number;

@@ -64,6 +64,8 @@ class AnalysisResultOut(BaseModel):
     power_meter_display: Optional[str] = None
     power_meter_quality: str = "unknown"
     power_meter_warning: str = ""
+    power_bias_ratio: Optional[float] = None
+    power_bias_n_points: int = 0
 
     ride_date: str
     ride_distance_km: float

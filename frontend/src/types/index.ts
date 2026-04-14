@@ -132,6 +132,8 @@ export interface AnalysisResult {
   power_meter_display?: string | null;
   power_meter_quality?: "high" | "medium" | "low" | "unknown";
   power_meter_warning?: string;
+  power_bias_ratio?: number | null;
+  power_bias_n_points?: number;
   cda_climb: number | null;
   cda_descent: number | null;
   cda_flat: number | null;

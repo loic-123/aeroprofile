@@ -90,6 +90,11 @@ class AnalysisResult:
     power_meter_display: Optional[str] = None   # user-friendly label
     power_meter_quality: str = "unknown"        # high | medium | low | unknown
     power_meter_warning: str = ""               # localized warning text, empty if none
+    # Power meter bias ratio: mean(measured) / mean(theoretical) on flat-pedaling
+    # portions, using the bike-type prior (CdA, Crr) as reference. >1.35 strongly
+    # suggests a mis-calibrated sensor. None = not enough flat-pedaling points.
+    power_bias_ratio: Optional[float] = None
+    power_bias_n_points: int = 0
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -851,6 +856,54 @@ async def analyze(
             power_meter_name, _pmi.quality, _pmi.category,
         )
 
+    # --- Power meter bias ratio (independent of the solver) ---
+    # On the flat portions of the ride where the rider is actually pedaling,
+    # compute the power predicted by the bike-type PRIOR (CdA_prior, Crr_default)
+    # and compare it to the measured power. If the measured power is 35%+
+    # higher than the theoretical one, the meter is almost certainly biased
+    # high (stuck offset, bad zero-offset, temperature drift on 4iiii, …).
+    #
+    # This is a diagnostic signal independent of the solver's final CdA/Crr —
+    # useful to flag a mis-calibrated sensor BEFORE the user trusts the result.
+    power_bias_ratio: Optional[float] = None
+    power_bias_n_points = 0
+    try:
+        _v = df[df["filter_valid"]]
+        if len(_v) > 60:
+            _flat_mask = np.abs(_v["gradient"].to_numpy()) < 0.02
+            _pedal_mask = _v["power"].to_numpy() > 50.0
+            _m = _flat_mask & _pedal_mask
+            if _m.sum() >= 60:
+                _cda_prior = (
+                    bcfg.cda_prior_mean
+                    if (bcfg.cda_prior_mean is not None and bcfg.cda_prior_mean > 0)
+                    else 0.30
+                )
+                _crr_default = 0.005  # road tire reference
+                _p_theo = power_model(
+                    _v["v_ground"].to_numpy()[_m],
+                    _v["v_air"].to_numpy()[_m],
+                    _v["gradient"].to_numpy()[_m],
+                    _v["acceleration"].to_numpy()[_m],
+                    mass_kg, _cda_prior, _crr_default,
+                    _v["rho"].to_numpy()[_m], eta,
+                )
+                _p_meas = _v["power"].to_numpy()[_m]
+                # Robust mean: trim the 5% tails to ignore outliers
+                _theo_mean = float(np.mean(_p_theo[(_p_theo > 20) & (_p_theo < 600)]))
+                _meas_mean = float(np.mean(_p_meas[(_p_meas > 20) & (_p_meas < 600)]))
+                if _theo_mean > 10:
+                    power_bias_ratio = _meas_mean / _theo_mean
+                    power_bias_n_points = int(_m.sum())
+                    logger.info(
+                        "POWER_BIAS ratio=%.2f (measured=%.0f W vs theoretical=%.0f W "
+                        "on %d flat-pedaling points, CdA_prior=%.2f Crr=%.4f)",
+                        power_bias_ratio, _meas_mean, _theo_mean, power_bias_n_points,
+                        _cda_prior, _crr_default,
+                    )
+    except Exception as _e:
+        logger.warning("Power bias ratio computation failed: %s", _e)
+
     return AnalysisResult(
         solver_method=solver_method,
         solver_note=solver_note,
@@ -897,6 +950,8 @@ async def analyze(
         power_meter_display=_pmi.display,
         power_meter_quality=_pmi.quality,
         power_meter_warning=_pmi.warning,
+        power_bias_ratio=power_bias_ratio,
+        power_bias_n_points=power_bias_n_points,
     )
 
 

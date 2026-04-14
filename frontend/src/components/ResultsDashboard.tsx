@@ -117,44 +117,98 @@ function PowerMeterBanner({ result }: { result: AnalysisResult }) {
   const quality = result.power_meter_quality;
   const display = result.power_meter_display;
   const warning = result.power_meter_warning || "";
-  // Nothing to show if the sensor is high-quality and silent
-  if (!quality || quality === "high") {
-    if (display && quality === "high") {
-      return (
-        <div className="text-[11px] text-muted font-mono flex items-center gap-1 opacity-70">
-          <span className="text-teal">✓</span> Capteur : {display}
-        </div>
-      );
-    }
-    return null;
+  const bias = result.power_bias_ratio;
+  const biasN = result.power_bias_n_points ?? 0;
+
+  // Bias ratio = measured_P / theoretical_P on flat-pedaling portions.
+  // 1.0 = perfectly calibrated; >1.35 = almost certainly mis-calibrated high.
+  const biasHigh = bias != null && biasN >= 60 && bias > 1.35;
+  const biasMild = bias != null && biasN >= 60 && bias > 1.20 && bias <= 1.35;
+  const biasLow = bias != null && biasN >= 60 && bias < 0.80;
+  const biasAnomaly = biasHigh || biasLow;
+
+  // Decide if we need a banner at all
+  const hasWarning = (quality && quality !== "high") || biasAnomaly || biasMild;
+
+  if (!hasWarning) {
+    // Silent "all good" footer
+    const parts: string[] = [];
+    if (display && quality === "high") parts.push(`Capteur : ${display}`);
+    if (bias != null && biasN >= 60) parts.push(`calibration OK (biais ×${bias.toFixed(2)})`);
+    if (!parts.length) return null;
+    return (
+      <div className="text-[11px] text-muted font-mono flex items-center gap-1 opacity-70">
+        <span className="text-teal">✓</span> {parts.join(" • ")}
+      </div>
+    );
   }
-  if (!warning) return null;
-  // Parse simple **bold** segments for display
-  const segs = warning.split(/(\*\*[^*]+\*\*)/g);
+
+  // Effective severity = max(sensor_quality, bias_severity)
+  const severity: "low" | "medium" =
+    quality === "low" || biasHigh ? "low" : "medium";
   const colorClass =
-    quality === "low"
+    severity === "low"
       ? "bg-coral/10 border-coral text-coral"
-      : quality === "medium"
-        ? "bg-warn/10 border-warn/60 text-warn"
-        : "bg-panel border-border text-muted";
-  const iconColor =
-    quality === "low" ? "text-coral" : quality === "medium" ? "text-warn" : "text-muted";
+      : "bg-warn/10 border-warn/60 text-warn";
+  const iconColor = severity === "low" ? "text-coral" : "text-warn";
+
+  // Build bias message
+  let biasMsg = "";
+  if (biasHigh) {
+    const pct = Math.round((bias! - 1) * 100);
+    biasMsg =
+      `**Capteur probablement mal calibré.** Sur les portions plates pédalées ` +
+      `(${biasN} points), la puissance mesurée est ${pct}% plus haute que la ` +
+      `valeur théorique pour un CdA/Crr typique. C'est le signe d'un capteur ` +
+      `avec offset stuck ou d'un zero-offset manquant. Recalibrez avant la ` +
+      `prochaine sortie.`;
+  } else if (biasMild) {
+    const pct = Math.round((bias! - 1) * 100);
+    biasMsg =
+      `Puissance mesurée ${pct}% au-dessus de la valeur théorique (${biasN} ` +
+      `points plats). Peut indiquer une légère dérive de calibration, ou ` +
+      `simplement un profil plus musclé que la moyenne.`;
+  } else if (biasLow) {
+    const pct = Math.round((1 - bias!) * 100);
+    biasMsg =
+      `Puissance mesurée ${pct}% sous la valeur théorique (${biasN} points ` +
+      `plats). Capteur sous-estimé ou vent arrière important non modélisé.`;
+  }
+
+  const sensorWarn = quality && quality !== "high" ? warning : "";
+  const segsSensor = sensorWarn.split(/(\*\*[^*]+\*\*)/g);
+  const segsBias = biasMsg.split(/(\*\*[^*]+\*\*)/g);
+  const render = (segs: string[]) =>
+    segs.map((s, i) =>
+      s.startsWith("**") && s.endsWith("**") ? (
+        <strong key={i}>{s.slice(2, -2)}</strong>
+      ) : (
+        <span key={i}>{s}</span>
+      ),
+    );
+
   return (
     <div className={`rounded-lg border p-4 flex gap-3 ${colorClass}`}>
       <AlertCircle className={`flex-shrink-0 ${iconColor}`} size={20} />
-      <div className="text-sm">
+      <div className="text-sm flex-1">
         <div className="font-semibold">
           Capteur de puissance : {display ?? "inconnu"}
-        </div>
-        <p className="mt-1 text-[13px] leading-snug text-text/90">
-          {segs.map((s, i) =>
-            s.startsWith("**") && s.endsWith("**") ? (
-              <strong key={i}>{s.slice(2, -2)}</strong>
-            ) : (
-              <span key={i}>{s}</span>
-            ),
+          {bias != null && biasN >= 60 && (
+            <span className="ml-2 text-[11px] font-mono opacity-80">
+              biais ×{bias.toFixed(2)}
+            </span>
           )}
-        </p>
+        </div>
+        {sensorWarn && (
+          <p className="mt-1 text-[13px] leading-snug text-text/90">
+            {render(segsSensor)}
+          </p>
+        )}
+        {biasMsg && (
+          <p className={`${sensorWarn ? "mt-2" : "mt-1"} text-[13px] leading-snug text-text/90`}>
+            {render(segsBias)}
+          </p>
+        )}
       </div>
     </div>
   );

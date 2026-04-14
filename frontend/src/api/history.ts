@@ -48,6 +48,7 @@ export interface HistoryEntry {
   minDistanceKm?: number;
   maxDistanceKm?: number;
   maxElevationM?: number;
+  maxElevationPerKm?: number;
   minDurationH?: number;
   excludeGroup?: boolean;
 

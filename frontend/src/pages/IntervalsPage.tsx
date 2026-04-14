@@ -133,6 +133,12 @@ export default function IntervalsPage() {
     if (a.distance_km > filters.max_distance_km) return false;
     if (a.elevation_gain_m > filters.max_elevation_m) return false;
     if (a.moving_time_s / 3600 < filters.min_duration_h) return false;
+    // Reject rides that are mostly climbs: on steep averages, P_aero is
+    // dominated by P_grav, so CdA can't be identified reliably.
+    if (filters.max_elevation_per_km != null && a.distance_km > 0) {
+      const mPerKm = a.elevation_gain_m / a.distance_km;
+      if (mPerKm > filters.max_elevation_per_km) return false;
+    }
     if (excludeGroup && GROUP_KEYWORDS.test(a.name)) return false;
     return true;
   });
@@ -258,7 +264,7 @@ export default function IntervalsPage() {
         cdaPriorSigma: posP?.cdaSigma ?? null,
         maxNrmse: MAX_NRMSE,
         useCache,
-        disablePrior: true,
+        disablePrior: false,
         aggregationMethod: "inverse_var",
         hierarchicalMu: hier?.mu_cda,
         hierarchicalTau: hier?.tau,
@@ -267,6 +273,7 @@ export default function IntervalsPage() {
         minDistanceKm: filters.min_distance_km,
         maxDistanceKm: filters.max_distance_km,
         maxElevationM: filters.max_elevation_m,
+        maxElevationPerKm: filters.max_elevation_per_km,
         minDurationH: filters.min_duration_h,
         excludeGroup,
         nRides: good.length,
@@ -597,6 +604,21 @@ export default function IntervalsPage() {
                     onChange={(e) => setFilters({ ...filters, min_duration_h: parseFloat(e.target.value) / 60 })}
                     className="w-full accent-teal" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs text-muted mb-1">
+                  Pente moyenne max : <span className="text-teal font-mono">{filters.max_elevation_per_km ?? 999}</span> m/km
+                  <span className="text-[10px] text-muted ml-1">
+                    ({((filters.max_elevation_per_km ?? 0) / 10).toFixed(1)}% de pente moyenne)
+                  </span>
+                </label>
+                <input type="range" min={5} max={100} step={5}
+                  value={filters.max_elevation_per_km ?? 100}
+                  onChange={(e) => setFilters({ ...filters, max_elevation_per_km: parseFloat(e.target.value) })}
+                  className="w-full accent-teal" />
+                <p className="text-[10px] text-muted mt-1 leading-tight">
+                  Exclut les rides majoritairement en montée : à pente forte, la traînée aéro est noyée dans la gravité — CdA et Crr deviennent non identifiables. 25 m/km (2.5%) = route vallonnée ; 40 m/km (4%) = col régulier.
+                </p>
               </div>
               {listed && (
                 <p className="text-xs text-teal font-mono">

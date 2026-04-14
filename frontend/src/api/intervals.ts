@@ -27,6 +27,10 @@ export interface RideFilters {
   max_distance_km: number;
   max_elevation_m: number;
   min_duration_h: number;
+  // Client-side only: max ratio D+/distance (m per km).
+  // A ride with more than this is probably a climb, where the aero signal is
+  // too weak to separate CdA from Crr reliably. Not sent to the backend.
+  max_elevation_per_km?: number;
 }
 
 export const DEFAULT_FILTERS: RideFilters = {
@@ -34,6 +38,7 @@ export const DEFAULT_FILTERS: RideFilters = {
   max_distance_km: 500,
   max_elevation_m: 2000,
   min_duration_h: 1.0,
+  max_elevation_per_km: 25,  // 25 m/km = 2.5% average grade
 };
 
 export async function connect(apiKey: string, athleteId: string): Promise<AthleteProfile> {

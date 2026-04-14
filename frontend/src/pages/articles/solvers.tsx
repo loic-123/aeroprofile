@@ -148,28 +148,76 @@ C_{dA} &\sim \mathcal{N}(0.30,\; 0.12^2) \\
 
       <Section title="La cascade : comment AeroProfile choisit">
         <P>
-          Le pipeline essaie les solveurs dans cet ordre et retient celui
-          avec le meilleur <Tex>{String.raw`R^2`}</Tex> :
+          Depuis avril 2026, la cascade a été repensée pour éviter de lancer
+          Martin LS sur des sorties où il n'a aucune chance de battre le
+          wind-inverse. Sur un dataset réel de 120 sorties, Martin LS sortait
+          <strong> R² négatif dans 44% des cas</strong>, gâchant ~200 ms par
+          ride avant que le wind-inverse prenne le relais. Le nouveau pipeline
+          skip Martin LS dès que le wind-inverse peut s'exprimer :
         </P>
         <ol className="list-decimal ml-6 space-y-2 text-text">
           <li>
-            <strong>Martin LS</strong> (toujours lancé en premier) — mesure
-            le <Tex>{String.raw`R^2`}</Tex> de base.
+            <strong>Martin LS</strong> — lancé <em>uniquement</em> si{" "}
+            <Tex>{String.raw`\sigma^2_{\text{heading}} < 0.25`}</Tex>. C'est
+            le cas des sorties quasi-linéaires (piste, vélodrome, aller sans
+            retour) où le wind-inverse n'a pas assez de diversité pour séparer
+            le vent du <Tex>{String.raw`C_dA`}</Tex>.
           </li>
           <li>
-            <strong>Wind-Inverse</strong> si{" "}
-            <Tex>{String.raw`\sigma^2_{\text{heading}} > 0.25`}</Tex> — si{" "}
-            <Tex>{String.raw`R^2`}</Tex> meilleur que Martin, on le garde.
+            <strong>Wind-Inverse</strong> — le solveur primaire sur toutes les
+            autres sorties. Estime conjointement{" "}
+            <Tex>{String.raw`(C_dA, C_{rr}, \text{vent})`}</Tex> par segment
+            en minimisant l'erreur de reconstruction d'altitude (Chung VE).
           </li>
           <li>
-            <strong>Chung VE</strong> si les deux premiers ont{" "}
-            <Tex>{String.raw`R^2 < 0.3`}</Tex> — si{" "}
-            <Tex>{String.raw`R^2`}</Tex> meilleur, on le garde.
+            <strong>Chung VE</strong> — fallback de dernier recours si aucun
+            des solveurs précédents n'a produit un{" "}
+            <Tex>{String.raw`R^2 > 0.3`}</Tex>. Garantit qu'une analyse ne
+            peut jamais sortir sans résultat.
           </li>
         </ol>
         <P>
           Le solveur retenu est affiché dans le bandeau bleu du dashboard
           ("Méthode : wind_inverse", "Méthode : chung_ve").
+        </P>
+      </Section>
+
+      <Section title="Prior adaptatif : trois passes par solveur">
+        <P>
+          Chaque solveur de la cascade est lancé en réalité{" "}
+          <strong>jusqu'à trois fois</strong> sur la même sortie :
+        </P>
+        <ol className="list-decimal ml-6 space-y-2 text-text">
+          <li>
+            <strong>Pass 0 — MLE pur</strong> (poids du prior = 0). Donne le{" "}
+            <Tex>{String.raw`\widehat{C_dA}_{\text{brut}}`}</Tex> qu'on affiche
+            dans l'UI quand le prior a significativement tiré l'estimation. Ça
+            permet à l'utilisateur de voir <em>où aurait été son CdA</em> sans
+            le prior.
+          </li>
+          <li>
+            <strong>Pass 1 — prior de base</strong> avec{" "}
+            <Tex>{String.raw`w = 0.3\sqrt{N}`}</Tex> (formule Gelman BDA3 ch.14).
+            C'est le pass principal, fournit le point estimé publié dans l'API.
+          </li>
+          <li>
+            <strong>Pass 2 — prior renforcé</strong> si{" "}
+            <Tex>{String.raw`\sigma_{\text{Hess}} / \sigma_{\text{prior}} > 1`}</Tex>.
+            Le poids du prior est alors multiplié par ce ratio, ce qui
+            correspond à un shrinkage adaptatif type James-Stein : quand la
+            vraisemblance est plate (données peu informatives), on laisse le
+            prior dominer proportionnellement à son avantage informationnel.
+          </li>
+        </ol>
+        <P>
+          L'idée derrière le pass 2 vient du fait qu'un prior fixe à{" "}
+          <Tex>{String.raw`0.3\sqrt{N}`}</Tex> pèse proportionnellement moins
+          que les données quand N est grand — parfait sur une sortie nette,
+          problématique sur une sortie bruitée où on voudrait que le prior
+          l'emporte. Le ratio{" "}
+          <Tex>{String.raw`\sigma_{\text{Hess}} / \sigma_{\text{prior}}`}</Tex>{" "}
+          mesure exactement cette informativité : s'il est grand, les données
+          ne distinguent pas bien le CdA, il faut faire confiance au prior.
         </P>
         <P>
           Après la cascade, une <strong>passe 2 itérative</strong> compare

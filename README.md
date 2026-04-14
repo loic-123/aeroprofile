@@ -90,32 +90,46 @@ npm run dev
 │   5. SOLVER CASCADE                              │
 │                                                  │
 │   ┌─────────────────────┐                        │
-│   │  A. Wind-Inverse    │  heading variance      │
-│   │     (CdA + Crr +    │  > 0.25 ?              │
-│   │      wind/segment)  │──── yes ───► try it     │
-│   │     Chung VE obj.   │         R² best? ──► ✓ │
+│   │  A. Martin LS       │  heading variance      │
+│   │     (only for linear│  < 0.25 only            │
+│   │      rides, velodr.)│──── if not ──► skip     │
 │   └─────────────────────┘              │         │
-│                no / R² worse           ▼         │
+│                                        ▼         │
 │   ┌─────────────────────┐                        │
-│   │  B. Chung VE        │  R² > 0.3              │
-│   │     (CdA + Crr,     │  and better than       │
-│   │      wind = API)    │  Martin LS? ──────► ✓  │
+│   │  B. Wind-Inverse    │  PRIMARY solver —      │
+│   │     (CdA + Crr +    │  jointly fits wind     │
+│   │      wind/segment)  │  per segment to data   │
+│   │     Chung VE obj.   │  R² best? ──────► ✓    │
 │   └─────────────────────┘              │         │
-│                no / R² worse           ▼         │
+│                no / R² < 0.3           ▼         │
 │   ┌─────────────────────┐                        │
-│   │  C. Martin LS       │  Multi-start TRF       │
-│   │     (CdA + Crr,     │  with Bayesian priors  │
-│   │      wind = API)    │  on CdA and Crr ──► ✓  │
+│   │  C. Chung VE        │  Last-resort fallback  │
+│   │     (CdA + Crr,     │  on the energy-balance │
+│   │      wind = API)    │  altitude objective ─► ✓│
 │   └─────────────────────┘                        │
+│                                                  │
+│   Each solver runs up to 3 passes per ride:      │
+│     Pass 0 — MLE (no prior, for "raw" display)   │
+│     Pass 1 — base adaptive prior (0.3·√N)        │
+│     Pass 2 — boosted prior if σ_Hess/σ_prior > 1 │
 │                                                  │
 │   All solvers: η=0.977, wheel bearings,          │
 │   wheel inertia (+0.14 kg), per-point ρ          │
 └──────────────────────────────────────────────────┘
          ▼
+┌──────────────────────────────────────────────────┐
+│   6. QUALITY GATE + SENSOR DIAGNOSTICS          │
+│                                                  │
+│   · bound_hit / non_identifiable / prior_dom.   │
+│   · Power-meter classification (sensor DB)      │
+│   · Calibration bias ratio (flat/pedaling)      │
+└──────────────────────────────────────────────────┘
+         ▼
 ┌──────────────────┐
-│   6. REPORT      │  CdA ± CI, Crr ± CI, RMSE (W), R²
+│   7. REPORT      │  CdA ± Hessian CI (+ conformal CI from history)
 │                  │  CdA by gradient (flat/climb/descent)
 │                  │  8 anomaly categories + drafting detection
+│                  │  Sensor warning banner + bias badge
 │                  │  7 plots + MapLibre route + posture icon
 └──────────────────┘
 ```
@@ -217,6 +231,32 @@ Both indicators surface in the main dashboard banner (`PowerMeterBanner` compone
 ### 8. Ride-to-ride stability timeline (history)
 
 The history page computes a **rolling standard deviation of CdA over a window of 10 consecutive rides**, plotted over time with coloured background bands per sensor. A sudden drop in the rolling σ corresponds to a sensor swap or a calibration fix; a sudden rise reveals the opposite. The chart makes it easy to see *when* the user's data became reliable, independently of the absolute CdA value.
+
+### 9. Multi-athlete histories: profiles + intersectional filters
+
+A single AeroProfile installation is often used to analyse several cyclists (a user's own rides, plus friends/family, plus tests on strangers' datasets). Mixing their CdA estimates in the rolling-σ chart or the conformal prediction calibration set would be nonsense — they're different physical subjects.
+
+Every history entry is therefore tagged with:
+
+- **`athleteKey` / `athleteName`** — stable rider identifier. Filled automatically from the Intervals.icu athlete id in Intervals mode, from a user-curated "local profile" (default "Moi") in upload mode, and from the rider name in compare mode. Legacy entries without an athlete key are migrated best-effort by parsing the `label` field.
+- **`bikeKey` / `bikeLabel`** — bike identifier from Intervals.icu's `gear.{id,name}` field. Stable across rides with the same bike, so the user can filter "my road bike" vs "my TT bike".
+- **`powerMeterLabel`** — the majority power meter observed in the aggregated rides.
+
+The history page exposes three independent checkbox filter blocks (Profil / Capteur / Vélo) that compose via intersection. The rolling-σ timeline is restricted to the currently filtered entries, so the chart reflects actual within-rider variance rather than cross-rider noise.
+
+### 10. Conformal prediction interval (split CP)
+
+Classical confidence intervals on CdA come from the Hessian at the solver's optimum, which assumes gaussian residuals and an interior minimum. Both assumptions routinely break on noisy rides: when the solver sits on a bound, the Hessian is artificially narrow and gives a false sense of precision.
+
+AeroProfile provides a distribution-free alternative using **split conformal prediction** (Vovk et al. 2005; Angelopoulos & Bates 2021). The calibration set is the user's own past "ok" rides from history, filtered to match the current ride's athlete (and optionally the same sensor and bike). The nonconformity score is `|CdA_i − median|`, and the empirical quantile `q̂ = Quantile(s_i, ⌈(1−α)(n+1)⌉/n)` yields a half-width with a formally guaranteed coverage of at least `1−α` over the rider's ride population.
+
+Implementation details:
+
+- Minimum calibration set size: 30 rides. Below that the feature is silently disabled and the dashboard falls back to the Hessian CI.
+- Progressive filter relaxation: tries the tightest filter (athlete + sensor + bike) first, then drops the bike, then keeps only the athlete, before giving up.
+- The conformal interval is displayed as a second line under the Hessian CI in the main dashboard (`IC conforme low–high (n=N)` in info colour).
+
+Because conformal prediction only guarantees marginal coverage (over the population of rides, not per individual ride), it is **not** a substitute for the solver's own CI — it complements it by catching the cases where the solver is overconfident.
 
 ## Compare mode
 

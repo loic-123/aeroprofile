@@ -568,10 +568,15 @@ async def analyze(
                 f"l'a ajusté aux données (heading variance={wi['heading_variance']:.2f})."
             )
             best_r2 = wi["r_squared"]
-            logger.info("CASCADE wind_inverse WINS: R²=%.3f", best_r2)
+            logger.info(
+                "CASCADE wind_inverse WINS: CdA=%.3f Crr=%.5f R²=%.3f",
+                wi["cda"], wi["crr"], best_r2,
+            )
         elif wi is not None:
-            logger.info("CASCADE wind_inverse returned CdA=%.3f R²=%.3f but did not improve — keeping martin_ls",
-                        wi["cda"], wi["r_squared"])
+            logger.info(
+                "CASCADE wind_inverse CdA=%.3f Crr=%.5f R²=%.3f — not selected",
+                wi["cda"], wi["crr"], wi["r_squared"],
+            )
         else:
             logger.info("CASCADE wind_inverse returned None (heading variance too low)")
     except Exception as _e:
@@ -580,7 +585,13 @@ async def analyze(
     # --- Chung VE fallback: run when we have no solver result yet OR the
     # current one is poor (R² < 0.3). Runs unconditionally if sol is still
     # None (e.g. Martin LS was skipped AND wind_inverse returned None).
-    if sol is None or best_r2 < 0.3:
+    # When AEROPROFILE_BENCHMARK_SOLVERS=1 is set, we also run Chung VE on
+    # every ride (even winning wind_inverse) so the log can be used to
+    # compare the two solvers side-by-side. The result never replaces a
+    # winning wind_inverse though — it's diagnostic-only.
+    import os as _os_bench
+    _benchmark = _os_bench.environ.get("AEROPROFILE_BENCHMARK_SOLVERS") == "1"
+    if sol is None or best_r2 < 0.3 or _benchmark:
         logger.info(
             "CASCADE %s → try chung_ve ===",
             "no solver result yet" if sol is None else f"R²={best_r2:.3f} < 0.3",
@@ -594,8 +605,11 @@ async def analyze(
                 cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
                 cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
             )
+            # In benchmark mode the Chung VE run is diagnostic-only: we log
+            # its CdA/Crr/R² but never overwrite a winning wind_inverse.
             _chung_improves = (
-                bcfg.cda_lower <= chung.cda <= bcfg.cda_upper
+                not _benchmark
+                and bcfg.cda_lower <= chung.cda <= bcfg.cda_upper
                 and (sol is None or chung.r_squared_elev > max(best_r2, 0.0))
             )
             if _chung_improves:
@@ -618,10 +632,24 @@ async def analyze(
                     f"solveurs avaient R² < 0.3. R² reporté ici = qualité "
                     "de la reconstruction d'altitude."
                 )
-                logger.info("CASCADE chung_ve WINS: R²=%.3f CdA=%.3f", chung.r_squared_elev, chung.cda)
+                logger.info(
+                    "CASCADE chung_ve WINS: CdA=%.3f Crr=%.5f R²=%.3f",
+                    chung.cda, chung.crr, chung.r_squared_elev,
+                )
+            elif _benchmark:
+                # Benchmark comparison: both solvers ran, show both.
+                logger.info(
+                    "BENCHMARK chung_ve: CdA=%.3f Crr=%.5f R²=%.3f "
+                    "(wind_inverse kept: CdA=%.3f R²=%.3f)",
+                    chung.cda, chung.crr, chung.r_squared_elev,
+                    sol.cda if sol else float("nan"),
+                    best_r2,
+                )
             else:
-                logger.info("CASCADE chung_ve returned CdA=%.3f R²=%.3f but did not improve",
-                            chung.cda, chung.r_squared_elev)
+                logger.info(
+                    "CASCADE chung_ve CdA=%.3f Crr=%.5f R²=%.3f — not selected",
+                    chung.cda, chung.crr, chung.r_squared_elev,
+                )
         except Exception as _e:
             logger.warning("CASCADE chung_ve raised: %s", _e)
 

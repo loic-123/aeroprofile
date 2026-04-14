@@ -83,12 +83,12 @@ export default function PowerMeterQuality() {
               <tr className="border-b border-border/30">
                 <td className="py-1 text-teal font-semibold">high</td>
                 <td>Pédales double, spiders</td>
-                <td>Favero Assioma (Duo, Pro), Garmin Rally, SRM, Quarq, Power2Max</td>
+                <td>Favero Assioma (Duo, Pro), Favero bePro (firmware récent), Garmin Rally, SRM, Quarq, Power2Max</td>
               </tr>
               <tr className="border-b border-border/30">
                 <td className="py-1 text-warn font-semibold">medium</td>
-                <td>Pédales ancienne génération, trainers</td>
-                <td>Favero bePro 1ère gen, Tacx Neo, Wahoo KICKR</td>
+                <td>Trainers</td>
+                <td>Tacx Neo, Wahoo KICKR, VersaDesign</td>
               </tr>
               <tr className="border-b border-border/30">
                 <td className="py-1 text-coral font-semibold">low</td>

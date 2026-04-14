@@ -347,6 +347,24 @@ async def analyze_batch_intervals(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur du solveur hiérarchique : {e}")
 
+    # Log the Method B summary so it shows up in the session log alongside
+    # the per-ride ANALYZE lines. Useful to compare Method A (inverse-var)
+    # vs Method B (hierarchical joint fit) after the fact.
+    _log.info(
+        "METHOD_B result: mu_cda=%.3f IC95=[%.3f,%.3f] tau=%.3f crr=%.5f "
+        "IC95=[%.5f,%.5f] n_rides=%d",
+        h_result.mu_cda, h_result.mu_cda_ci[0], h_result.mu_cda_ci[1],
+        h_result.tau, h_result.crr, h_result.crr_ci[0], h_result.crr_ci[1],
+        len(all_dfs),
+    )
+    # Also log each ride's contribution for detailed post-hoc analysis
+    for i, (aid, _, _) in enumerate(all_dfs):
+        _log.info(
+            "METHOD_B ride %s: cda_i=%.3f sigma_i=%.3f r2=%.3f",
+            aid, h_result.per_ride_cda[i], h_result.per_ride_sigma[i],
+            h_result.per_ride_r2[i],
+        )
+
     for i, (aid, df, _ride) in enumerate(all_dfs):
         cda_i = h_result.per_ride_cda[i]
         sigma_i = h_result.per_ride_sigma[i]

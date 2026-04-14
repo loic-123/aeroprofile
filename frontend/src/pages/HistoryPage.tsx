@@ -1,6 +1,13 @@
 import { useState, useMemo } from "react";
-import { Clock, Trash2, ChevronDown, ChevronRight } from "lucide-react";
-import { getHistory, deleteFromHistory, clearHistory, type HistoryEntry } from "../api/history";
+import { Clock, Trash2, ChevronDown, ChevronRight, Eye, EyeOff } from "lucide-react";
+import {
+  getHistory,
+  deleteFromHistory,
+  clearHistory,
+  getIgnoredEntryIds,
+  setIgnoredEntryIds,
+  type HistoryEntry,
+} from "../api/history";
 
 /** Rolling standard deviation over a window of N consecutive values. */
 function rollingStd(values: number[], window: number): (number | null)[] {
@@ -28,6 +35,20 @@ export default function HistoryPage() {
   const [athletesInitialised, setAthletesInitialised] = useState(false);
   const [selectedBikes, setSelectedBikes] = useState<Set<string>>(new Set());
   const [bikesInitialised, setBikesInitialised] = useState(false);
+  // Per-entry "ignore on charts" toggle (persisted). Default = none ignored
+  // → all entries contribute to the timeline and the bias histogram. The
+  // user can click the eye icon on any card header to exclude that entry
+  // from the two charts without deleting it.
+  const [ignoredEntries, setIgnoredEntriesState] = useState<Set<string>>(() => getIgnoredEntryIds());
+  const toggleIgnored = (id: string) => {
+    setIgnoredEntriesState((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setIgnoredEntryIds(next);
+      return next;
+    });
+  };
 
   const handleDelete = (id: string) => {
     deleteFromHistory(id);
@@ -198,6 +219,15 @@ export default function HistoryPage() {
   };
   const selectNoBikes = () => setSelectedBikes(new Set(["__none__"]));
 
+  // Chart-only view: subset of filteredEntries with the user's per-entry
+  // "ignore on charts" toggles applied. The cards list keeps the full
+  // filteredEntries so the user can still see (and re-include) the ignored
+  // entries. Only the timeline and the bias histogram read this view.
+  const chartsEntries = useMemo(
+    () => filteredEntries.filter((e) => !ignoredEntries.has(e.id)),
+    [filteredEntries, ignoredEntries],
+  );
+
   // Timeline: now restricted to the FILTERED set so the rolling std is
   // computed only over rides that share the same athlete (and optional
   // sensor/bike). This is critical because mixing several riders' CdAs in
@@ -228,15 +258,20 @@ export default function HistoryPage() {
       return label;
     };
 
-    // Dedup by (athleteKey, date): when the same ride is re-analysed (e.g.
-    // after a Crr change), multiple history entries end up carrying the
-    // same ride date. Plotting all of them stacks the point N times and
-    // pollutes the rolling-std window. We keep the version that came from
-    // the **most recent** history entry (by entry.timestamp) per athlete.
+    // Dedup by (athleteKey, date): guarantees at most one point per day
+    // per athlete on the stability chart. Three cases it covers:
+    //   1. A ride re-analysed in a later history entry (after a Crr change,
+    //      a pipeline fix, etc.) — we keep the most recent entry.
+    //   2. Two different rides on the same day inside the same history entry
+    //      (double session, morning+evening) — we keep the one with the
+    //      best (lowest) nRMSE, which is the most trustworthy estimate.
+    //   3. Two entries that happen to cover the same day via different
+    //      activities — case 1's "most recent" rule handles it.
+    // Tie-breaker order: entry.timestamp desc, then rc.nrmse asc.
     type Key = string;
     const bestByKey = new Map<Key, { entry: HistoryEntry; rc: HistoryEntry["rideCdas"][number] }>();
     const noSensor = selectedSensors.size === 0;
-    for (const e of filteredEntries) {
+    for (const e of chartsEntries) {
       const athKey = e.athleteKey || "__unknown__";
       for (const rc of e.rideCdas) {
         // Filter per-ride by sensor selection so re-selecting Assioma only
@@ -248,7 +283,18 @@ export default function HistoryPage() {
         }
         const key: Key = `${athKey}|${rc.date}`;
         const prev = bestByKey.get(key);
-        if (!prev || prev.entry.timestamp < e.timestamp) {
+        if (!prev) {
+          bestByKey.set(key, { entry: e, rc });
+          continue;
+        }
+        // Newer entry wins outright.
+        if (prev.entry.timestamp < e.timestamp) {
+          bestByKey.set(key, { entry: e, rc });
+          continue;
+        }
+        // Same entry, same day: two distinct rides with the same date.
+        // Keep the one with the best nRMSE (lowest is better).
+        if (prev.entry.id === e.id && rc.nrmse < prev.rc.nrmse) {
           bestByKey.set(key, { entry: e, rc });
         }
       }
@@ -290,7 +336,7 @@ export default function HistoryPage() {
       std: stds[i],
       sensorLabel: majorityWindow(i),
     }));
-  }, [filteredEntries, selectedSensors]);
+  }, [chartsEntries, selectedSensors]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -328,7 +374,7 @@ export default function HistoryPage() {
 
       {/* Bias ratio histogram — per-sensor distribution of the power-meter
           calibration ratio. Spots sensors that systematically drift. */}
-      <BiasHistogram entries={filteredEntries} selectedSensors={selectedSensors} />
+      <BiasHistogram entries={chartsEntries} selectedSensors={selectedSensors} />
 
 
       {/* Multi-dimension filter blocks. Each block behaves independently but
@@ -366,9 +412,30 @@ export default function HistoryPage() {
         </div>
       )}
 
+      {(ignoredEntries.size > 0 || filteredEntries.length > 5) && (
+        <p className="text-[11px] text-muted leading-tight">
+          Cliquez sur l'icône <Eye size={11} className="inline align-text-bottom" /> à droite d'une analyse pour l'inclure/exclure du graphique de stabilité et de l'histogramme de biais capteur.
+          {ignoredEntries.size > 0 && (
+            <>
+              {" "}
+              <button
+                onClick={() => {
+                  setIgnoredEntriesState(new Set());
+                  setIgnoredEntryIds(new Set());
+                }}
+                className="text-info hover:text-info/80 underline"
+              >
+                Réinclure les {ignoredEntries.size} analyse{ignoredEntries.size > 1 ? "s" : ""} ignorée{ignoredEntries.size > 1 ? "s" : ""}
+              </button>
+            </>
+          )}
+        </p>
+      )}
+
       <div className="space-y-2">
         {filteredEntries.map((e) => {
           const isExpanded = expandedIds.has(e.id);
+          const isIgnored = ignoredEntries.has(e.id);
           const nrmse = e.avgPowerW > 0 ? (e.rmseW / e.avgPowerW * 100).toFixed(0) : "?";
           const wCda = e.cda > 0 ? (e.avgPowerW / e.cda).toFixed(0) : "–";
           const vFlat = e.cda > 0 && e.avgRho > 0
@@ -376,15 +443,23 @@ export default function HistoryPage() {
             : "–";
 
           return (
-            <div key={e.id} className="bg-panel border border-border rounded-lg overflow-hidden">
+            <div
+              key={e.id}
+              className={`bg-panel rounded-lg overflow-hidden transition ${
+                isIgnored
+                  ? "border border-dashed border-border/50 opacity-50"
+                  : "border border-border"
+              }`}
+            >
               {/* Header row — always visible */}
+              <div className="w-full flex items-center">
               <button
                 onClick={() => setExpandedIds((prev) => {
                   const next = new Set(prev);
                   if (next.has(e.id)) next.delete(e.id); else next.add(e.id);
                   return next;
                 })}
-                className="w-full px-4 py-3 flex items-center gap-3 text-sm hover:bg-bg/50 transition"
+                className="flex-1 min-w-0 px-4 py-3 flex items-center gap-3 text-sm hover:bg-bg/50 transition"
               >
                 {isExpanded ? <ChevronDown size={14} className="text-muted" /> : <ChevronRight size={14} className="text-muted" />}
                 <span className="text-muted font-mono text-xs w-36">
@@ -430,6 +505,27 @@ export default function HistoryPage() {
                 )}
                 <span className="font-mono text-xs text-muted">{e.nRides} ride{e.nRides > 1 ? "s" : ""}</span>
               </button>
+              <button
+                type="button"
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  toggleIgnored(e.id);
+                }}
+                className={`shrink-0 mr-2 p-2 rounded transition ${
+                  isIgnored
+                    ? "text-muted hover:text-info"
+                    : "text-info/70 hover:text-info hover:bg-info/10"
+                }`}
+                title={
+                  isIgnored
+                    ? "Réinclure cette analyse dans le graphique de stabilité et l'histogramme de biais"
+                    : "Exclure cette analyse du graphique de stabilité et de l'histogramme de biais (sans la supprimer)"
+                }
+                aria-label={isIgnored ? "Réinclure dans les graphiques" : "Exclure des graphiques"}
+              >
+                {isIgnored ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+              </div>
 
               {/* Expanded detail */}
               {isExpanded && (
@@ -1097,7 +1193,17 @@ function BiasHistogram({ entries, selectedSensors }: { entries: HistoryEntry[]; 
       if (!noSensorFilter && !selectedSensors.has(sensorKey)) continue;
       const key = `${athKey}|${rc.date}`;
       const prev = bestByKey.get(key);
-      if (!prev || prev.entry.timestamp < e.timestamp) {
+      if (!prev) {
+        bestByKey.set(key, { entry: e, rc });
+        continue;
+      }
+      if (prev.entry.timestamp < e.timestamp) {
+        bestByKey.set(key, { entry: e, rc });
+        continue;
+      }
+      // Intra-entry collision: two rides same day in the same entry,
+      // keep the one with the best nRMSE (same rule as the timeline).
+      if (prev.entry.id === e.id && rc.nrmse < prev.rc.nrmse) {
         bestByKey.set(key, { entry: e, rc });
       }
     }

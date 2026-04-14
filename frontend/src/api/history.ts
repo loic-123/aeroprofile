@@ -161,3 +161,30 @@ export function clearHistory(): void {
     localStorage.removeItem(LS_KEY);
   } catch {}
 }
+
+// --- Per-entry "ignore on charts" toggle ---
+// A separate localStorage key tracks which history entries the user has
+// muted for the stability chart and bias histogram. Default = none ignored.
+// The entries themselves are NOT deleted; the user can re-include them with
+// one click. Persisted across reloads.
+const LS_IGNORED_KEY = "aeroprofile_history_ignored";
+
+export function getIgnoredEntryIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(LS_IGNORED_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.filter((x): x is string => typeof x === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+export function setIgnoredEntryIds(ids: Set<string>): void {
+  try {
+    localStorage.setItem(LS_IGNORED_KEY, JSON.stringify([...ids]));
+  } catch {
+    // ignore
+  }
+}

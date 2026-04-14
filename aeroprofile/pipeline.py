@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import pandas as pd
@@ -426,7 +429,33 @@ async def analyze(
     if insufficient and crr_fixed is None:
         effective_crr_fixed = 0.005
 
+    # --- Input stats log (before solver cascade) ---
+    _valid_df = df[df["filter_valid"]]
+    _n_valid = len(_valid_df)
+    _n_total = len(df)
+    if _n_valid > 20:
+        _br = np.radians(_valid_df["bearing"].to_numpy())
+        _hv_input = float(1.0 - np.sqrt(np.cos(_br).mean() ** 2 + np.sin(_br).mean() ** 2))
+    else:
+        _hv_input = float("nan")
+    _speed_std = float(_valid_df["v_ground"].std()) if _n_valid > 1 else 0.0
+    _avg_power_in = float(_valid_df["power"].mean()) if _n_valid > 0 else 0.0
+    _avg_v_in = float(_valid_df["v_ground"].mean()) if _n_valid > 0 else 0.0
+    _alt_in = _valid_df["altitude_smooth"].to_numpy() if _n_valid > 0 else np.array([0.0])
+    _delev = np.diff(_alt_in, prepend=_alt_in[0])
+    _elev_gain_in = float(np.sum(_delev[_delev > 0]))
+    logger.info(
+        "STATS %s: valid=%d/%d heading_var=%.2f v_std=%.2f m/s avg_v=%.1f m/s "
+        "avg_P=%.0f W D+=%.0f m bike=%s eff_crr_fixed=%s weather=%s",
+        Path(filepath).name if filepath else "<df>",
+        _n_valid, _n_total, _hv_input, _speed_std, _avg_v_in, _avg_power_in,
+        _elev_gain_in, bike_type,
+        f"{effective_crr_fixed:.5f}" if effective_crr_fixed is not None else "None",
+        weather_source,
+    )
+
     # Primary solver: Martin least-squares with bike-type priors
+    logger.info("CASCADE try martin_ls ===")
     sol: SolverResult = solve_cda_crr(
         df, mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
         cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
@@ -442,6 +471,7 @@ async def analyze(
     # halves the RMSE because the wind is fitted to the data, not taken
     # from a 10 km weather grid. Requires heading_variance > 0.25.
     best_r2 = sol.r_squared
+    logger.info("CASCADE martin_ls done: R²=%.3f → try wind_inverse ===", best_r2)
     try:
         wi = solve_with_wind(
             df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
@@ -480,11 +510,18 @@ async def analyze(
                 f"l'a ajusté aux données (heading variance={wi['heading_variance']:.2f})."
             )
             best_r2 = wi["r_squared"]
-    except Exception:
-        pass
+            logger.info("CASCADE wind_inverse WINS: R²=%.3f", best_r2)
+        elif wi is not None:
+            logger.info("CASCADE wind_inverse returned CdA=%.3f R²=%.3f but did not improve — keeping martin_ls",
+                        wi["cda"], wi["r_squared"])
+        else:
+            logger.info("CASCADE wind_inverse returned None (heading variance too low)")
+    except Exception as _e:
+        logger.warning("CASCADE wind_inverse raised: %s", _e)
 
     # --- Chung VE fallback when both Martin and wind-inverse are poor ---
     if best_r2 < 0.3:
+        logger.info("CASCADE R²=%.3f < 0.3 → try chung_ve ===", best_r2)
         try:
             chung = solve_chung_ve(
                 df,
@@ -514,8 +551,14 @@ async def analyze(
                     f"solveurs avaient R² < 0.3. R² reporté ici = qualité "
                     "de la reconstruction d'altitude."
                 )
-        except Exception:
-            pass
+                logger.info("CASCADE chung_ve WINS: R²=%.3f CdA=%.3f", chung.r_squared_elev, chung.cda)
+            else:
+                logger.info("CASCADE chung_ve returned CdA=%.3f R²=%.3f but did not improve",
+                            chung.cda, chung.r_squared_elev)
+        except Exception as _e:
+            logger.warning("CASCADE chung_ve raised: %s", _e)
+
+    logger.info("CASCADE final method=%s", solver_method)
 
     # Virtual elevation (pass 1)
     df["altitude_virtual"] = virtual_elevation(df, sol.cda, sol.crr, mass_kg, eta)
@@ -757,6 +800,32 @@ async def analyze(
     # NOTE: No backend nRMSE gate. The frontend slider is the only nRMSE filter —
     # the user must stay in control of which rides to keep by quality percentile.
     # Backend gates only catch solver pathologies (bound_hit, non_identifiable).
+
+    # --- Debug log per ride (solver diagnostics) ---
+    _sigma_hess = (
+        (sol.cda_ci[1] - sol.cda_ci[0]) / 3.92
+        if (sol.cda_ci[0] is not None and sol.cda_ci[1] is not None
+            and not (np.isnan(sol.cda_ci[0]) or np.isnan(sol.cda_ci[1])))
+        else float("nan")
+    )
+    _ride_name = Path(filepath).name if filepath else "<from_df>"
+    _nrmse_pct = (rmse_w / max(float(df["power"].mean()), 1.0)) * 100.0
+    logger.info(
+        "ANALYZE %s | %s | CdA=%.3f (raw=%s) σ_H=%.3f pf×%.2f | Crr=%.5f | "
+        "bounds=[%.2f–%.2f] × [%.4f–%.4f] | nRMSE=%.0f%% | %s%s",
+        _ride_name,
+        solver_method,
+        sol.cda,
+        f"{sol.cda_raw:.3f}" if getattr(sol, "cda_raw", None) is not None else "—",
+        _sigma_hess if not np.isnan(_sigma_hess) else -1.0,
+        float(getattr(sol, "prior_adaptive_factor", 1.0)),
+        sol.crr,
+        bcfg.cda_lower, bcfg.cda_upper,
+        0.0015, 0.012,
+        _nrmse_pct,
+        quality_status,
+        f" — {quality_reason}" if quality_reason else "",
+    )
 
     # Summary stats
     filter_summary = {name: int(df[name].sum()) for name in FILTER_NAMES}

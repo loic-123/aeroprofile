@@ -270,7 +270,7 @@ export default function App() {
         <Wind className="text-teal" size={24} />
         <h1 className="text-xl font-bold tracking-tight">AeroProfile</h1>
         <span className="text-[10px] font-mono text-muted opacity-60" title="Build ID — increment to verify hot-reload">
-          v2026.04.14-qgate
+          v2026.04.14-prior-fix
         </span>
         <span className="text-muted text-sm ml-2 hidden md:inline">
           CdA / Crr depuis votre fichier d'activité

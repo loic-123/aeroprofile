@@ -20,11 +20,15 @@ Reference: AeroStar "wind solve" mode; Lim, Homan & Dalbert (2011).
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from scipy.optimize import least_squares
 
 from aeroprofile.physics.constants import G, ETA_DEFAULT
 from aeroprofile.physics.wind import compute_v_air, cda_yaw_correction
+
+logger = logging.getLogger(__name__)
 
 
 def _heading_variance(bearing_deg: np.ndarray) -> float:
@@ -314,6 +318,10 @@ def solve_with_wind(
         cda_lower=cda_lower, cda_upper=cda_upper,
     )
     prior_active = cda_prior_sigma is not None and cda_prior_sigma > 0
+    logger.info(
+        "wind_inverse start: prior(mean=%.3f sigma=%.3f active=%s) bounds=[%.2f,%.2f]",
+        cda_prior_mean, cda_prior_sigma, prior_active, cda_lower, cda_upper,
+    )
 
     # Pass 0: MLE pur (sans prior) pour affichage "CdA brut"
     raw_cda = None
@@ -324,26 +332,48 @@ def solve_with_wind(
             if raw is not None:
                 raw_cda = float(raw["cda"])
                 raw_ci = raw["cda_ci"]
-        except Exception:
-            pass
+                _raw_sigma = (raw_ci[1] - raw_ci[0]) / 3.92 if not np.isnan(raw_ci[0]) else float("nan")
+                logger.info("  pass0 MLE: CdA=%.3f σ=%.3f Crr=%.5f R²=%.3f",
+                            raw_cda, _raw_sigma, raw.get("crr", 0.0), raw.get("r_squared", 0.0))
+            else:
+                logger.info("  pass0 MLE: returned None")
+        except Exception as e:
+            logger.warning("  pass0 MLE failed: %s", e)
 
     # Pass 1: poids prior de base
     result = _solve_with_wind_inner(df, adaptive_factor=1.0, **kwargs)
     if result is None:
+        logger.info("  pass1 base: returned None (solver aborted)")
         return None
+    _p1_sigma = (result["cda_ci"][1] - result["cda_ci"][0]) / 3.92 if not np.isnan(result["cda_ci"][0]) else float("nan")
+    logger.info("  pass1 base: CdA=%.3f σ=%.3f Crr=%.5f R²=%.3f",
+                result["cda"], _p1_sigma, result["crr"], result["r_squared"])
 
     adaptive_factor = 1.0
 
     # Pass 2: adaptatif si données peu informatives
     if prior_active:
         sigma_hess = (result["cda_ci"][1] - result["cda_ci"][0]) / 3.92
-        if not np.isnan(sigma_hess) and sigma_hess > 0 and cda_prior_sigma > 0:
+        if np.isnan(sigma_hess) or sigma_hess <= 0:
+            logger.info("  pass2 skipped: σ_Hess=NaN (Hessian degenerate — solver likely at bound)")
+        elif cda_prior_sigma <= 0:
+            logger.info("  pass2 skipped: prior sigma = 0")
+        else:
             ratio = float(sigma_hess / cda_prior_sigma)
-            if ratio > 1.0:
+            if ratio <= 1.0:
+                logger.info("  pass2 skipped: ratio=%.2f ≤ 1 (data informative enough)", ratio)
+            else:
+                logger.info("  pass2 running: ratio=%.2f (σ_Hess=%.3f vs σ_prior=%.3f)",
+                            ratio, sigma_hess, cda_prior_sigma)
                 result2 = _solve_with_wind_inner(df, adaptive_factor=ratio, **kwargs)
                 if result2 is not None:
+                    _p2_sigma = (result2["cda_ci"][1] - result2["cda_ci"][0]) / 3.92 if not np.isnan(result2["cda_ci"][0]) else float("nan")
+                    logger.info("  pass2 done: CdA=%.3f σ=%.3f Crr=%.5f R²=%.3f",
+                                result2["cda"], _p2_sigma, result2["crr"], result2["r_squared"])
                     result = result2
                     adaptive_factor = ratio
+                else:
+                    logger.warning("  pass2 returned None — keeping pass1")
 
     result["prior_adaptive_factor"] = float(adaptive_factor)
     if raw_cda is not None:

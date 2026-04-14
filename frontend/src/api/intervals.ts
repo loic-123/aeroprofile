@@ -109,6 +109,8 @@ export async function analyzeBatchIntervals(
   massKg: number,
   crrFixed?: number | null,
   bikeType?: string,
+  cdaPriorMean?: number,
+  cdaPriorSigma?: number,
 ): Promise<HierarchicalAnalysisResult> {
   const fd = new FormData();
   fd.append("api_key", apiKey);
@@ -117,6 +119,8 @@ export async function analyzeBatchIntervals(
   fd.append("mass_kg", String(massKg));
   if (crrFixed != null) fd.append("crr_fixed", String(crrFixed));
   if (bikeType) fd.append("bike_type", bikeType);
+  if (cdaPriorMean && cdaPriorMean > 0) fd.append("cda_prior_mean", String(cdaPriorMean));
+  if (cdaPriorSigma && cdaPriorSigma > 0) fd.append("cda_prior_sigma", String(cdaPriorSigma));
   const res = await fetch(`${API}/analyze-batch`, { method: "POST", body: fd });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));

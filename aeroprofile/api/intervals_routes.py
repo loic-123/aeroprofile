@@ -232,6 +232,8 @@ async def analyze_batch_intervals(
     crr_fixed: Optional[float] = Form(None),
     eta: float = Form(0.977),
     bike_type: str = Form("road"),
+    cda_prior_mean: Optional[float] = Form(None),
+    cda_prior_sigma: Optional[float] = Form(None),
 ):
     """Hierarchical (random-effects) joint analysis of N Intervals.icu rides.
 
@@ -280,12 +282,17 @@ async def analyze_batch_intervals(
     if len(all_dfs) < 2:
         raise HTTPException(status_code=422, detail="Moins de 2 rides valides après preprocessing.")
 
+    # Fallback on bike-type default prior if the user didn't override.
+    eff_prior_mean = cda_prior_mean if cda_prior_mean and cda_prior_mean > 0 else bcfg.cda_prior_mean
+    eff_prior_sigma = cda_prior_sigma if cda_prior_sigma and cda_prior_sigma > 0 else bcfg.cda_prior_sigma
     try:
         h_result = solve_hierarchical(
             [df for (_, df, _) in all_dfs],
             mass=mass_kg, eta=eta, crr_fixed=crr_fixed,
-            cda_lower=bcfg.cda_lower if bcfg.cda_prior_sigma != 0 else 0.10,
-            cda_upper=bcfg.cda_upper if bcfg.cda_prior_sigma != 0 else 0.80,
+            cda_lower=bcfg.cda_lower,
+            cda_upper=bcfg.cda_upper,
+            cda_prior_mean=eff_prior_mean,
+            cda_prior_sigma=eff_prior_sigma,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur du solveur hiérarchique : {e}")

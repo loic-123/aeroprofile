@@ -2,12 +2,43 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
+# Make aeroprofile.* loggers visible through uvicorn's stdout handler.
+# uvicorn configures its own handlers on the "uvicorn" logger tree but leaves
+# the root at WARNING — so logger.info() calls from aeroprofile modules get
+# swallowed unless we explicitly enable them.
+_ap_logger = logging.getLogger("aeroprofile")
+_ap_logger.setLevel(logging.INFO)
+if not _ap_logger.handlers:
+    import datetime as _dt
+    _fmt = logging.Formatter("%(asctime)s [%(name)s] %(message)s", "%H:%M:%S")
+    # stdout — so uvicorn's terminal shows everything
+    _console = logging.StreamHandler()
+    _console.setFormatter(_fmt)
+    _ap_logger.addHandler(_console)
+    # Per-session log file: one file per uvicorn startup, named by timestamp.
+    # Makes it trivial to grab "the log of the test I just ran" without
+    # mixing multiple runs in the same file.
+    _log_dir = Path(__file__).resolve().parents[2] / "logs"
+    _log_dir.mkdir(parents=True, exist_ok=True)
+    _session_stamp = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    _session_file = _log_dir / f"session_{_session_stamp}.log"
+    _file_fmt = logging.Formatter(
+        "%(asctime)s [%(name)s] [%(levelname)s] %(message)s",
+        "%Y-%m-%d %H:%M:%S",
+    )
+    _file = logging.FileHandler(_session_file, encoding="utf-8")
+    _file.setFormatter(_file_fmt)
+    _ap_logger.addHandler(_file)
+    _ap_logger.propagate = False
+    _ap_logger.info("Logging initialised (console + %s)", _session_file)
 
 from aeroprofile.api.routes import router
 from aeroprofile.api.intervals_routes import router as intervals_router

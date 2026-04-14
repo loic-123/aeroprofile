@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
@@ -9,6 +10,8 @@ from scipy.optimize import least_squares
 
 from aeroprofile.physics.power_model import residual_power
 from aeroprofile.physics.constants import ETA_DEFAULT
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -263,6 +266,14 @@ def solve_cda_crr(
         and cda_prior_sigma is not None
         and cda_prior_sigma > 0
     )
+    logger.info(
+        "martin_ls start: prior(mean=%s sigma=%s active=%s crr_fixed=%s) bounds=[%.2f,%.2f]",
+        f"{cda_prior_mean:.3f}" if cda_prior_mean is not None else "None",
+        f"{cda_prior_sigma:.3f}" if cda_prior_sigma is not None else "None",
+        prior_active,
+        f"{crr_fixed:.5f}" if crr_fixed is not None else "None",
+        cda_lower, cda_upper,
+    )
 
     # Pass 0: MLE pur
     raw_cda = None
@@ -272,24 +283,39 @@ def solve_cda_crr(
             raw = _solve_cda_crr_inner(df, adaptive_factor=0.0, **kwargs)
             raw_cda = float(raw.cda)
             raw_ci = raw.cda_ci
-        except Exception:
-            pass
+            _rsig = (raw_ci[1] - raw_ci[0]) / 3.92 if raw_ci and not np.isnan(raw_ci[0]) else float("nan")
+            logger.info("  pass0 MLE: CdA=%.3f σ=%.3f Crr=%.5f R²=%.3f",
+                        raw_cda, _rsig, raw.crr, raw.r_squared)
+        except Exception as e:
+            logger.warning("  pass0 MLE failed: %s", e)
 
     # Pass 1: poids de base
     result = _solve_cda_crr_inner(df, adaptive_factor=1.0, **kwargs)
+    _p1sig = (result.cda_ci[1] - result.cda_ci[0]) / 3.92 if not np.isnan(result.cda_ci[0]) else float("nan")
+    logger.info("  pass1 base: CdA=%.3f σ=%.3f Crr=%.5f R²=%.3f",
+                result.cda, _p1sig, result.crr, result.r_squared)
     adaptive_factor = 1.0
 
     # Pass 2: adaptatif
     if prior_active:
         sigma_hess = (result.cda_ci[1] - result.cda_ci[0]) / 3.92
-        if not np.isnan(sigma_hess) and sigma_hess > 0 and cda_prior_sigma > 0:
+        if np.isnan(sigma_hess) or sigma_hess <= 0:
+            logger.info("  pass2 skipped: σ_Hess=NaN")
+        else:
             ratio = float(sigma_hess / cda_prior_sigma)
-            if ratio > 1.0:
+            if ratio <= 1.0:
+                logger.info("  pass2 skipped: ratio=%.2f ≤ 1", ratio)
+            else:
+                logger.info("  pass2 running: ratio=%.2f (σ_Hess=%.3f vs σ_prior=%.3f)",
+                            ratio, sigma_hess, cda_prior_sigma)
                 try:
                     result = _solve_cda_crr_inner(df, adaptive_factor=ratio, **kwargs)
+                    _p2sig = (result.cda_ci[1] - result.cda_ci[0]) / 3.92 if not np.isnan(result.cda_ci[0]) else float("nan")
+                    logger.info("  pass2 done: CdA=%.3f σ=%.3f Crr=%.5f R²=%.3f",
+                                result.cda, _p2sig, result.crr, result.r_squared)
                     adaptive_factor = ratio
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("  pass2 failed: %s", e)
 
     result.prior_adaptive_factor = float(adaptive_factor)
     result.cda_raw = raw_cda

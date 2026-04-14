@@ -147,11 +147,19 @@ export default function IntervalsPage() {
     setHierError(null);
     const MAX_NRMSE = maxNrmse >= 100 ? 999 : maxNrmse / 100;
     const crr = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : undefined;
+    // Use the position-preset prior for each ride — the adaptive prior
+    // (max(1, σ_Hess/σ_prior)) keeps it soft when data are informative and
+    // ramps it up only when the data can't separate CdA from Crr. This
+    // replaces the previous "disable_prior=true on multi-rides" workaround,
+    // which left noisy rides to hit the physical bounds.
+    const posP = POSITION_PRESETS_BY_BIKE[bikeType][positionIdx];
+    const priorMean = posP?.cdaPrior && posP.cdaPrior > 0 ? posP.cdaPrior : undefined;
+    const priorSigma = posP?.cdaSigma && posP.cdaSigma > 0 ? posP.cdaSigma : undefined;
     const cacheOpts: CacheOpts = {
       mass_kg: mass, crr_fixed: crr, bike_type: bikeType,
-      cda_prior_mean: undefined,
-      cda_prior_sigma: undefined,
-      disable_prior: true,
+      cda_prior_mean: priorMean,
+      cda_prior_sigma: priorSigma,
+      disable_prior: false,
     };
     const { minCda: MIN_CDA, maxCda: MAX_CDA } = BIKE_TYPE_CONFIG[bikeType];
 
@@ -165,10 +173,7 @@ export default function IntervalsPage() {
         results.push({ activity: act, result: fromCache, excluded: !!qBad || nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
-          // Intervals mode is always multi-ride → disable per-ride prior.
-          // Aggregation uses inverse-variance weighting which handles the
-          // regularization without bias toward the prior centre.
-          const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, undefined, undefined, true);
+          const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, priorMean, priorSigma, false);
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
           const qBad = res.quality_status && res.quality_status !== "ok";
           results.push({ activity: act, result: res, excluded: !!qBad || nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
@@ -203,6 +208,8 @@ export default function IntervalsPage() {
         mass,
         crr,
         bikeType,
+        priorMean,
+        priorSigma,
       )
         .then((r) => {
           setHierResult(r);

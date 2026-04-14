@@ -28,6 +28,25 @@ if not _ap_logger.handlers:
     # mixing multiple runs in the same file.
     _log_dir = Path(__file__).resolve().parents[2] / "logs"
     _log_dir.mkdir(parents=True, exist_ok=True)
+
+    # Housekeeping: delete previous session logs that are "empty" (only the
+    # init line, no actual analysis was done). This cleans up the noise from
+    # uvicorn --reload, which relaunches the process — and thus creates a
+    # new session file — every time a .py file is saved during development.
+    # A real session log with at least one analysis is >> 300 bytes.
+    EMPTY_SESSION_THRESHOLD_BYTES = 300
+    try:
+        for _old in _log_dir.glob("session_*.log"):
+            try:
+                if _old.stat().st_size < EMPTY_SESSION_THRESHOLD_BYTES:
+                    _old.unlink()
+            except OSError:
+                # File might still be held by another process (the previous
+                # uvicorn worker being killed). Skip silently.
+                pass
+    except Exception:
+        pass
+
     _session_stamp = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
     _session_file = _log_dir / f"session_{_session_stamp}.log"
     _file_fmt = logging.Formatter(

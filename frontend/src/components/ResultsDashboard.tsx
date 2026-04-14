@@ -108,6 +108,36 @@ function CdADualCard({
     }
   }, [result.cda, result.power_meter_display, result.gear_id, unreliable]);
 
+  // Personal solver bias: median(chung_cda - cda) over the user's clean
+  // rides. Surfaces the structural disagreement between wind_inverse and
+  // Chung VE on THIS user's data (typically +0.02 to +0.03 for France/
+  // temperate Europe). Complements the Hessian CI by showing the
+  // uncertainty that IS there but not captured by σ_Hess.
+  const personalSolverBias = useMemo(() => {
+    try {
+      const hist = getHistory();
+      const active = getActiveProfile();
+      const deltas: number[] = [];
+      for (const e of hist) {
+        if (e.athleteKey && e.athleteKey !== active.key) continue;
+        for (const rc of e.rideCdas) {
+          if (rc.qualityStatus && rc.qualityStatus !== "ok") continue;
+          if (rc.chungCda == null || !Number.isFinite(rc.chungCda)) continue;
+          if (rc.biasRatio != null && (rc.biasRatio < 0.9 || rc.biasRatio > 1.1)) continue;
+          deltas.push(rc.chungCda - rc.cda);
+        }
+      }
+      if (deltas.length < 5) return null;
+      deltas.sort((a, b) => a - b);
+      const mid = Math.floor(deltas.length / 2);
+      const median =
+        deltas.length % 2 === 0 ? (deltas[mid - 1] + deltas[mid]) / 2 : deltas[mid];
+      return { median, n: deltas.length };
+    } catch {
+      return null;
+    }
+  }, []);
+
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
       <div className="text-xs text-muted uppercase tracking-wide flex items-center">
@@ -124,6 +154,16 @@ function CdADualCard({
           <span className="text-muted opacity-70"> (n={conformal.n})</span>
         </div>
       )}
+      {personalSolverBias && Math.abs(personalSolverBias.median) > 0.005 && (
+        <div className="text-[11px] text-muted mt-1 font-mono opacity-80 flex items-center gap-1">
+          <span>
+            Δ solveur perso : {personalSolverBias.median >= 0 ? "+" : ""}
+            {personalSolverBias.median.toFixed(3)}
+            <span className="opacity-70"> (n={personalSolverBias.n})</span>
+          </span>
+          <InfoTooltip text="Médiane de (CdA Chung VE − CdA wind_inverse) sur tes rides clean passées. Mesure le désaccord systématique entre les deux solveurs sur TON dataset, qui n'est pas capturé par l'IC Hessien. Une valeur positive signifie que Chung voit systématiquement un CdA plus élevé que wind_inverse — typique quand Open-Meteo sous-estime le vent de face sur ta région. À utiliser comme incertitude additionnelle sur les comparaisons absolues." />
+        </div>
+      )}
       {showFactor && (
         <div className="mt-2">
           <span className="inline-block text-[10px] font-mono px-1.5 py-0.5 rounded bg-warn/20 text-warn border border-warn/40">
@@ -132,14 +172,14 @@ function CdADualCard({
         </div>
       )}
       {showRaw && (
-        <div className="text-[11px] text-muted mt-2 font-mono opacity-80">
-          brut (MLE): {raw!.toFixed(3)}
+        <div className="text-[11px] text-muted mt-2 font-mono opacity-80 flex items-center gap-1">
+          <span>hors prior CdA : {raw!.toFixed(3)}</span>
           {result.cda_raw_ci_low != null && result.cda_raw_ci_high != null && (
             <span className="opacity-70">
-              {" "}
               [{result.cda_raw_ci_low.toFixed(3)} – {result.cda_raw_ci_high.toFixed(3)}]
             </span>
           )}
+          <InfoTooltip text="Estimation obtenue en désactivant le prior sur CdA (prior de position). Les priors vent (Open-Meteo) et Crr restent actifs pour garder le problème bien posé — donc ce n'est pas un MLE pur, c'est un MLE conditionnel. Un écart > 0.05 avec la valeur principale déclenche le statut 'prior_dominated' : le solveur a été beaucoup influencé par la position choisie dans le sélecteur." />
         </div>
       )}
     </div>

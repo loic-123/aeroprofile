@@ -86,6 +86,16 @@ export interface HistoryEntry {
     nrmse: number;
     biasRatio?: number;
     powerMeter?: string;
+    // Solver cross-check (B13): Chung's CdA on the same ride, the delta
+    // between Chung and the main solver, and the confidence bucket derived
+    // from it. Persisted so HistoryPage can filter and display these without
+    // re-running the analysis. Undefined on legacy entries.
+    chungCda?: number;
+    solverCrossCheckDelta?: number;
+    solverConfidence?: "high" | "medium" | "low" | "unknown";
+    // Quality gate verdict from the backend (ok, bound_hit, sensor_miscalib,
+    // sensor_miscalib_warn, prior_dominated, insufficient_data, ...).
+    qualityStatus?: string;
   }[];
 }
 

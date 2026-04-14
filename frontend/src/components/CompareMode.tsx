@@ -380,6 +380,12 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           rideCdas: good.map((r) => ({
             date: r.result!.ride_date, cda: r.result!.cda,
             nrmse: (r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1),
+            biasRatio: r.result!.power_bias_ratio ?? undefined,
+            powerMeter: r.result!.power_meter_display ?? undefined,
+            chungCda: r.result!.chung_cda ?? undefined,
+            solverCrossCheckDelta: r.result!.solver_cross_check_delta ?? undefined,
+            solverConfidence: r.result!.solver_confidence,
+            qualityStatus: r.result!.quality_status,
           })),
           athleteKey: `compare:${rider.name.toLowerCase().replace(/\s+/g, "_") || rider.id}`,
           athleteName: rider.name || `Rider ${rider.id}`,
@@ -883,7 +889,7 @@ function RiderRow({
                 } else if (rd.status === "done" && rd.result) {
                   tooltip = `${rd.file.name}\nCdA ${rd.result.cda.toFixed(3)} • nRMSE ${(nrmse * 100).toFixed(0)}% • ±${rd.result.rmse_w.toFixed(0)}W`;
                   if (rd.result.cda_raw != null && Math.abs(rd.result.cda_raw - rd.result.cda) > 0.02) {
-                    tooltip += `\nCdA brut (MLE): ${rd.result.cda_raw.toFixed(3)}`;
+                    tooltip += `\nCdA hors prior (vent+Crr régularisés) : ${rd.result.cda_raw.toFixed(3)}`;
                   }
                   if ((rd.result.prior_adaptive_factor ?? 1) > 1.05) {
                     tooltip += `\nPrior renforcé ×${(rd.result.prior_adaptive_factor ?? 1).toFixed(1)}`;

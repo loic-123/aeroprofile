@@ -56,6 +56,23 @@ export const POSITION_PRESETS_BY_BIKE: Record<BikeType, PositionPreset[]> = {
 // Backward compat
 export const POSITION_PRESETS = POSITION_PRESETS_BY_BIKE.road;
 
+/** Quality statuses that keep the ride in the aggregate (with a warn badge)
+ *  instead of excluding it. "ok" is the nominal case; the others are soft
+ *  warnings where the estimate is salvageable but carries extra uncertainty. */
+export const SOFT_QUALITY_STATUSES = new Set<string>([
+  "ok",
+  "prior_dominated",
+  "sensor_miscalib_warn",
+  "insufficient_data",
+]);
+
+/** Return true when a quality_status means the ride should be excluded from
+ *  aggregate statistics (CdA moyen, Méthode B, etc.). */
+export function isHardFailure(status: string | undefined | null): boolean {
+  if (!status) return false;
+  return !SOFT_QUALITY_STATUSES.has(status);
+}
+
 export interface Anomaly {
   severity: "error" | "warning" | "info";
   code: string;
@@ -122,7 +139,8 @@ export interface AnalysisResult {
   crr_was_fixed: boolean;
   solver_method: string;
   solver_note: string;
-  quality_status?: "ok" | "bound_hit" | "non_identifiable" | "high_nrmse" | "prior_dominated" | "sensor_miscalib";
+  quality_status?: "ok" | "bound_hit" | "non_identifiable" | "high_nrmse" | "prior_dominated" | "sensor_miscalib" | "sensor_miscalib_warn" | "insufficient_data";
+
   quality_reason?: string;
   prior_adaptive_factor?: number;
   cda_raw?: number | null;

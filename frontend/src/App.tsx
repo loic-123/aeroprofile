@@ -10,7 +10,7 @@ import { BlogProvider } from "./components/BlogLayout";
 import { analyze, analyzeBatch } from "./api/client";
 import { getCached, setCache, type CacheOpts } from "./api/cache";
 import type { AnalysisResult, HierarchicalAnalysisResult } from "./types";
-import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, type BikeType } from "./types";
+import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, isHardFailure, type BikeType } from "./types";
 import { Wind, Users, User, FileText, Loader2, BookOpen, Link2, Clock } from "lucide-react";
 import { saveToHistory, type HistoryEntry } from "./api/history";
 import { getActiveProfile, type ProfileSettings } from "./api/profiles";
@@ -110,7 +110,7 @@ export default function App() {
       const fromCache = opts.useCache !== false ? getCached(file, cacheOpts) : null;
       if (fromCache) {
         const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
-        const qBad = fromCache.quality_status && fromCache.quality_status !== "ok" && fromCache.quality_status !== "prior_dominated";
+        const qBad = isHardFailure(fromCache.quality_status);
         results.push({ file, result: fromCache, excluded: !!qBad || nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
@@ -125,7 +125,7 @@ export default function App() {
             disable_prior: isMultiRide,
           });
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
-          const qBad = res.quality_status && res.quality_status !== "ok" && res.quality_status !== "prior_dominated";
+          const qBad = isHardFailure(res.quality_status);
           results.push({ file, result: res, excluded: !!qBad || nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
           setCache(file, res, cacheOpts);
         } catch (e: any) {
@@ -179,18 +179,23 @@ export default function App() {
     if (goodForHistory.length > 0) {
       const nrmses = goodForHistory.map((r) => Math.max((r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1), 0.01));
       const bestN = Math.min(...nrmses), worstN = Math.max(...nrmses), span = worstN - bestN;
+      const weights: number[] = [];
       let tw = 0, sc = 0, sr = 0, sp = 0, sRho = 0, sRmse = 0;
       for (let j = 0; j < goodForHistory.length; j++) {
         const res = goodForHistory[j].result!;
         const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
         const w = Math.max(res.valid_points, 1) * qw;
+        weights.push(w);
         tw += w; sc += res.cda * w; sr += res.crr * w; sp += res.avg_power_w * w; sRho += res.avg_rho * w; sRmse += (res.rmse_w || 0) * w;
       }
       const hCda = sc / tw, hCrr = sr / tw;
       let hLow: number | null = null, hHigh: number | null = null;
       if (goodForHistory.length >= 2) {
+        // B5 — weighted variance to match the weighted mean above.
         const cdas = goodForHistory.map((r) => r.result!.cda);
-        const wVar = cdas.reduce((a, c) => a + (c - hCda) ** 2, 0) / cdas.length;
+        let wVar = 0;
+        for (let j = 0; j < cdas.length; j++) wVar += weights[j] * (cdas[j] - hCda) ** 2;
+        wVar /= tw;
         const se = Math.sqrt(wVar / cdas.length);
         hLow = hCda - 1.96 * se; hHigh = hCda + 1.96 * se;
       }
@@ -260,6 +265,7 @@ export default function App() {
     // solver's confidence interval (Hessian at MAP estimate). Rides with tighter
     // CI naturally weigh more. The quality factor (nRMSE-based) is kept as a
     // multiplicative reliability discount on top of the statistical variance.
+    const dispWeights: number[] = [];
     let totalW = 0, sumCda = 0, sumCrr = 0, sumPow = 0, sumRho = 0, sumRmse = 0;
     for (let j = 0; j < goodRides.length; j++) {
       const res = goodRides[j].result!;
@@ -269,6 +275,7 @@ export default function App() {
       const sigma = ciWidth > 0 ? Math.max(ciWidth / 3.92, 0.001) : 0.05;
       const invVar = 1 / (sigma * sigma);
       const w = invVar * qw;
+      dispWeights.push(w);
       totalW += w;
       sumCda += res.cda * w;
       sumCrr += res.crr * w;
@@ -282,10 +289,11 @@ export default function App() {
     aggPower = sumPow / totalW;
     aggRho = sumRho / totalW;
     if (goodRides.length >= 2) {
+      // B5 — weighted variance to match the inverse-variance weighted mean.
       const cdas = goodRides.map((r) => r.result!.cda);
       let wVar = 0;
-      for (const c of cdas) wVar += (c - aggCda!) ** 2;
-      wVar /= cdas.length;
+      for (let j = 0; j < cdas.length; j++) wVar += dispWeights[j] * (cdas[j] - aggCda!) ** 2;
+      wVar /= totalW;
       const se = Math.sqrt(wVar / cdas.length);
       aggCdaLow = aggCda - 1.96 * se;
       aggCdaHigh = aggCda + 1.96 * se;

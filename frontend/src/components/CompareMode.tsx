@@ -4,7 +4,7 @@ import { analyze, analyzeBatch } from "../api/client";
 import { getCached, setCache, type CacheOpts } from "../api/cache";
 import { saveToHistory } from "../api/history";
 import type { AnalysisResult, HierarchicalAnalysisResult } from "../types";
-import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
+import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, isHardFailure, type BikeType } from "../types";
 import PositionSchematic from "./PositionSchematic";
 import InfoTooltip from "./InfoTooltip";
 import CdAEvolutionChart from "./CdAEvolutionChart";
@@ -86,7 +86,7 @@ function aggregate(r: RiderEntry, bikeType: BikeType = "road"): RiderAgg | null 
   // (bound_hit / non_identifiable / high_nrmse) AND legacy nRMSE/CdA bounds
   let good = done.filter((rd) => {
     const res = rd.result!;
-    if (res.quality_status && res.quality_status !== "ok" && res.quality_status !== "prior_dominated") return false;
+    if (isHardFailure(res.quality_status)) return false;
     const avgP = res.avg_power_w || 1;
     const nrmse = (res.rmse_w || 0) / avgP;
     return nrmse <= MAX_NRMSE && res.cda >= MIN_CDA && res.cda <= MAX_CDA;
@@ -333,18 +333,23 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
       if (good.length > 0) {
         const nrmses = good.map((rd) => Math.max((rd.result!.rmse_w || 0) / Math.max(rd.result!.avg_power_w, 1), 0.01));
         const bestN = Math.min(...nrmses), worstN = Math.max(...nrmses), span = worstN - bestN;
+        const weights: number[] = [];
         let tw = 0, sc = 0, sr = 0, sp = 0, sRho = 0, sRmse = 0;
         for (let j = 0; j < good.length; j++) {
           const res = good[j].result!;
           const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
           const w = Math.max(res.valid_points, 1) * qw;
+          weights.push(w);
           tw += w; sc += res.cda * w; sr += res.crr * w; sp += res.avg_power_w * w; sRho += res.avg_rho * w; sRmse += (res.rmse_w || 0) * w;
         }
         const hCda = sc / tw, hCrr = sr / tw;
         let hLow: number | null = null, hHigh: number | null = null;
         if (good.length >= 2) {
+          // B5 — weighted variance to match the weighted mean.
           const cdas = good.map((r) => r.result!.cda);
-          const wVar = cdas.reduce((a, c) => a + (c - hCda) ** 2, 0) / cdas.length;
+          let wVar = 0;
+          for (let j = 0; j < cdas.length; j++) wVar += weights[j] * (cdas[j] - hCda) ** 2;
+          wVar /= tw;
           const se = Math.sqrt(wVar / cdas.length);
           hLow = hCda - 1.96 * se; hHigh = hCda + 1.96 * se;
         }

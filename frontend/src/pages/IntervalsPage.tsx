@@ -16,7 +16,7 @@ import { saveToHistory } from "../api/history";
 import { getActiveProfile, type ProfileSettings } from "../api/profiles";
 import ProfilePicker from "../components/ProfilePicker";
 import type { AnalysisResult, HierarchicalAnalysisResult } from "../types";
-import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
+import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, isHardFailure, type BikeType } from "../types";
 import InfoTooltip from "../components/InfoTooltip";
 import CdATotem from "../components/CdATotem";
 import CdARunningAvgChart from "../components/CdARunningAvgChart";
@@ -286,13 +286,13 @@ export default function IntervalsPage() {
       const fromCache = useCache ? getCachedInterval(act.id, cacheOpts) : null;
       if (fromCache) {
         const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
-        const qBad = fromCache.quality_status && fromCache.quality_status !== "ok" && fromCache.quality_status !== "prior_dominated";
+        const qBad = isHardFailure(fromCache.quality_status);
         results.push({ activity: act, result: fromCache, excluded: !!qBad || nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
           const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, priorMean, priorSigma, false);
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
-          const qBad = res.quality_status && res.quality_status !== "ok" && res.quality_status !== "prior_dominated";
+          const qBad = isHardFailure(res.quality_status);
           results.push({ activity: act, result: res, excluded: !!qBad || nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
           setCacheInterval(act.id, res, cacheOpts);
         } catch (e: any) {
@@ -343,18 +343,26 @@ export default function IntervalsPage() {
     if (good.length > 0) {
       const nrmses = good.map((r) => Math.max((r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1), 0.01));
       const bestN = Math.min(...nrmses), worstN = Math.max(...nrmses), span = worstN - bestN;
+      const weights: number[] = [];
       let tw = 0, sc = 0, sr = 0, sp = 0, sRho = 0, sRmse = 0;
       for (let j = 0; j < good.length; j++) {
         const res = good[j].result!;
         const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
         const w = Math.max(res.valid_points, 1) * qw;
+        weights.push(w);
         tw += w; sc += res.cda * w; sr += res.crr * w; sp += res.avg_power_w * w; sRho += res.avg_rho * w; sRmse += (res.rmse_w || 0) * w;
       }
       const hCda = sc / tw, hCrr = sr / tw;
       let hLow: number | null = null, hHigh: number | null = null;
       if (good.length >= 2) {
+        // B5 — weighted variance so the IC95 is consistent with the weighted
+        // mean. The old code used an unweighted sum and divided by cdas.length,
+        // which gave a short ride the same weight as a long ride in the IC
+        // width even though it had 100× less contribution to the mean.
         const cdas = good.map((r) => r.result!.cda);
-        const wVar = cdas.reduce((a, c) => a + (c - hCda) ** 2, 0) / cdas.length;
+        let wVar = 0;
+        for (let j = 0; j < cdas.length; j++) wVar += weights[j] * (cdas[j] - hCda) ** 2;
+        wVar /= tw;
         const se = Math.sqrt(wVar / cdas.length);
         hLow = hCda - 1.96 * se; hHigh = hCda + 1.96 * se;
       }

@@ -81,6 +81,10 @@ export default function IntervalsPage() {
   const [positionIdx, setPositionIdx] = useState(initialSettings.positionIdx ?? 2);
   const [useCache, setUseCache] = useState(true);
   const [maxNrmse, setMaxNrmse] = useState(initialSettings.maxNrmse ?? 45);
+  // P3 — minimum solver agreement. "off" keeps everything (default),
+  // "medium" excludes low-confidence rides (|Δ chung−wind| ≥ 0.05),
+  // "high" excludes both low and medium (keeps only |Δ| < 0.02).
+  const [minConfidence, setMinConfidence] = useState<"off" | "medium" | "high">("off");
 
   const handleBikeType = (bt: BikeType) => {
     setBikeType(bt);
@@ -280,6 +284,17 @@ export default function IntervalsPage() {
           : null,
     });
 
+    // Confidence-based exclusion (P3). When the user asks for a minimum
+    // solver agreement, rides with `solver_confidence == "low"` (or "low"+
+    // "medium") are excluded from the aggregate.
+    const confidenceExcludes = (conf: string | undefined): boolean => {
+      if (minConfidence === "off") return false;
+      if (!conf || conf === "unknown") return false;
+      if (minConfidence === "medium") return conf === "low";
+      if (minConfidence === "high") return conf === "low" || conf === "medium";
+      return false;
+    };
+
     const results: RideResult[] = [];
     for (let i = 0; i < filteredActivities.length; i++) {
       const act = filteredActivities[i];
@@ -287,13 +302,15 @@ export default function IntervalsPage() {
       if (fromCache) {
         const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
         const qBad = isHardFailure(fromCache.quality_status);
-        results.push({ activity: act, result: fromCache, excluded: !!qBad || nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
+        const confBad = confidenceExcludes(fromCache.solver_confidence);
+        results.push({ activity: act, result: fromCache, excluded: !!qBad || confBad || nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
           const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, priorMean, priorSigma, false);
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
           const qBad = isHardFailure(res.quality_status);
-          results.push({ activity: act, result: res, excluded: !!qBad || nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
+          const confBad = confidenceExcludes(res.solver_confidence);
+          results.push({ activity: act, result: res, excluded: !!qBad || confBad || nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
           setCacheInterval(act.id, res, cacheOpts);
         } catch (e: any) {
           results.push({ activity: act, error: e.message, excluded: true });
@@ -748,6 +765,44 @@ export default function IntervalsPage() {
             </div>
           </div>
 
+          {/* Solver confidence threshold (P3) */}
+          <div className="mt-3">
+            <label className="block text-xs text-muted mb-1">
+              Accord wind_inverse ↔ Chung VE :{" "}
+              <span className="text-teal font-mono font-semibold">
+                {minConfidence === "off" ? "toutes (off)" : minConfidence === "medium" ? "exclure désaccord fort" : "garder uniquement accord élevé"}
+              </span>
+            </label>
+            <div className="flex gap-1.5 max-w-sm">
+              {(["off", "medium", "high"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setMinConfidence(v)}
+                  className={`flex-1 px-2 py-1 text-xs font-mono rounded border transition ${
+                    minConfidence === v
+                      ? "bg-teal/20 border-teal text-teal"
+                      : "bg-panel border-border text-muted hover:border-teal/50"
+                  }`}
+                  title={
+                    v === "off"
+                      ? "Garder toutes les sorties, ne pas filtrer sur l'accord solveur"
+                      : v === "medium"
+                        ? "Exclure les sorties où |ΔCdA wind−chung| ≥ 0.05 (désaccord fort)"
+                        : "Garder uniquement les sorties où |ΔCdA wind−chung| < 0.02 (solveurs en accord)"
+                  }
+                >
+                  {v === "off" ? "off" : v === "medium" ? "≥ medium" : "high only"}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted mt-1 max-w-sm leading-tight">
+              Chaque sortie est aussi analysée avec Chung VE comme contrôle.
+              Quand les deux solveurs divergent sur CdA, la sortie est moins
+              robuste au choix du traitement du vent. Filtre désactivé par défaut.
+            </p>
+          </div>
+
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="mt-3 flex items-center text-sm text-muted hover:text-text"
@@ -1145,6 +1200,8 @@ export default function IntervalsPage() {
                 <div className="flex flex-wrap gap-1.5">
                   {rides.map((r, i) => {
                     const isBad = r.excluded;
+                    const bikeBounds = BIKE_TYPE_CONFIG[bikeType];
+                    const nrmseCutoff = maxNrmse >= 100 ? 9.99 : maxNrmse / 100;
                     let reason = "";
                     let nrmseVal = 0;
                     if (r.error) {
@@ -1171,8 +1228,35 @@ export default function IntervalsPage() {
                                     : "désaccord fort";
                         reason += `\nCross-check Chung VE: ${r.result.chung_cda.toFixed(3)} (Δ=${d.toFixed(3)} — ${label})`;
                       }
-                      if (r.result.quality_status && r.result.quality_status !== "ok" && r.result.quality_reason) {
-                        reason += `\n\n⚠ Exclue : ${r.result.quality_reason}`;
+                      // Exhaustive exclusion explanation: enumerate every
+                      // cause that contributes to the red chip so the user
+                      // doesn't have to guess why a ride was dropped.
+                      if (isBad) {
+                        const causes: string[] = [];
+                        if (r.result.quality_status && r.result.quality_status !== "ok" && r.result.quality_reason) {
+                          causes.push(r.result.quality_reason);
+                        }
+                        if (nrmseVal > nrmseCutoff) {
+                          causes.push(`nRMSE ${(nrmseVal*100).toFixed(0)}% > seuil ${maxNrmse}% (slider qualité)`);
+                        }
+                        if (r.result.cda < bikeBounds.minCda) {
+                          causes.push(`CdA ${r.result.cda.toFixed(3)} < borne basse ${bikeBounds.minCda} (hors plage physique ${bikeBounds.label})`);
+                        }
+                        if (r.result.cda > bikeBounds.maxCda) {
+                          causes.push(`CdA ${r.result.cda.toFixed(3)} > borne haute ${bikeBounds.maxCda} (hors plage physique ${bikeBounds.label})`);
+                        }
+                        if (minConfidence !== "off" && r.result.solver_confidence) {
+                          const c = r.result.solver_confidence;
+                          const triggers = minConfidence === "medium" ? c === "low" : (c === "low" || c === "medium");
+                          if (triggers) {
+                            causes.push(`Confiance solveurs "${c}" sous le seuil demandé "${minConfidence === "medium" ? "≥ medium" : "high only"}"`);
+                          }
+                        }
+                        if (causes.length > 0) {
+                          reason += `\n\n⚠ Exclue :\n  • ${causes.join("\n  • ")}`;
+                        } else {
+                          reason += `\n\n⚠ Exclue (raison non identifiée)`;
+                        }
                       }
                     }
                     return (

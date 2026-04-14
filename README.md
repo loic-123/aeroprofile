@@ -232,13 +232,24 @@ Both indicators surface in the main dashboard banner (`PowerMeterBanner` compone
 
 The history page computes a **rolling standard deviation of CdA over a window of 10 consecutive rides**, plotted over time with coloured background bands per sensor. A sudden drop in the rolling σ corresponds to a sensor swap or a calibration fix; a sudden rise reveals the opposite. The chart makes it easy to see *when* the user's data became reliable, independently of the absolute CdA value.
 
-### 9. Multi-athlete histories: profiles + intersectional filters
+### 9. Profiles: saved setups with one-click recall
 
-A single AeroProfile installation is often used to analyse several cyclists (a user's own rides, plus friends/family, plus tests on strangers' datasets). Mixing their CdA estimates in the rolling-σ chart or the conformal prediction calibration set would be nonsense — they're different physical subjects.
+A single AeroProfile installation is often used to analyse several cyclists or several setups (your road bike vs TT bike, pre-position-change vs post). A profile is a **saved setup** — it remembers every field you would otherwise retype on each analysis:
 
-Every history entry is therefore tagged with:
+- **Upload mode** — mass, bike type, position preset, Crr setting, nRMSE threshold.
+- **Intervals mode** — all of the above, plus your Intervals.icu API key and athlete id, plus the entire ride-filter state (distance range, max D+, pente moyenne max, min duration, exclude-group toggle).
 
-- **`athleteKey` / `athleteName`** — stable rider identifier. Filled automatically from the Intervals.icu athlete id in Intervals mode, from a user-curated "local profile" (default "Moi") in upload mode, and from the rider name in compare mode. Legacy entries without an athlete key are migrated best-effort by parsing the `label` field.
+The "Moi" profile is pre-seeded with sensible defaults (75 kg, road, Aéro drops, Crr auto, nRMSE 45%) so a fresh install has one profile ready to go. The **ProfilePicker** toolbar at the top of each mode has:
+
+- **Profile chips** — click any chip to load that profile's settings into the current form.
+- **"Nouveau"** — clones the current form state into a brand-new profile.
+- **"Sauvegarder"** — writes the current form state back into the active profile (green flash confirms the save).
+- **"Recharger"** — reloads the active profile without switching profiles (undoes any unsaved tweaks).
+
+Each profile's **key is also used as the `athleteKey`** on every history entry it produces. This keeps the rolling-σ timeline and the conformal prediction calibration set **per-rider**: a history entry from profile "Laurette" will not contaminate the stability chart of profile "Moi". Legacy entries without an athlete key are migrated best-effort by parsing their label.
+
+Beyond the athlete dimension, each history entry also records:
+
 - **`bikeKey` / `bikeLabel`** — bike identifier from Intervals.icu's `gear.{id,name}` field. Stable across rides with the same bike, so the user can filter "my road bike" vs "my TT bike".
 - **`powerMeterLabel`** — the majority power meter observed in the aggregated rides.
 

@@ -13,7 +13,7 @@ import type { AnalysisResult, HierarchicalAnalysisResult } from "./types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, type BikeType } from "./types";
 import { Wind, Users, User, FileText, Loader2, BookOpen, Link2, Clock } from "lucide-react";
 import { saveToHistory, type HistoryEntry } from "./api/history";
-import { getActiveProfile } from "./api/profiles";
+import { getActiveProfile, type ProfileSettings } from "./api/profiles";
 import HistoryPage from "./pages/HistoryPage";
 import InfoTooltip from "./components/InfoTooltip";
 import CdAEvolutionChart from "./components/CdAEvolutionChart";
@@ -50,6 +50,28 @@ export default function App() {
   const [hierResult, setHierResult] = useState<HierarchicalAnalysisResult | null>(null);
   const [hierLoading, setHierLoading] = useState(false);
   const [hierError, setHierError] = useState<string | null>(null);
+
+  // --- Upload-mode profile wiring -----------------------------------------
+  // The ProfilePicker above FileUpload drives this: when the user loads
+  // a profile, we bump `uploadProfileVersion` to force FileUpload to
+  // remount with the new defaults. `uploadFormSettings` is the mirror of
+  // FileUpload's internal state so the "Save to profile" button has
+  // access to the up-to-date values.
+  const initialActiveProfile = getActiveProfile();
+  const [uploadProfileKey, setUploadProfileKey] = useState(initialActiveProfile.key);
+  const [uploadProfileVersion, setUploadProfileVersion] = useState(0);
+  const [uploadInitialSettings, setUploadInitialSettings] = useState<ProfileSettings>(
+    initialActiveProfile.settings || {},
+  );
+  const [uploadFormSettings, setUploadFormSettings] = useState<ProfileSettings>(
+    initialActiveProfile.settings || {},
+  );
+  const onUploadProfileLoad = (s: ProfileSettings) => {
+    setUploadInitialSettings(s);
+    setUploadFormSettings(s);
+    setUploadProfileKey(getActiveProfile().key);
+    setUploadProfileVersion((v) => v + 1);
+  };
 
   const handleAnalyze = async (
     files: File[],
@@ -278,7 +300,7 @@ export default function App() {
         <Wind className="text-teal" size={24} />
         <h1 className="text-xl font-bold tracking-tight">AeroProfile</h1>
         <span className="text-[10px] font-mono text-muted opacity-60" title="Build ID — increment to verify hot-reload">
-          v2026.04.14-profiles
+          v2026.04.14-profiles2
         </span>
         <span className="text-muted text-sm ml-2 hidden md:inline">
           CdA / Crr depuis votre fichier d'activité
@@ -358,8 +380,31 @@ export default function App() {
           <>
             {!hasResults && !loading && (
               <>
-                <ProfilePicker />
-                <FileUpload onAnalyze={handleAnalyze} loading={loading} error={error} />
+                <ProfilePicker
+                  currentSettings={uploadFormSettings}
+                  onLoad={onUploadProfileLoad}
+                  context="upload"
+                />
+                <FileUpload
+                  key={`${uploadProfileKey}-${uploadProfileVersion}`}
+                  onAnalyze={handleAnalyze}
+                  loading={loading}
+                  error={error}
+                  initialMass={uploadInitialSettings.massKg}
+                  initialBikeType={uploadInitialSettings.bikeType}
+                  initialPositionIdx={uploadInitialSettings.positionIdx}
+                  initialCrrFixed={uploadInitialSettings.crrFixed ?? null}
+                  initialMaxNrmse={uploadInitialSettings.maxNrmse}
+                  onSettingsChange={(s) =>
+                    setUploadFormSettings({
+                      massKg: s.mass,
+                      bikeType: s.bikeType,
+                      positionIdx: s.positionIdx,
+                      crrFixed: s.crrFixed,
+                      maxNrmse: s.maxNrmse,
+                    })
+                  }
+                />
               </>
             )}
 

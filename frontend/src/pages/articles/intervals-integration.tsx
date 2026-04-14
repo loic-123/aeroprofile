@@ -9,6 +9,35 @@ export default function IntervalsIntegration() {
         automatiquement toutes vos sorties sur la période de votre choix.
       </P>
 
+      <Section title="Profils : sauvegarder vos setups">
+        <P>
+          Avant même de vous connecter, le <strong>ProfilePicker</strong> en
+          haut de la page vous permet de sauvegarder tout votre setup dans un{" "}
+          <em>profil</em> : clé API Intervals.icu, athlete id, masse, vélo,
+          position, Crr, seuil nRMSE et <em>tous</em> les filtres de la ride
+          list (plage de dates, distance, D+ max, pente moyenne, durée min,
+          exclusion des sorties en groupe).
+        </P>
+        <P>
+          Un profil <strong>"Moi"</strong> est pré-créé avec des valeurs de
+          départ sensées (75 kg, route, position aéro drops, Crr auto). Il ne
+          peut pas être supprimé mais vous pouvez écraser ses paramètres.
+        </P>
+        <ul className="list-disc ml-6 space-y-1 text-text text-sm">
+          <li><strong>Cliquer sur un chip de profil</strong> → charge ses paramètres dans le formulaire.</li>
+          <li><strong>"+ Nouveau"</strong> → crée un nouveau profil à partir des paramètres actuels.</li>
+          <li><strong>"Sauvegarder"</strong> → écrit les paramètres actuels dans le profil actif.</li>
+          <li><strong>"Recharger"</strong> → revient aux paramètres stockés du profil actif (annule vos tweaks non sauvegardés).</li>
+        </ul>
+        <Note>
+          Le <strong>clé du profil</strong> est aussi utilisée comme{" "}
+          <code>athleteKey</code> sur chaque entrée d'historique qu'il produit.
+          Cela garantit que la <em>timeline de stabilité</em> et la{" "}
+          <em>conformal prediction</em> ne mélangent pas les données de
+          plusieurs cyclistes ou de plusieurs setups.
+        </Note>
+      </Section>
+
       <Section title="Comment ça marche">
         <P>
           Intervals.icu est une plateforme d'analyse d'entraînement gratuite

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Upload, Loader2, ChevronDown, ChevronRight, FileText, X } from "lucide-react";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
 
@@ -10,16 +10,45 @@ interface Props {
   ) => void;
   loading: boolean;
   error: string | null;
+  /** Optional initial values from the active profile. The component uses
+   *  them as the first useState() value, so forcing a re-mount (via a
+   *  `key` prop on the parent) applies a freshly loaded profile. */
+  initialMass?: number;
+  initialBikeType?: BikeType;
+  initialPositionIdx?: number;
+  initialCrrFixed?: number | null;
+  initialMaxNrmse?: number;
+  /** Exposes the current form state to the parent so the "Save to profile"
+   *  button can snapshot it without duplicating the state machine. */
+  onSettingsChange?: (s: {
+    mass: number;
+    bikeType: BikeType;
+    positionIdx: number;
+    crrFixed: number | null;
+    maxNrmse: number;
+  }) => void;
 }
 
-export default function FileUpload({ onAnalyze, loading, error }: Props) {
+export default function FileUpload({
+  onAnalyze,
+  loading,
+  error,
+  initialMass,
+  initialBikeType,
+  initialPositionIdx,
+  initialCrrFixed,
+  initialMaxNrmse,
+  onSettingsChange,
+}: Props) {
   const [files, setFiles] = useState<File[]>([]);
-  const [mass, setMass] = useState<number>(80);
-  const [bikeType, setBikeType] = useState<BikeType>("road");
-  const [positionIdx, setPositionIdx] = useState(2); // default: "Aéro (drops)"
+  const [mass, setMass] = useState<number>(initialMass ?? 80);
+  const [bikeType, setBikeType] = useState<BikeType>(initialBikeType ?? "road");
+  const [positionIdx, setPositionIdx] = useState(initialPositionIdx ?? 2);
   const [advanced, setAdvanced] = useState(false);
   const [eta, setEta] = useState(0.977);
-  const [crrFixed, setCrrFixed] = useState<string>("0.003");
+  const [crrFixed, setCrrFixed] = useState<string>(
+    initialCrrFixed != null ? String(initialCrrFixed) : "0.003",
+  );
 
   const handleBikeType = (bt: BikeType) => {
     setBikeType(bt);
@@ -28,7 +57,20 @@ export default function FileUpload({ onAnalyze, loading, error }: Props) {
     if (positionIdx >= presets.length) setPositionIdx(0);
   };
   const [windFactor, setWindFactor] = useState(0.7);
-  const [maxNrmse, setMaxNrmse] = useState(45);
+  const [maxNrmse, setMaxNrmse] = useState(initialMaxNrmse ?? 45);
+
+  // Notify parent whenever the profile-relevant state changes so the
+  // "Save to profile" button can read an up-to-date snapshot.
+  useEffect(() => {
+    if (!onSettingsChange) return;
+    onSettingsChange({
+      mass,
+      bikeType,
+      positionIdx,
+      crrFixed: crrFixed && crrFixed !== "" ? parseFloat(crrFixed.replace(",", ".")) : null,
+      maxNrmse,
+    });
+  }, [mass, bikeType, positionIdx, crrFixed, maxNrmse, onSettingsChange]);
   const [useCache, setUseCache] = useState(true);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);

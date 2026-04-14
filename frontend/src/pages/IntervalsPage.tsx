@@ -12,6 +12,8 @@ import {
 } from "../api/intervals";
 import { getCachedInterval, setCacheInterval, type CacheOpts } from "../api/cache";
 import { saveToHistory } from "../api/history";
+import { getActiveProfile, type ProfileSettings } from "../api/profiles";
+import ProfilePicker from "../components/ProfilePicker";
 import type { AnalysisResult, HierarchicalAnalysisResult } from "../types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
 import InfoTooltip from "../components/InfoTooltip";
@@ -36,9 +38,17 @@ interface RideResult {
 }
 
 export default function IntervalsPage() {
-  // Connection
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem(LS_KEY) || "");
-  const [athleteId, setAthleteId] = useState(() => localStorage.getItem(LS_AID) || "0");
+  // Profile-driven initial state. We read the active profile ONCE at mount
+  // to seed every form field; the ProfilePicker below can reload it on
+  // demand or save the current form state back into the profile.
+  const initialProfile = getActiveProfile();
+  const initialSettings = initialProfile.settings || {};
+  const legacyApiKey = localStorage.getItem(LS_KEY) || "";
+  const legacyAid = localStorage.getItem(LS_AID) || "0";
+
+  // Connection — fall back to legacy localStorage for first-run migration
+  const [apiKey, setApiKey] = useState(initialSettings.intervalsApiKey || legacyApiKey);
+  const [athleteId, setAthleteId] = useState(initialSettings.intervalsAthleteId || legacyAid);
   const [profile, setProfile] = useState<AthleteProfile | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connError, setConnError] = useState<string | null>(null);
@@ -50,14 +60,26 @@ export default function IntervalsPage() {
     return d.toISOString().slice(0, 10);
   });
   const [newest, setNewest] = useState(() => new Date().toISOString().slice(0, 10));
-  const [filters, setFilters] = useState<RideFilters>({ ...DEFAULT_FILTERS });
+  const [filters, setFilters] = useState<RideFilters>(() => {
+    const f = initialSettings.intervalsFilters;
+    if (!f) return { ...DEFAULT_FILTERS };
+    return {
+      min_distance_km: f.minDistanceKm ?? DEFAULT_FILTERS.min_distance_km,
+      max_distance_km: f.maxDistanceKm ?? DEFAULT_FILTERS.max_distance_km,
+      max_elevation_m: f.maxElevationM ?? DEFAULT_FILTERS.max_elevation_m,
+      max_elevation_per_km: f.maxElevationPerKm ?? DEFAULT_FILTERS.max_elevation_per_km,
+      min_duration_h: f.minDurationH ?? DEFAULT_FILTERS.min_duration_h,
+    };
+  });
   const [showFilters, setShowFilters] = useState(false);
-  const [mass, setMass] = useState(75);
-  const [bikeType, setBikeType] = useState<BikeType>("road");
-  const [crrFixed, setCrrFixed] = useState("0.003");
-  const [positionIdx, setPositionIdx] = useState(2); // default: "Aéro (drops)"
+  const [mass, setMass] = useState(initialSettings.massKg ?? 75);
+  const [bikeType, setBikeType] = useState<BikeType>(initialSettings.bikeType ?? "road");
+  const [crrFixed, setCrrFixed] = useState(
+    initialSettings.crrFixed != null ? String(initialSettings.crrFixed) : "0.003",
+  );
+  const [positionIdx, setPositionIdx] = useState(initialSettings.positionIdx ?? 2);
   const [useCache, setUseCache] = useState(true);
-  const [maxNrmse, setMaxNrmse] = useState(45);
+  const [maxNrmse, setMaxNrmse] = useState(initialSettings.maxNrmse ?? 45);
 
   const handleBikeType = (bt: BikeType) => {
     setBikeType(bt);
@@ -123,7 +145,9 @@ export default function IntervalsPage() {
   // Keywords that strongly suggest group riding / drafting → exclude by default
   const GROUP_KEYWORDS = /\b(group[e]?|peloton|avec|aspi|aspiration|porte[- ]?bagage|roue|draft|à deux|à trois|à [0-9]+|cyclosportive|granfondo|course|compét|critérium|kermesse)\b/i;
 
-  const [excludeGroup, setExcludeGroup] = useState(true);
+  const [excludeGroup, setExcludeGroup] = useState(
+    initialSettings.intervalsFilters?.excludeGroup ?? true,
+  );
 
   // Base filter — everything except the D+/km grade ratio
   const passesBaseFilters = (a: typeof allActivities[number]) => {
@@ -401,6 +425,53 @@ export default function IntervalsPage() {
 
   const selectedResult = rides[selectedIdx]?.result || null;
 
+  // --- Profile integration --------------------------------------------------
+  // `currentSettings` captures the form state for the "Save to profile"
+  // button. `applySettings` applies a loaded profile's settings to the
+  // form, overwriting every field that the profile defines (fields not
+  // set in the profile keep their current value).
+  const currentSettings = (): ProfileSettings => ({
+    massKg: mass,
+    bikeType,
+    positionIdx,
+    crrFixed: crrFixed && crrFixed !== "" ? parseFloat(crrFixed.replace(",", ".")) : null,
+    maxNrmse,
+    intervalsApiKey: apiKey,
+    intervalsAthleteId: athleteId,
+    intervalsFilters: {
+      minDistanceKm: filters.min_distance_km,
+      maxDistanceKm: filters.max_distance_km,
+      maxElevationM: filters.max_elevation_m,
+      maxElevationPerKm: filters.max_elevation_per_km,
+      minDurationH: filters.min_duration_h,
+      excludeGroup,
+    },
+  });
+
+  const applySettings = (s: ProfileSettings) => {
+    if (s.massKg != null) setMass(s.massKg);
+    if (s.bikeType) setBikeType(s.bikeType);
+    if (s.positionIdx != null) setPositionIdx(s.positionIdx);
+    if (s.crrFixed != null) setCrrFixed(String(s.crrFixed));
+    else if (s.crrFixed === null) setCrrFixed("");
+    if (s.maxNrmse != null) setMaxNrmse(s.maxNrmse);
+    if (s.intervalsApiKey != null) setApiKey(s.intervalsApiKey);
+    if (s.intervalsAthleteId != null) setAthleteId(s.intervalsAthleteId);
+    if (s.intervalsFilters) {
+      setFilters({
+        min_distance_km: s.intervalsFilters.minDistanceKm ?? filters.min_distance_km,
+        max_distance_km: s.intervalsFilters.maxDistanceKm ?? filters.max_distance_km,
+        max_elevation_m: s.intervalsFilters.maxElevationM ?? filters.max_elevation_m,
+        max_elevation_per_km: s.intervalsFilters.maxElevationPerKm ?? filters.max_elevation_per_km,
+        min_duration_h: s.intervalsFilters.minDurationH ?? filters.min_duration_h,
+      });
+      if (s.intervalsFilters.excludeGroup != null) setExcludeGroup(s.intervalsFilters.excludeGroup);
+    }
+    // Reset the connected profile so the user re-clicks "Se connecter" with
+    // the (potentially new) credentials.
+    setProfile(null);
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
@@ -412,6 +483,12 @@ export default function IntervalsPage() {
           Connectez votre compte pour analyser automatiquement toutes vos sorties.
         </p>
       </div>
+
+      <ProfilePicker
+        currentSettings={currentSettings()}
+        onLoad={applySettings}
+        context="intervals"
+      />
 
       {/* Connection */}
       <div className="bg-panel border border-border rounded-lg p-5">

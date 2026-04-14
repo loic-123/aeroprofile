@@ -47,7 +47,7 @@ export default function FileUpload({
   const [advanced, setAdvanced] = useState(false);
   const [eta, setEta] = useState(0.977);
   const [crrFixed, setCrrFixed] = useState<string>(
-    initialCrrFixed != null ? String(initialCrrFixed) : "0.003",
+    initialCrrFixed != null ? String(initialCrrFixed) : "0.0032",
   );
 
   const handleBikeType = (bt: BikeType) => {

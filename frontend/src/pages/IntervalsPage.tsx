@@ -76,7 +76,7 @@ export default function IntervalsPage() {
   const [mass, setMass] = useState(initialSettings.massKg ?? 75);
   const [bikeType, setBikeType] = useState<BikeType>(initialSettings.bikeType ?? "road");
   const [crrFixed, setCrrFixed] = useState(
-    initialSettings.crrFixed != null ? String(initialSettings.crrFixed) : "0.003",
+    initialSettings.crrFixed != null ? String(initialSettings.crrFixed) : "0.0032",
   );
   const [positionIdx, setPositionIdx] = useState(initialSettings.positionIdx ?? 2);
   const [useCache, setUseCache] = useState(true);
@@ -154,9 +154,6 @@ export default function IntervalsPage() {
   // empty (= "all"); first populated when the activity list loads.
   const [sensorFilter, setSensorFilter] = useState<Set<string>>(new Set());
   const [sensorFilterInitialised, setSensorFilterInitialised] = useState(false);
-  // Benchmark toggle: when on, every analysed ride also runs Chung VE
-  // (diagnostic-only, the final result stays wind_inverse when it wins).
-  const [benchmarkChungVe, setBenchmarkChungVe] = useState(false);
 
   // Base filter — everything except the D+/km grade ratio and the sensor filter
   const passesBaseFilters = (a: typeof allActivities[number]) => {
@@ -281,7 +278,6 @@ export default function IntervalsPage() {
         sensorFilter.size < availableSensors.list.length + (availableSensors.unknown > 0 ? 1 : 0)
           ? Array.from(sensorFilter)
           : null,
-      benchmark_chung_ve: benchmarkChungVe,
     });
 
     const results: RideResult[] = [];
@@ -294,7 +290,7 @@ export default function IntervalsPage() {
         results.push({ activity: act, result: fromCache, excluded: !!qBad || nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
-          const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, priorMean, priorSigma, false, benchmarkChungVe);
+          const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, priorMean, priorSigma, false);
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
           const qBad = res.quality_status && res.quality_status !== "ok" && res.quality_status !== "prior_dominated";
           results.push({ activity: act, result: res, excluded: !!qBad || nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
@@ -724,26 +720,6 @@ export default function IntervalsPage() {
             </button>
             <label className="text-xs text-muted">
               Cache local {useCache ? "(activé)" : "(désactivé — re-analyse tout)"}
-            </label>
-          </div>
-
-          <div className="flex items-center gap-2 mt-2">
-            <button
-              type="button"
-              onClick={() => setBenchmarkChungVe(!benchmarkChungVe)}
-              className={`relative w-9 h-5 rounded-full transition-colors ${
-                benchmarkChungVe ? "bg-info" : "bg-border"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                  benchmarkChungVe ? "translate-x-4" : ""
-                }`}
-              />
-            </button>
-            <label className="text-xs text-muted">
-              Benchmark Chung VE {benchmarkChungVe ? "(activé — ~30% plus lent)" : "(désactivé)"}
-              <InfoTooltip text="Force l'exécution de Chung VE sur chaque ride, en plus de wind_inverse. Le résultat final n'est pas changé (wind_inverse gagne presque toujours), mais les logs contiennent alors les deux estimations côte à côte pour comparaison. Coût : ~30% de temps d'analyse en plus. Utile pour valider le choix du solveur." />
             </label>
           </div>
 
@@ -1180,6 +1156,13 @@ export default function IntervalsPage() {
                           reason += " ⚠ mono-jambe ou calibration manquante";
                         }
                       }
+                      if (r.result.solver_cross_check_delta != null && r.result.chung_cda != null) {
+                        const d = r.result.solver_cross_check_delta;
+                        const label = r.result.solver_confidence === "high" ? "accord solveurs"
+                                    : r.result.solver_confidence === "medium" ? "désaccord léger"
+                                    : "désaccord fort";
+                        reason += `\nCross-check Chung VE: ${r.result.chung_cda.toFixed(3)} (Δ=${d.toFixed(3)} — ${label})`;
+                      }
                       if (r.result.quality_status && r.result.quality_status !== "ok" && r.result.quality_reason) {
                         reason += `\n\n⚠ Exclue : ${r.result.quality_reason}`;
                       }
@@ -1214,6 +1197,18 @@ export default function IntervalsPage() {
                             )}
                             {r.result.quality_status === "prior_dominated" && (
                               <span className="opacity-70 text-warn" title="résultat dominé par le prior — données peu informatives">ⓘ</span>
+                            )}
+                            {r.result.solver_confidence === "low" && (
+                              <span
+                                className="opacity-80 text-coral"
+                                title={`solveurs en désaccord — wind=${r.result.cda.toFixed(3)} vs chung=${r.result.chung_cda?.toFixed(3) ?? "—"} (Δ=${(r.result.solver_cross_check_delta ?? 0).toFixed(3)})`}
+                              >⚠</span>
+                            )}
+                            {r.result.solver_confidence === "medium" && (
+                              <span
+                                className="opacity-60 text-warn"
+                                title={`solveurs en désaccord léger — Δ=${(r.result.solver_cross_check_delta ?? 0).toFixed(3)} (wind vs chung)`}
+                              >≈</span>
                             )}
                           </>
                         )}

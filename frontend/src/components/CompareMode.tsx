@@ -49,7 +49,7 @@ function emptyRider(n: number): RiderEntry {
     name: `Cycliste ${n}`,
     mass: 75,
     positionIdx: 2,
-    crrFixed: "0.003",
+    crrFixed: "0.0032",
     rides: [],
   };
 }

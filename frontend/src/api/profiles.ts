@@ -50,7 +50,10 @@ const DEFAULT_SETTINGS: ProfileSettings = {
   massKg: 75,
   bikeType: "road",
   positionIdx: 2, // "Aéro (drops)" on road
-  crrFixed: null,
+  // GP5000 tubeless — reliable default; "Auto" estimate is noisy on most
+  // rides and ends up stuck at 0.005 via the speed-variety fallback, so
+  // we prefer a sensible preset over auto-estimation.
+  crrFixed: 0.0032,
   maxNrmse: 45,
   intervalsFilters: {
     // 10 m/km = 1% average grade. Excludes mountain rides where the aero

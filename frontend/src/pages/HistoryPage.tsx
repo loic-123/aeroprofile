@@ -45,10 +45,15 @@ export default function HistoryPage() {
     m === "single" ? "Analyse" : m === "intervals" ? "Intervals" : "Comparer";
 
   // --- Filter options (athletes / sensors / bikes) ---
+  // Sensor options are built from the per-ride `rideCdas[].powerMeter`
+  // field, not the entry-level `powerMeterLabel`. Aggregate entries built
+  // from a mix of sensors surface as "Mixte (N capteurs — principal : …)"
+  // at the entry level, which is not a useful filter key. Counting unique
+  // sensors per ride gives the user a real per-sensor breakdown.
   const { athleteOptions, sensorOptions, bikeOptions } = useMemo(() => {
     const ac = new Map<string, { label: string; count: number }>();
     let athleteUnknown = 0;
-    const sc = new Map<string, number>();
+    const sc = new Map<string, number>(); // label -> ride count
     let sensorUnknown = 0;
     const bc = new Map<string, { label: string; count: number }>();
     let bikeUnknown = 0;
@@ -59,9 +64,20 @@ export default function HistoryPage() {
         const cur = ac.get(e.athleteKey) || { label: lbl, count: 0 };
         ac.set(e.athleteKey, { label: lbl, count: cur.count + 1 });
       } else athleteUnknown++;
-      // Sensor
-      if (e.powerMeterLabel) sc.set(e.powerMeterLabel, (sc.get(e.powerMeterLabel) || 0) + 1);
-      else sensorUnknown++;
+      // Sensor — walk the per-ride list. Fall back to the entry label for
+      // legacy entries that don't carry per-ride sensor metadata.
+      const hasPerRide = e.rideCdas.some((rc) => rc.powerMeter);
+      if (hasPerRide) {
+        for (const rc of e.rideCdas) {
+          if (rc.powerMeter) sc.set(rc.powerMeter, (sc.get(rc.powerMeter) || 0) + 1);
+          else sensorUnknown++;
+        }
+      } else if (e.powerMeterLabel && !e.powerMeterLabel.startsWith("Mixte")) {
+        // Legacy single-sensor entry: use its label directly, count N rides.
+        sc.set(e.powerMeterLabel, (sc.get(e.powerMeterLabel) || 0) + e.rideCdas.length);
+      } else {
+        sensorUnknown += e.rideCdas.length || 1;
+      }
       // Bike
       if (e.bikeKey) {
         const lbl = e.bikeLabel || e.bikeKey;
@@ -113,14 +129,28 @@ export default function HistoryPage() {
   }
 
   // --- Intersection filter: an entry is kept if it matches ALL filter dimensions ---
+  // Sensor filter operates on per-ride sensors so a mixed-sensor aggregate
+  // is kept as long as at least one of its rides uses a selected sensor.
+  // The `timeline` memo then further trims ride points to the selected set
+  // so the rolling-std chart only plots rides from selected sensors.
   const filteredEntries = useMemo(() => {
     const noSensor = selectedSensors.size === 0;
     const noAthlete = selectedAthletes.size === 0;
     const noBike = selectedBikes.size === 0;
     return entries.filter((e) => {
       if (!noSensor) {
-        const key = e.powerMeterLabel || "__unknown__";
-        if (!selectedSensors.has(key)) return false;
+        const hasPerRide = e.rideCdas.some((rc) => rc.powerMeter);
+        if (hasPerRide) {
+          const hit = e.rideCdas.some((rc) => rc.powerMeter && selectedSensors.has(rc.powerMeter));
+          const unknownHit = selectedSensors.has("__unknown__") && e.rideCdas.some((rc) => !rc.powerMeter);
+          if (!hit && !unknownHit) return false;
+        } else {
+          // Legacy entry without per-ride sensors: match by entry label
+          const key = (e.powerMeterLabel && !e.powerMeterLabel.startsWith("Mixte"))
+            ? e.powerMeterLabel
+            : "__unknown__";
+          if (!selectedSensors.has(key)) return false;
+        }
       }
       if (!noAthlete) {
         const key = e.athleteKey || "__unknown__";
@@ -198,20 +228,43 @@ export default function HistoryPage() {
       return label;
     };
 
-    const all: Point[] = [];
+    // Dedup by (athleteKey, date): when the same ride is re-analysed (e.g.
+    // after a Crr change), multiple history entries end up carrying the
+    // same ride date. Plotting all of them stacks the point N times and
+    // pollutes the rolling-std window. We keep the version that came from
+    // the **most recent** history entry (by entry.timestamp) per athlete.
+    type Key = string;
+    const bestByKey = new Map<Key, { entry: HistoryEntry; rc: HistoryEntry["rideCdas"][number] }>();
+    const noSensor = selectedSensors.size === 0;
     for (const e of filteredEntries) {
-      const entrySensor = extractEntrySensor(e.powerMeterLabel || null);
+      const athKey = e.athleteKey || "__unknown__";
       for (const rc of e.rideCdas) {
-        const rideSensor = rc.powerMeter || entrySensor;
-        all.push({
-          date: rc.date,
-          cda: rc.cda,
-          entryId: e.id,
-          rideSensor,
-          sensorLabel: null, // filled below with the window-majority sensor
-          sensorQuality: e.powerMeterQuality ?? null,
-        });
+        // Filter per-ride by sensor selection so re-selecting Assioma only
+        // shows Assioma points (the entry-level filter above just decides
+        // which entries contribute candidates).
+        if (!noSensor) {
+          const sensorKey = rc.powerMeter || "__unknown__";
+          if (!selectedSensors.has(sensorKey)) continue;
+        }
+        const key: Key = `${athKey}|${rc.date}`;
+        const prev = bestByKey.get(key);
+        if (!prev || prev.entry.timestamp < e.timestamp) {
+          bestByKey.set(key, { entry: e, rc });
+        }
       }
+    }
+    const all: Point[] = [];
+    for (const { entry: e, rc } of bestByKey.values()) {
+      const entrySensor = extractEntrySensor(e.powerMeterLabel || null);
+      const rideSensor = rc.powerMeter || entrySensor;
+      all.push({
+        date: rc.date,
+        cda: rc.cda,
+        entryId: e.id,
+        rideSensor,
+        sensorLabel: null,
+        sensorQuality: e.powerMeterQuality ?? null,
+      });
     }
     all.sort((a, b) => a.date.localeCompare(b.date));
     const window = 10;
@@ -237,7 +290,7 @@ export default function HistoryPage() {
       std: stds[i],
       sensorLabel: majorityWindow(i),
     }));
-  }, [filteredEntries]);
+  }, [filteredEntries, selectedSensors]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -275,7 +328,7 @@ export default function HistoryPage() {
 
       {/* Bias ratio histogram — per-sensor distribution of the power-meter
           calibration ratio. Spots sensors that systematically drift. */}
-      <BiasHistogram entries={filteredEntries} />
+      <BiasHistogram entries={filteredEntries} selectedSensors={selectedSensors} />
 
 
       {/* Multi-dimension filter blocks. Each block behaves independently but
@@ -974,11 +1027,17 @@ function RollingStdTimeline({
           if (entries.length === 0) return null;
           const legendY = H - 4;
           const colWidth = innerW / Math.max(entries.length, 1);
+          // Budget ~5.4 px per monospace char at fontSize 9, minus the
+          // circle (~12 px) and a 4 px right-gap. This keeps labels inside
+          // their own column so 3+ sensors never overlap.
+          const charsPerCol = Math.max(4, Math.floor((colWidth - 16) / 5.4));
+          const truncate = (s: string) =>
+            s.length > charsPerCol ? s.slice(0, Math.max(1, charsPerCol - 1)) + "…" : s;
           return (
             <g>
               {entries.map((e, i) => {
                 const cx = PL + i * colWidth + 6;
-                const display = e.label.length > 22 ? e.label.slice(0, 20) + "…" : e.label;
+                const display = truncate(e.label);
                 return (
                   <g key={i}>
                     <circle cx={cx} cy={legendY - 3} r={3} fill={e.color} />
@@ -990,6 +1049,7 @@ function RollingStdTimeline({
                       fontFamily="monospace"
                     >
                       {display}
+                      <title>{e.label}</title>
                     </text>
                   </g>
                 );
@@ -1012,44 +1072,80 @@ function RollingStdTimeline({
  *  distribution of "how far the measured power was from the
  *  theoretical value on each ride".
  */
-function BiasHistogram({ entries }: { entries: HistoryEntry[] }) {
-  // Gather (sensor, biasRatio) pairs from rideCdas across all entries.
-  // Group by sensor; skip rides without bias data.
-  type Bin = { ratio: number; sensor: string };
-  const bins: Bin[] = [];
+function BiasHistogram({ entries, selectedSensors }: { entries: HistoryEntry[]; selectedSensors: Set<string> }) {
+  // Gather (sensor, biasRatio) per ride, deduplicated by (athleteKey, date):
+  // the same ride re-analysed twice would otherwise double-count into the
+  // histogram. We keep the version from the most recent entry per athlete.
+  // Per-ride sensor filter: if the user has selected specific sensors in
+  // the history filter block, only rides whose sensor is in the selection
+  // contribute to the histogram. Rides without per-ride sensor metadata
+  // fall back to the entry label (or "__unknown__").
+  type Sample = { ratio: number; sensor: string };
+  const noSensorFilter = selectedSensors.size === 0;
+  const bestByKey = new Map<string, { entry: HistoryEntry; rc: HistoryEntry["rideCdas"][number] }>();
   for (const e of entries) {
+    const athKey = e.athleteKey || "__unknown__";
+    const entryHasPerRide = e.rideCdas.some((rc) => rc.powerMeter);
     for (const rc of e.rideCdas) {
-      if (rc.biasRatio != null && Number.isFinite(rc.biasRatio)) {
-        bins.push({
-          ratio: rc.biasRatio,
-          sensor: rc.powerMeter || e.powerMeterLabel || "Inconnu",
-        });
+      if (rc.biasRatio == null || !Number.isFinite(rc.biasRatio)) continue;
+      // Resolve per-ride sensor key for the filter check.
+      let sensorKey: string;
+      if (rc.powerMeter) sensorKey = rc.powerMeter;
+      else if (!entryHasPerRide && e.powerMeterLabel && !e.powerMeterLabel.startsWith("Mixte"))
+        sensorKey = e.powerMeterLabel;
+      else sensorKey = "__unknown__";
+      if (!noSensorFilter && !selectedSensors.has(sensorKey)) continue;
+      const key = `${athKey}|${rc.date}`;
+      const prev = bestByKey.get(key);
+      if (!prev || prev.entry.timestamp < e.timestamp) {
+        bestByKey.set(key, { entry: e, rc });
       }
     }
   }
-  if (bins.length < 10) return null;
+  const samples: Sample[] = [];
+  for (const { entry: e, rc } of bestByKey.values()) {
+    samples.push({
+      ratio: rc.biasRatio!,
+      sensor: rc.powerMeter || e.powerMeterLabel || "Inconnu",
+    });
+  }
+  if (samples.length < 10) return null;
 
   // Group by sensor
   const bySensor = new Map<string, number[]>();
-  for (const b of bins) {
-    const arr = bySensor.get(b.sensor) || [];
-    arr.push(b.ratio);
-    bySensor.set(b.sensor, arr);
+  for (const s of samples) {
+    const arr = bySensor.get(s.sensor) || [];
+    arr.push(s.ratio);
+    bySensor.set(s.sensor, arr);
   }
   const sensors = [...bySensor.keys()].sort();
 
-  // Shared bucketing: 0.6 -> 1.6 in 0.05 steps (20 buckets)
+  // Kernel Density Estimate on a uniform grid. Gaussian kernel, Silverman
+  // bandwidth rule-of-thumb per sensor. Smoother + more honest than a
+  // stacked histogram when N is small per sensor.
   const MIN = 0.6;
   const MAX = 1.6;
-  const N_BUCKETS = 20;
-  const bucketize = (vals: number[]): number[] => {
-    const out = new Array(N_BUCKETS).fill(0);
-    for (const v of vals) {
-      const clipped = Math.max(MIN, Math.min(MAX, v));
-      const idx = Math.min(N_BUCKETS - 1, Math.floor(((clipped - MIN) / (MAX - MIN)) * N_BUCKETS));
-      out[idx]++;
-    }
-    return out;
+  const N_GRID = 120;
+  const grid = Array.from({ length: N_GRID }, (_, i) => MIN + (i / (N_GRID - 1)) * (MAX - MIN));
+  const kde = (vals: number[]): { ys: number[]; h: number } => {
+    const n = vals.length;
+    if (n === 0) return { ys: new Array(N_GRID).fill(0), h: 0.05 };
+    const mean = vals.reduce((a, b) => a + b, 0) / n;
+    const variance = vals.reduce((a, v) => a + (v - mean) ** 2, 0) / Math.max(1, n - 1);
+    const sd = Math.sqrt(variance);
+    // Silverman: h = 1.06 * σ * n^(-1/5). Floor at 0.03 so small samples
+    // don't degenerate into spikes.
+    const h = Math.max(0.03, 1.06 * (sd || 0.1) * Math.pow(n, -1 / 5));
+    const norm = 1 / (n * h * Math.sqrt(2 * Math.PI));
+    const ys = grid.map((x) => {
+      let s = 0;
+      for (const v of vals) {
+        const z = (x - v) / h;
+        s += Math.exp(-0.5 * z * z);
+      }
+      return s * norm;
+    });
+    return { ys, h };
   };
 
   const COLORS: Record<number, string> = {
@@ -1059,25 +1155,50 @@ function BiasHistogram({ entries }: { entries: HistoryEntry[] }) {
     3: "#6b7280",
   };
 
-  // SVG layout
+  // SVG layout. Legend is rendered BELOW the chart in dedicated rows to
+  // avoid colliding with the curves. We reserve ~14 px per legend row,
+  // wrapping 2 legend items per row.
   const W = 700;
-  const H = 160;
   const PL = 35;
   const PR = 10;
-  const PT = 25;
-  const PB = 30;
+  const PT = 10;
+  const PB_CHART = 26;
+  const LEGEND_COLS = 2;
+  const LEGEND_ROW_H = 14;
+  const nLegendRows = Math.ceil(sensors.length / LEGEND_COLS);
+  const PB = PB_CHART + nLegendRows * LEGEND_ROW_H + 4;
+  const H = 160 + Math.max(0, (nLegendRows - 1) * LEGEND_ROW_H);
   const innerW = W - PL - PR;
   const innerH = H - PT - PB;
-  const bucketW = innerW / N_BUCKETS;
 
-  // Compute max y across all sensors for shared scale
-  const bucketsBySensor = sensors.map((s) => ({
-    sensor: s,
-    buckets: bucketize(bySensor.get(s)!),
-    n: bySensor.get(s)!.length,
-    mean: bySensor.get(s)!.reduce((a, b) => a + b, 0) / bySensor.get(s)!.length,
-  }));
-  const maxY = Math.max(1, ...bucketsBySensor.map((b) => Math.max(...b.buckets)));
+  // Compute one KDE per sensor on the shared grid; share the y scale so
+  // the curves are comparable in density (peak height = "how concentrated
+  // this sensor's rides are around that bias value").
+  const kdeBySensor = sensors.map((s) => {
+    const vals = bySensor.get(s)!;
+    const { ys } = kde(vals);
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return { sensor: s, ys, n: vals.length, mean };
+  });
+  const maxY = Math.max(0.001, ...kdeBySensor.flatMap((d) => d.ys));
+  const xOf = (x: number) => PL + ((x - MIN) / (MAX - MIN)) * innerW;
+  const yOf = (y: number) => H - PB - (y / maxY) * innerH;
+  const curvePath = (ys: number[]): string => {
+    let d = "";
+    for (let i = 0; i < ys.length; i++) {
+      d += (i === 0 ? "M" : "L") + xOf(grid[i]).toFixed(1) + "," + yOf(ys[i]).toFixed(1) + " ";
+    }
+    return d.trim();
+  };
+  const areaPath = (ys: number[]): string => {
+    const baseY = H - PB;
+    let d = "M" + xOf(grid[0]).toFixed(1) + "," + baseY.toFixed(1) + " ";
+    for (let i = 0; i < ys.length; i++) {
+      d += "L" + xOf(grid[i]).toFixed(1) + "," + yOf(ys[i]).toFixed(1) + " ";
+    }
+    d += "L" + xOf(grid[ys.length - 1]).toFixed(1) + "," + baseY.toFixed(1) + " Z";
+    return d;
+  };
 
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
@@ -1086,7 +1207,7 @@ function BiasHistogram({ entries }: { entries: HistoryEntry[] }) {
           Distribution du biais de calibration par capteur
         </h3>
         <span className="text-[10px] text-muted font-mono">
-          {bins.length} rides avec bias
+          {samples.length} rides avec bias
         </span>
       </div>
       <p className="text-[11px] text-muted mb-2 leading-tight">
@@ -1110,7 +1231,7 @@ function BiasHistogram({ entries }: { entries: HistoryEntry[] }) {
             />
           );
         })()}
-        {/* X axis labels */}
+        {/* X axis labels — sit just below the chart baseline */}
         {[0.6, 0.8, 1.0, 1.2, 1.4, 1.6].map((v, i) => (
           <text
             key={i}
@@ -1124,41 +1245,70 @@ function BiasHistogram({ entries }: { entries: HistoryEntry[] }) {
             {v.toFixed(1)}
           </text>
         ))}
-        {/* Stacked histogram bars per sensor (one colour per sensor) */}
-        {bucketsBySensor.map(({ sensor: _s, buckets }, sIdx) => {
+        {/* X axis title */}
+        <text
+          x={PL + innerW / 2}
+          y={H - PB + 22}
+          fill="#6b7280"
+          fontSize="9"
+          textAnchor="middle"
+          fontFamily="monospace"
+        >
+          biais (mesuré / théorique)
+        </text>
+        {/* Smooth KDE curves per sensor — one bell curve per power meter,
+            filled semi-transparent so overlap is visible. */}
+        {kdeBySensor.map(({ sensor: _s, ys }, sIdx) => {
           const color = COLORS[sIdx % 4];
-          return buckets.map((n, i) => {
-            if (n === 0) return null;
-            const x = PL + i * bucketW;
-            const h = (n / maxY) * innerH;
-            const y = H - PB - h;
-            // Offset each sensor's bars slightly so they don't overlap
-            const offset = sIdx * (bucketW / sensors.length) * 0.9;
-            const w = bucketW / sensors.length * 0.85;
-            return (
-              <rect
-                key={`${sIdx}-${i}`}
-                x={x + offset}
-                y={y}
-                width={w}
-                height={h}
-                fill={color}
-                opacity={0.85}
-              >
-                <title>{`${bucketsBySensor[sIdx].sensor}: bucket ${(MIN + i * (MAX - MIN) / N_BUCKETS).toFixed(2)} → ${n} rides`}</title>
-              </rect>
-            );
-          });
+          return (
+            <g key={sIdx}>
+              <path d={areaPath(ys)} fill={color} opacity={0.18} />
+              <path d={curvePath(ys)} fill="none" stroke={color} strokeWidth={1.8} opacity={0.95} />
+            </g>
+          );
         })}
-        {/* Legend */}
-        {bucketsBySensor.map((s, i) => (
-          <g key={i} transform={`translate(${PL + i * 180}, 10)`}>
-            <rect width={10} height={10} fill={COLORS[i % 4]} />
-            <text x={14} y={9} fill="#e9edf3" fontSize="10" fontFamily="monospace">
-              {s.sensor.length > 20 ? s.sensor.slice(0, 18) + "…" : s.sensor} (n={s.n}, μ={s.mean.toFixed(2)})
-            </text>
-          </g>
-        ))}
+        {/* Mean markers at the top of each curve (small triangle) */}
+        {kdeBySensor.map(({ sensor: _s, ys, mean }, sIdx) => {
+          const color = COLORS[sIdx % 4];
+          // Find the KDE value at mean by interpolation (mean is usually
+          // close to the curve peak but not exactly on a grid point).
+          const t = (mean - MIN) / (MAX - MIN);
+          const idxF = Math.max(0, Math.min(N_GRID - 1, t * (N_GRID - 1)));
+          const i0 = Math.floor(idxF);
+          const i1 = Math.min(N_GRID - 1, i0 + 1);
+          const f = idxF - i0;
+          const yAtMean = ys[i0] * (1 - f) + ys[i1] * f;
+          const mx = xOf(mean);
+          const my = yOf(yAtMean);
+          return (
+            <g key={`mean-${sIdx}`}>
+              <line x1={mx} x2={mx} y1={my} y2={H - PB} stroke={color} strokeWidth={1} strokeDasharray="2,2" opacity={0.7} />
+              <circle cx={mx} cy={my} r={2.5} fill={color} stroke="#0b1020" strokeWidth={0.8} />
+            </g>
+          );
+        })}
+        {/* Legend — wraps onto multiple rows to prevent overlaps */}
+        {kdeBySensor.map((s, i) => {
+          const row = Math.floor(i / LEGEND_COLS);
+          const col = i % LEGEND_COLS;
+          const colW = innerW / LEGEND_COLS;
+          const x = PL + col * colW;
+          const y = H - PB + 34 + row * LEGEND_ROW_H;
+          // Truncate long sensor labels so they fit within one legend column,
+          // accounting for the "(n=NN, μ=X.XX)" suffix (~14 chars).
+          const maxLabelChars = Math.max(8, Math.floor(colW / 6.5) - 14);
+          const label = s.sensor.length > maxLabelChars
+            ? s.sensor.slice(0, maxLabelChars - 1) + "…"
+            : s.sensor;
+          return (
+            <g key={i} transform={`translate(${x}, ${y})`}>
+              <rect width={9} height={9} y={-8} fill={COLORS[i % 4]} />
+              <text x={13} y={0} fill="#e9edf3" fontSize="10" fontFamily="monospace">
+                {label} (n={s.n}, μ={s.mean.toFixed(2)})
+              </text>
+            </g>
+          );
+        })}
       </svg>
     </div>
   );

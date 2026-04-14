@@ -12,14 +12,15 @@ export interface CrrPreset {
 }
 
 export const CRR_PRESETS: CrrPreset[] = [
-  { label: "Auto (estimé par le solveur)", crr: 0 },
+  { label: "Tubeless route moderne (GP5000 TLR, Corsa Pro) — défaut", crr: 0.0032 },
   { label: "Tubulaire vélodrome", crr: 0.0022 },
-  { label: "Tubeless compétition (GP5000 S TR, Pro One TLR)", crr: 0.0030 },
+  { label: "Tubeless compétition (GP5000 S TR, Pro One TLR)", crr: 0.0028 },
   { label: "Tubeless route (GP5000, Corsa)", crr: 0.0035 },
   { label: "Clincher standard (chambre butyl)", crr: 0.0045 },
   { label: "Endurance / training (4Season, Gatorskin)", crr: 0.0055 },
   { label: "Gravel 40mm (sentier compact)", crr: 0.0070 },
   { label: "VTT (terre / racines)", crr: 0.0100 },
+  { label: "Auto — mode expert (souvent bloqué à 0.005)", crr: 0 },
 ];
 
 export interface PositionPreset {
@@ -121,7 +122,7 @@ export interface AnalysisResult {
   crr_was_fixed: boolean;
   solver_method: string;
   solver_note: string;
-  quality_status?: "ok" | "bound_hit" | "non_identifiable" | "high_nrmse" | "prior_dominated";
+  quality_status?: "ok" | "bound_hit" | "non_identifiable" | "high_nrmse" | "prior_dominated" | "sensor_miscalib";
   quality_reason?: string;
   prior_adaptive_factor?: number;
   cda_raw?: number | null;
@@ -134,6 +135,12 @@ export interface AnalysisResult {
   power_meter_warning?: string;
   power_bias_ratio?: number | null;
   power_bias_n_points?: number;
+  // P2 — solver cross-check: Chung VE runs on every ride as validation.
+  // When the two solvers disagree, the CdA depends heavily on the wind
+  // treatment and is less robust.
+  chung_cda?: number | null;
+  solver_cross_check_delta?: number | null;
+  solver_confidence?: "high" | "medium" | "low" | "unknown";
   gear_id?: string | null;
   gear_name?: string | null;
   cda_climb: number | null;

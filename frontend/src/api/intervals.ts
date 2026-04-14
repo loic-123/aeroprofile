@@ -107,7 +107,6 @@ export async function analyzeRide(
   cdaPriorMean?: number,
   cdaPriorSigma?: number,
   disablePrior?: boolean,
-  benchmarkChungVe?: boolean,
 ): Promise<AnalysisResult> {
   const fd = new FormData();
   fd.append("api_key", apiKey);
@@ -119,7 +118,6 @@ export async function analyzeRide(
   if (disablePrior) fd.append("disable_prior", "true");
   if (cdaPriorMean && cdaPriorMean > 0 && !disablePrior) fd.append("cda_prior_mean", String(cdaPriorMean));
   if (cdaPriorSigma && cdaPriorSigma > 0 && !disablePrior) fd.append("cda_prior_sigma", String(cdaPriorSigma));
-  if (benchmarkChungVe) fd.append("benchmark_chung_ve", "true");
   const res = await fetch(`${API}/analyze-ride`, { method: "POST", body: fd });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));

@@ -161,9 +161,15 @@ async def analyze_ride(
     # etc. so the pipeline can classify the sensor quality. Failure is
     # non-fatal: we still run the analysis, just without the warning banner.
     pm_name: Optional[str] = None
+    gear_id: Optional[str] = None
+    gear_name: Optional[str] = None
     try:
         meta = await client.get_activity_meta(activity_id)
         pm_name = meta.get("power_meter") or None
+        gear = meta.get("gear") if isinstance(meta.get("gear"), dict) else {}
+        if gear:
+            gear_id = gear.get("id") or None
+            gear_name = gear.get("name") or None
     except Exception as _e:
         _log.warning("Could not fetch activity metadata for %s: %s", activity_id, _e)
 
@@ -187,6 +193,8 @@ async def analyze_ride(
             cda_prior_override=(cda_prior_mean, cda_prior_sigma) if cda_prior_mean is not None else None,
             disable_prior=disable_prior,
             power_meter_name=pm_name,
+            gear_id=gear_id,
+            gear_name=gear_name,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -236,6 +244,8 @@ def _build_analysis_out(result):
         power_meter_warning=result.power_meter_warning,
         power_bias_ratio=_f(result.power_bias_ratio) if result.power_bias_ratio is not None else None,
         power_bias_n_points=result.power_bias_n_points,
+        gear_id=result.gear_id,
+        gear_name=result.gear_name,
         ride_date=result.ride_date,
         ride_distance_km=result.ride_distance_km,
         ride_duration_s=result.ride_duration_s,

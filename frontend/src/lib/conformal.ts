@@ -39,28 +39,56 @@ export interface ConformalInterval {
  * Build a conformal prediction interval for a new ride's CdA using past
  * history as the calibration set.
  *
+ * The `filters` object lets the caller restrict the calibration set so
+ * that the exchangeability assumption holds:
+ *   - `athleteKey`: only rides from the same rider
+ *   - `sensorLabel`: only rides from the same power meter
+ *   - `bikeKey`:   only rides from the same bike
+ *
+ * When a filter matches very few rides (< 30) we progressively relax
+ * them (bike → sensor → athlete) before giving up and returning null.
+ *
  * @param newCda The estimated CdA for the new ride.
  * @param history All history entries.
  * @param alpha Desired miscoverage (default 0.05 → 95% coverage).
- * @param sensorFilter If provided, restrict calibration to rides from this sensor.
+ * @param filters Optional restriction on who/what to include in the calibration set.
  * @returns A conformal interval, or null if the calibration set is too small.
  */
 export function conformalIntervalForCda(
   newCda: number,
   history: HistoryEntry[],
   alpha = 0.05,
-  sensorFilter?: string,
+  filters?: {
+    athleteKey?: string;
+    sensorLabel?: string;
+    bikeKey?: string;
+  },
 ): ConformalInterval | null {
-  // Flatten history into individual ride CdAs — each HistoryEntry holds the
-  // per-ride CdAs in `rideCdas`, which is exactly the calibration set we
-  // need. Filter by sensor if asked (covariate shift mitigation).
-  const cdas: number[] = [];
-  for (const e of history) {
-    if (sensorFilter && e.powerMeterLabel !== sensorFilter) continue;
-    for (const rc of e.rideCdas) {
-      if (Number.isFinite(rc.cda) && rc.cda > 0) cdas.push(rc.cda);
+  const pass = (
+    e: HistoryEntry,
+    byAthlete: boolean,
+    bySensor: boolean,
+    byBike: boolean,
+  ) => {
+    if (byAthlete && filters?.athleteKey && e.athleteKey !== filters.athleteKey) return false;
+    if (bySensor && filters?.sensorLabel && e.powerMeterLabel !== filters.sensorLabel) return false;
+    if (byBike && filters?.bikeKey && e.bikeKey !== filters.bikeKey) return false;
+    return true;
+  };
+  const gather = (byA: boolean, byS: boolean, byB: boolean): number[] => {
+    const out: number[] = [];
+    for (const e of history) {
+      if (!pass(e, byA, byS, byB)) continue;
+      for (const rc of e.rideCdas) {
+        if (Number.isFinite(rc.cda) && rc.cda > 0) out.push(rc.cda);
+      }
     }
-  }
+    return out;
+  };
+  // Progressive relaxation: try tightest filter first, fall back if too small.
+  let cdas = gather(true, true, true);
+  if (cdas.length < 30) cdas = gather(true, true, false); // drop bike
+  if (cdas.length < 30) cdas = gather(true, false, false); // keep only athlete
   const n = cdas.length;
   if (n < 30) return null;
 

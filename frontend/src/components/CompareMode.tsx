@@ -376,6 +376,8 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
             date: r.result!.ride_date, cda: r.result!.cda,
             nrmse: (r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1),
           })),
+          athleteKey: `compare:${rider.name.toLowerCase().replace(/\s+/g, "_") || rider.id}`,
+          athleteName: rider.name || `Rider ${rider.id}`,
         });
       }
     }

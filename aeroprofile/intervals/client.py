@@ -52,6 +52,10 @@ class ActivitySummary:
     power_meter: Optional[str] = None
     power_meter_battery: Optional[str] = None
     crank_length_mm: Optional[float] = None
+    # Bike/gear identity as tracked by Intervals.icu. The id is stable across
+    # rides with the same bike. The name is often None unless the user set it.
+    gear_id: Optional[str] = None
+    gear_name: Optional[str] = None
 
 
 class IntervalsClient:
@@ -140,6 +144,9 @@ class IntervalsClient:
                 crank = float(crank_raw) if crank_raw is not None else None
             except (TypeError, ValueError):
                 crank = None
+            gear = a.get("gear") if isinstance(a.get("gear"), dict) else {}
+            gear_id = gear.get("id") if gear else None
+            gear_name = gear.get("name") if gear else None
 
             activities.append(ActivitySummary(
                 id=str(a.get("id", "")),
@@ -156,6 +163,8 @@ class IntervalsClient:
                 power_meter=pm_name if pm_name else None,
                 power_meter_battery=pm_battery if pm_battery else None,
                 crank_length_mm=crank,
+                gear_id=gear_id,
+                gear_name=gear_name,
             ))
         return activities
 

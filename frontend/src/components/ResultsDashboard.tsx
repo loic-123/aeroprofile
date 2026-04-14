@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { AnalysisResult } from "../types";
 import { getHistory } from "../api/history";
+import { getActiveProfile } from "../api/profiles";
 import { conformalIntervalForCda } from "../lib/conformal";
 import AnomalyAlerts from "./AnomalyAlerts";
 import AltitudeChart from "./AltitudeChart";
@@ -87,15 +88,25 @@ function CdADualCard({
   // Conformal interval based on the user's local history — provides a
   // distribution-free IC that doesn't assume gaussian residuals or an
   // interior optimum. Falls back to null when the history is too small.
+  //
+  // We restrict the calibration set to rides from the SAME athlete (using
+  // the currently active upload profile, or the result's own athlete field
+  // when carried from Intervals). This keeps the exchangeability assumption
+  // valid — mixing multiple people's CdAs would overstate the uncertainty.
   const conformal = useMemo(() => {
     if (unreliable) return null;
     try {
       const hist = getHistory();
-      return conformalIntervalForCda(result.cda, hist, 0.05);
+      const active = getActiveProfile();
+      return conformalIntervalForCda(result.cda, hist, 0.05, {
+        athleteKey: active.key,
+        sensorLabel: result.power_meter_display ?? undefined,
+        bikeKey: result.gear_id ?? undefined,
+      });
     } catch {
       return null;
     }
-  }, [result.cda, unreliable]);
+  }, [result.cda, result.power_meter_display, result.gear_id, unreliable]);
 
   return (
     <div className="bg-panel border border-border rounded-lg p-4">

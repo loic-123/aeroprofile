@@ -56,6 +56,19 @@ export interface HistoryEntry {
   powerMeterQuality?: "high" | "medium" | "low" | "unknown";
   // Median measured-vs-theoretical power bias ratio across the ok rides
   powerBiasRatio?: number;
+  // Athlete/profile identity — critical for keeping multi-rider histories
+  // separable in the rolling-std chart and conformal prediction.
+  //   athleteKey  : stable technical id (e.g. "intervals:i267366" or "local:moi")
+  //   athleteName : user-facing label
+  // Both are optional for backward-compat; migration on load best-efforts
+  // extracts them from the legacy `label` field.
+  athleteKey?: string;
+  athleteName?: string;
+  // Bike profile — from Intervals.icu's `gear.id` (stable per bike on a
+  // given athlete). The `bikeLabel` is a display-friendly form: the gear
+  // name if the user set one, otherwise "Vélo <gear_id>".
+  bikeKey?: string;
+  bikeLabel?: string;
 
   // Stats
   nRides: number;
@@ -66,11 +79,39 @@ export interface HistoryEntry {
   rideCdas: { date: string; cda: number; nrmse: number }[];
 }
 
+/** Extract an athlete name from a legacy entry label. The label format for
+ *  intervals entries is:
+ *      "{N} sorties via Intervals.icu ({athlete name})"
+ *  Returns null if no pattern matches. */
+function _parseAthleteFromLabel(label: string): string | null {
+  const m = label.match(/Intervals\.icu\s*\(([^)]+)\)/);
+  if (m) return m[1].trim();
+  return null;
+}
+
+function _migrateEntry(e: HistoryEntry): HistoryEntry {
+  // If athleteKey is already set, nothing to do.
+  if (e.athleteKey) return e;
+  // Best-effort: extract athlete name from the label (intervals mode only)
+  const parsed = e.mode === "intervals" ? _parseAthleteFromLabel(e.label) : null;
+  if (parsed) {
+    // Use the parsed name as a stable-ish key (lower, no spaces). Not
+    // technically unique across users with the same name, but it's good
+    // enough for separating "Loïc" and "Laurette" in a local history.
+    const key = `legacy:${parsed.toLowerCase().replace(/\s+/g, "_")}`;
+    return { ...e, athleteKey: key, athleteName: parsed };
+  }
+  return e;
+}
+
 export function getHistory(): HistoryEntry[] {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as HistoryEntry[];
+    const entries = JSON.parse(raw) as HistoryEntry[];
+    // Apply best-effort migration for legacy entries that don't yet have an
+    // athleteKey. This runs on every read but is idempotent and cheap.
+    return entries.map(_migrateEntry);
   } catch {
     return [];
   }

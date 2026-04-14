@@ -1,5 +1,6 @@
 import { useState } from "react";
 import FileUpload from "./components/FileUpload";
+import ProfilePicker from "./components/ProfilePicker";
 import ResultsDashboard from "./components/ResultsDashboard";
 import CompareMode from "./components/CompareMode";
 import BlogIndex from "./pages/BlogIndex";
@@ -12,6 +13,7 @@ import type { AnalysisResult, HierarchicalAnalysisResult } from "./types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, type BikeType } from "./types";
 import { Wind, Users, User, FileText, Loader2, BookOpen, Link2, Clock } from "lucide-react";
 import { saveToHistory, type HistoryEntry } from "./api/history";
+import { getActiveProfile } from "./api/profiles";
 import HistoryPage from "./pages/HistoryPage";
 import InfoTooltip from "./components/InfoTooltip";
 import CdAEvolutionChart from "./components/CdAEvolutionChart";
@@ -173,6 +175,10 @@ export default function App() {
       const fileNames = files.map((f) => f.name);
       const label = files.length === 1 ? fileNames[0] : `${goodForHistory.length} sortie${goodForHistory.length > 1 ? "s" : ""} (${fileNames[0]}${files.length > 1 ? "…" : ""})`;
       const hier = await hierPromise;
+      // Bike name: take the first ride's source_format (FIT/GPX/TCX) — we
+      // don't have a richer bike identity in upload mode yet, but the
+      // backend-extracted bike_name will be added later when available.
+      const activeProfile = getActiveProfile();
       saveToHistory({
         id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         timestamp: new Date().toISOString(),
@@ -200,6 +206,8 @@ export default function App() {
           cda: r.result!.cda,
           nrmse: (r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1),
         })),
+        athleteKey: activeProfile.key,
+        athleteName: activeProfile.name,
       });
     }
 
@@ -270,7 +278,7 @@ export default function App() {
         <Wind className="text-teal" size={24} />
         <h1 className="text-xl font-bold tracking-tight">AeroProfile</h1>
         <span className="text-[10px] font-mono text-muted opacity-60" title="Build ID — increment to verify hot-reload">
-          v2026.04.14-conformal
+          v2026.04.14-profiles
         </span>
         <span className="text-muted text-sm ml-2 hidden md:inline">
           CdA / Crr depuis votre fichier d'activité
@@ -349,7 +357,10 @@ export default function App() {
         ) : (
           <>
             {!hasResults && !loading && (
-              <FileUpload onAnalyze={handleAnalyze} loading={loading} error={error} />
+              <>
+                <ProfilePicker />
+                <FileUpload onAnalyze={handleAnalyze} loading={loading} error={error} />
+              </>
             )}
 
             {loading && !hasResults && (

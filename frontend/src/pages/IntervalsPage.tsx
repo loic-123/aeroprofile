@@ -255,11 +255,12 @@ export default function IntervalsPage() {
       const posP = POSITION_PRESETS_BY_BIKE[bikeType][positionIdx];
       const hier = await hierPromise;
 
-      // Summarise power meter across the good rides — if they're all the same
-      // sensor, show its label; otherwise flag as "mixed".
+      // Summarise power meter + bike across the good rides — if they're all
+      // the same sensor/bike, show its label; otherwise flag as "mixed".
       const pmLabelCounts = new Map<string, number>();
       const pmQualityCounts = new Map<string, number>();
       const biasRatios: number[] = [];
+      const bikeCounts = new Map<string, { label: string; count: number }>();
       for (const r of good) {
         const lbl = r.result?.power_meter_display;
         if (lbl) pmLabelCounts.set(lbl, (pmLabelCounts.get(lbl) || 0) + 1);
@@ -267,6 +268,12 @@ export default function IntervalsPage() {
         if (q) pmQualityCounts.set(q, (pmQualityCounts.get(q) || 0) + 1);
         const br = r.result?.power_bias_ratio;
         if (br != null && (r.result?.power_bias_n_points ?? 0) >= 60) biasRatios.push(br);
+        const gid = r.result?.gear_id;
+        if (gid) {
+          const bl = r.result?.gear_name || `Vélo ${gid}`;
+          const cur = bikeCounts.get(gid) || { label: bl, count: 0 };
+          bikeCounts.set(gid, { label: bl, count: cur.count + 1 });
+        }
       }
       const sortedLabels = [...pmLabelCounts.entries()].sort((a, b) => b[1] - a[1]);
       const powerMeterLabel =
@@ -284,6 +291,16 @@ export default function IntervalsPage() {
         biasRatios.length > 0
           ? biasRatios.slice().sort((a, b) => a - b)[Math.floor(biasRatios.length / 2)]
           : undefined;
+      const sortedBikes = [...bikeCounts.entries()].sort((a, b) => b[1].count - a[1].count);
+      let bikeKey: string | undefined;
+      let bikeLabel: string | undefined;
+      if (sortedBikes.length === 1) {
+        bikeKey = sortedBikes[0][0];
+        bikeLabel = sortedBikes[0][1].label;
+      } else if (sortedBikes.length > 1) {
+        bikeKey = "mixed";
+        bikeLabel = `Mixte (${sortedBikes.length} vélos)`;
+      }
 
       saveToHistory({
         id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -315,6 +332,10 @@ export default function IntervalsPage() {
         powerMeterLabel,
         powerMeterQuality: worstQuality,
         powerBiasRatio: medianBias,
+        athleteKey: profile?.id ? `intervals:${profile.id}` : `intervals:${athleteId}`,
+        athleteName: profile?.name || `Intervals #${athleteId}`,
+        bikeKey,
+        bikeLabel,
         nRides: good.length,
         nExcluded: results.length - good.length,
         nTotalPoints: good.reduce((a, r) => a + (r.result?.valid_points || 0), 0),

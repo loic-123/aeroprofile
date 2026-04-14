@@ -17,11 +17,17 @@ function rollingStd(values: number[], window: number): (number | null)[] {
 export default function HistoryPage() {
   const [entries, setEntries] = useState(() => getHistory());
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  // Multi-select sensor filter — null key = "unknown sensor" bucket.
-  // By default all sensors are shown (the set contains every distinct label
-  // plus a special "__unknown__" token when there are unlabeled entries).
+  // Multi-select filter sets. Null-sentinel "__unknown__" is used for entries
+  // missing the corresponding label. An empty Set() means "not yet initialised"
+  // — on first render we auto-select everything so the user sees all their
+  // analyses by default; the `*Initialised` flags prevent re-seeding on
+  // subsequent renders (so un-checking everything is respected).
   const [selectedSensors, setSelectedSensors] = useState<Set<string>>(new Set());
   const [sensorFilterInitialised, setSensorFilterInitialised] = useState(false);
+  const [selectedAthletes, setSelectedAthletes] = useState<Set<string>>(new Set());
+  const [athletesInitialised, setAthletesInitialised] = useState(false);
+  const [selectedBikes, setSelectedBikes] = useState<Set<string>>(new Set());
+  const [bikesInitialised, setBikesInitialised] = useState(false);
 
   const handleDelete = (id: string) => {
     deleteFromHistory(id);
@@ -38,19 +44,52 @@ export default function HistoryPage() {
   const modeLabel = (m: string) =>
     m === "single" ? "Analyse" : m === "intervals" ? "Intervals" : "Comparer";
 
-  // Unique sensor labels across the history for the filter checkboxes
-  const sensorOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    let unknownCount = 0;
+  // --- Filter options (athletes / sensors / bikes) ---
+  const { athleteOptions, sensorOptions, bikeOptions } = useMemo(() => {
+    const ac = new Map<string, { label: string; count: number }>();
+    let athleteUnknown = 0;
+    const sc = new Map<string, number>();
+    let sensorUnknown = 0;
+    const bc = new Map<string, { label: string; count: number }>();
+    let bikeUnknown = 0;
     for (const e of entries) {
-      if (e.powerMeterLabel) counts.set(e.powerMeterLabel, (counts.get(e.powerMeterLabel) || 0) + 1);
-      else unknownCount++;
+      // Athlete
+      if (e.athleteKey) {
+        const lbl = e.athleteName || e.athleteKey;
+        const cur = ac.get(e.athleteKey) || { label: lbl, count: 0 };
+        ac.set(e.athleteKey, { label: lbl, count: cur.count + 1 });
+      } else athleteUnknown++;
+      // Sensor
+      if (e.powerMeterLabel) sc.set(e.powerMeterLabel, (sc.get(e.powerMeterLabel) || 0) + 1);
+      else sensorUnknown++;
+      // Bike
+      if (e.bikeKey) {
+        const lbl = e.bikeLabel || e.bikeKey;
+        const cur = bc.get(e.bikeKey) || { label: lbl, count: 0 };
+        bc.set(e.bikeKey, { label: lbl, count: cur.count + 1 });
+      } else bikeUnknown++;
     }
-    const labels = [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-    return { labels, unknownCount };
+    return {
+      athleteOptions: {
+        labels: [...ac.entries()]
+          .map(([k, v]) => ({ key: k, label: v.label, count: v.count }))
+          .sort((a, b) => a.label.localeCompare(b.label)),
+        unknownCount: athleteUnknown,
+      },
+      sensorOptions: {
+        labels: [...sc.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+        unknownCount: sensorUnknown,
+      },
+      bikeOptions: {
+        labels: [...bc.entries()]
+          .map(([k, v]) => ({ key: k, label: v.label, count: v.count }))
+          .sort((a, b) => a.label.localeCompare(b.label)),
+        unknownCount: bikeUnknown,
+      },
+    };
   }, [entries]);
 
-  // Initialise selectedSensors the first time we have sensor info (select all)
+  // --- First-render initialisation (select all) ---
   if (!sensorFilterInitialised && (sensorOptions.labels.length > 0 || sensorOptions.unknownCount > 0)) {
     const initial = new Set<string>();
     for (const [lbl] of sensorOptions.labels) initial.add(lbl);
@@ -58,35 +97,81 @@ export default function HistoryPage() {
     setSelectedSensors(initial);
     setSensorFilterInitialised(true);
   }
+  if (!athletesInitialised && (athleteOptions.labels.length > 0 || athleteOptions.unknownCount > 0)) {
+    const initial = new Set<string>();
+    for (const opt of athleteOptions.labels) initial.add(opt.key);
+    if (athleteOptions.unknownCount > 0) initial.add("__unknown__");
+    setSelectedAthletes(initial);
+    setAthletesInitialised(true);
+  }
+  if (!bikesInitialised && (bikeOptions.labels.length > 0 || bikeOptions.unknownCount > 0)) {
+    const initial = new Set<string>();
+    for (const opt of bikeOptions.labels) initial.add(opt.key);
+    if (bikeOptions.unknownCount > 0) initial.add("__unknown__");
+    setSelectedBikes(initial);
+    setBikesInitialised(true);
+  }
 
-  // Filter entries by selected sensors (union of selected)
+  // --- Intersection filter: an entry is kept if it matches ALL filter dimensions ---
   const filteredEntries = useMemo(() => {
-    if (selectedSensors.size === 0) return entries; // nothing selected = show all
+    const noSensor = selectedSensors.size === 0;
+    const noAthlete = selectedAthletes.size === 0;
+    const noBike = selectedBikes.size === 0;
     return entries.filter((e) => {
-      const key = e.powerMeterLabel || "__unknown__";
-      return selectedSensors.has(key);
+      if (!noSensor) {
+        const key = e.powerMeterLabel || "__unknown__";
+        if (!selectedSensors.has(key)) return false;
+      }
+      if (!noAthlete) {
+        const key = e.athleteKey || "__unknown__";
+        if (!selectedAthletes.has(key)) return false;
+      }
+      if (!noBike) {
+        const key = e.bikeKey || "__unknown__";
+        if (!selectedBikes.has(key)) return false;
+      }
+      return true;
     });
-  }, [entries, selectedSensors]);
+  }, [entries, selectedSensors, selectedAthletes, selectedBikes]);
 
-  const toggleSensor = (key: string) => {
-    const next = new Set(selectedSensors);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    setSelectedSensors(next);
-  };
+  // Generic toggle / select-all / select-none helpers
+  const makeToggle =
+    (set: Set<string>, setter: (s: Set<string>) => void) => (key: string) => {
+      const next = new Set(set);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      setter(next);
+    };
+  const toggleSensor = makeToggle(selectedSensors, setSelectedSensors);
+  const toggleAthlete = makeToggle(selectedAthletes, setSelectedAthletes);
+  const toggleBike = makeToggle(selectedBikes, setSelectedBikes);
+
   const selectAllSensors = () => {
     const next = new Set<string>();
     for (const [lbl] of sensorOptions.labels) next.add(lbl);
     if (sensorOptions.unknownCount > 0) next.add("__unknown__");
     setSelectedSensors(next);
   };
-  const selectNoSensors = () => setSelectedSensors(new Set(["__none__"])); // impossible key → empty filter
+  const selectNoSensors = () => setSelectedSensors(new Set(["__none__"]));
+  const selectAllAthletes = () => {
+    const next = new Set<string>();
+    for (const opt of athleteOptions.labels) next.add(opt.key);
+    if (athleteOptions.unknownCount > 0) next.add("__unknown__");
+    setSelectedAthletes(next);
+  };
+  const selectNoAthletes = () => setSelectedAthletes(new Set(["__none__"]));
+  const selectAllBikes = () => {
+    const next = new Set<string>();
+    for (const opt of bikeOptions.labels) next.add(opt.key);
+    if (bikeOptions.unknownCount > 0) next.add("__unknown__");
+    setSelectedBikes(next);
+  };
+  const selectNoBikes = () => setSelectedBikes(new Set(["__none__"]));
 
-  // Build timeline points in chronological order (across ALL entries, not just
-  // the filtered ones, since the filter is for reading the list — the chart
-  // should show the full journey to make regime changes visible).
-  // For each entry expand to (date, cda) per ride, then compute rolling std
-  // over a window of 10 consecutive rides.
+  // Timeline: now restricted to the FILTERED set so the rolling std is
+  // computed only over rides that share the same athlete (and optional
+  // sensor/bike). This is critical because mixing several riders' CdAs in
+  // the same std window produces meaningless regime changes.
   const timeline = useMemo(() => {
     type Point = {
       date: string;
@@ -96,7 +181,7 @@ export default function HistoryPage() {
       sensorQuality: string | null;
     };
     const all: Point[] = [];
-    for (const e of entries) {
+    for (const e of filteredEntries) {
       for (const rc of e.rideCdas) {
         all.push({
           date: rc.date,
@@ -111,7 +196,7 @@ export default function HistoryPage() {
     const window = 10;
     const stds = rollingStd(all.map((p) => p.cda), window);
     return all.map((p, i) => ({ ...p, std: stds[i] }));
-  }, [entries]);
+  }, [filteredEntries]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -147,72 +232,34 @@ export default function HistoryPage() {
         <RollingStdTimeline timeline={timeline} />
       )}
 
-      {(sensorOptions.labels.length > 0 || sensorOptions.unknownCount > 0) && (
-        <div className="bg-panel border border-border rounded-lg p-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-muted font-semibold">Filtrer par capteur :</span>
-            <div className="flex items-center gap-2 text-[10px]">
-              <button
-                onClick={selectAllSensors}
-                className="px-2 py-0.5 rounded border border-border hover:border-teal text-muted hover:text-teal"
-              >
-                Tous
-              </button>
-              <button
-                onClick={selectNoSensors}
-                className="px-2 py-0.5 rounded border border-border hover:border-coral text-muted hover:text-coral"
-              >
-                Aucun
-              </button>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {sensorOptions.labels.map(([lbl, n]) => {
-              const checked = selectedSensors.has(lbl);
-              return (
-                <label
-                  key={lbl}
-                  className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border font-mono cursor-pointer transition ${
-                    checked
-                      ? "bg-teal/10 border-teal text-teal"
-                      : "bg-bg border-border text-muted hover:border-muted"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleSensor(lbl)}
-                    className="accent-teal"
-                  />
-                  <span>{lbl}</span>
-                  <span className="opacity-60">({n})</span>
-                </label>
-              );
-            })}
-            {sensorOptions.unknownCount > 0 && (
-              <label
-                className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border font-mono cursor-pointer transition ${
-                  selectedSensors.has("__unknown__")
-                    ? "bg-muted/20 border-muted text-text"
-                    : "bg-bg border-border text-muted hover:border-muted"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedSensors.has("__unknown__")}
-                  onChange={() => toggleSensor("__unknown__")}
-                  className="accent-teal"
-                />
-                <span>Capteur inconnu</span>
-                <span className="opacity-60">({sensorOptions.unknownCount})</span>
-              </label>
-            )}
-          </div>
-          <p className="text-[10px] text-muted mt-2">
-            → {filteredEntries.length} analyse{filteredEntries.length > 1 ? "s" : ""} sélectionnée{filteredEntries.length > 1 ? "s" : ""} sur {entries.length}
-          </p>
-        </div>
-      )}
+      {/* Multi-dimension filter blocks. Each block behaves independently but
+          they compose via intersection: a history entry must match the
+          selected keys in EVERY block to be displayed. */}
+      <FilterBlocks
+        athletes={{
+          options: athleteOptions,
+          selected: selectedAthletes,
+          toggle: toggleAthlete,
+          selectAll: selectAllAthletes,
+          selectNone: selectNoAthletes,
+        }}
+        sensors={{
+          options: sensorOptions,
+          selected: selectedSensors,
+          toggle: toggleSensor,
+          selectAll: selectAllSensors,
+          selectNone: selectNoSensors,
+        }}
+        bikes={{
+          options: bikeOptions,
+          selected: selectedBikes,
+          toggle: toggleBike,
+          selectAll: selectAllBikes,
+          selectNone: selectNoBikes,
+        }}
+        nFiltered={filteredEntries.length}
+        nTotal={entries.length}
+      />
 
       {filteredEntries.length === 0 && entries.length > 0 && (
         <div className="bg-panel border border-border rounded-lg p-4 text-center text-muted text-sm">
@@ -250,6 +297,14 @@ export default function HistoryPage() {
                   {modeLabel(e.mode)}
                 </span>
                 <span className="truncate flex-1 text-left">{e.label}</span>
+                {e.athleteName && (
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded font-mono hidden md:inline bg-info/15 text-info"
+                    title={`Profil : ${e.athleteName}`}
+                  >
+                    👤 {e.athleteName.length > 16 ? e.athleteName.slice(0, 14) + "…" : e.athleteName}
+                  </span>
+                )}
                 {e.powerMeterLabel && (
                   <span
                     className={`text-[10px] px-1.5 py-0.5 rounded font-mono hidden lg:inline ${
@@ -324,6 +379,12 @@ export default function HistoryPage() {
                         )}
                       </div>
                     )}
+                    {e.athleteName && (
+                      <div>Profil : <span className="text-info font-mono">{e.athleteName}</span></div>
+                    )}
+                    {e.bikeLabel && (
+                      <div>Vélo : <span className="text-warn font-mono">{e.bikeLabel}</span></div>
+                    )}
                     {e.maxNrmse != null && (
                       <div>Seuil qualité : <span className="text-text font-mono">{e.maxNrmse >= 9.9 ? "désactivé" : `${(e.maxNrmse * 100).toFixed(0)}%`}</span></div>
                     )}
@@ -384,6 +445,155 @@ export default function HistoryPage() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+interface FilterBlockProps {
+  title: string;
+  unknownLabel: string;
+  options:
+    | { labels: Array<[string, number]>; unknownCount: number } // sensors (string key = label)
+    | { labels: Array<{ key: string; label: string; count: number }>; unknownCount: number };
+  selected: Set<string>;
+  toggle: (key: string) => void;
+  selectAll: () => void;
+  selectNone: () => void;
+  accent?: "teal" | "info" | "warn";
+}
+
+function FilterBlock({ title, unknownLabel, options, selected, toggle, selectAll, selectNone, accent = "teal" }: FilterBlockProps) {
+  // Normalise to {key, label, count}[]
+  const normalised: Array<{ key: string; label: string; count: number }> = Array.isArray(options.labels[0])
+    ? (options.labels as Array<[string, number]>).map(([l, c]) => ({ key: l, label: l, count: c }))
+    : (options.labels as Array<{ key: string; label: string; count: number }>);
+  if (normalised.length === 0 && options.unknownCount === 0) return null;
+  const accentCls =
+    accent === "info"
+      ? "bg-info/10 border-info text-info"
+      : accent === "warn"
+        ? "bg-warn/10 border-warn text-warn"
+        : "bg-teal/10 border-teal text-teal";
+  return (
+    <div className="bg-panel border border-border rounded-lg p-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-muted font-semibold">{title}</span>
+        <div className="flex items-center gap-2 text-[10px]">
+          <button onClick={selectAll} className="px-2 py-0.5 rounded border border-border hover:border-teal text-muted hover:text-teal">
+            Tous
+          </button>
+          <button onClick={selectNone} className="px-2 py-0.5 rounded border border-border hover:border-coral text-muted hover:text-coral">
+            Aucun
+          </button>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {normalised.map((o) => {
+          const checked = selected.has(o.key);
+          return (
+            <label
+              key={o.key}
+              className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border font-mono cursor-pointer transition ${
+                checked ? accentCls : "bg-bg border-border text-muted hover:border-muted"
+              }`}
+            >
+              <input type="checkbox" checked={checked} onChange={() => toggle(o.key)} className="accent-teal" />
+              <span>{o.label}</span>
+              <span className="opacity-60">({o.count})</span>
+            </label>
+          );
+        })}
+        {options.unknownCount > 0 && (
+          <label
+            className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border font-mono cursor-pointer transition ${
+              selected.has("__unknown__") ? "bg-muted/20 border-muted text-text" : "bg-bg border-border text-muted hover:border-muted"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={selected.has("__unknown__")}
+              onChange={() => toggle("__unknown__")}
+              className="accent-teal"
+            />
+            <span>{unknownLabel}</span>
+            <span className="opacity-60">({options.unknownCount})</span>
+          </label>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface FilterBlocksProps {
+  athletes: {
+    options: { labels: Array<{ key: string; label: string; count: number }>; unknownCount: number };
+    selected: Set<string>;
+    toggle: (key: string) => void;
+    selectAll: () => void;
+    selectNone: () => void;
+  };
+  sensors: {
+    options: { labels: Array<[string, number]>; unknownCount: number };
+    selected: Set<string>;
+    toggle: (key: string) => void;
+    selectAll: () => void;
+    selectNone: () => void;
+  };
+  bikes: {
+    options: { labels: Array<{ key: string; label: string; count: number }>; unknownCount: number };
+    selected: Set<string>;
+    toggle: (key: string) => void;
+    selectAll: () => void;
+    selectNone: () => void;
+  };
+  nFiltered: number;
+  nTotal: number;
+}
+
+function FilterBlocks({ athletes, sensors, bikes, nFiltered, nTotal }: FilterBlocksProps) {
+  const anyFilter =
+    athletes.options.labels.length > 0 ||
+    athletes.options.unknownCount > 0 ||
+    sensors.options.labels.length > 0 ||
+    sensors.options.unknownCount > 0 ||
+    bikes.options.labels.length > 0 ||
+    bikes.options.unknownCount > 0;
+  if (!anyFilter) return null;
+  return (
+    <div className="space-y-2">
+      <FilterBlock
+        title="Filtrer par profil :"
+        unknownLabel="Profil inconnu"
+        options={athletes.options}
+        selected={athletes.selected}
+        toggle={athletes.toggle}
+        selectAll={athletes.selectAll}
+        selectNone={athletes.selectNone}
+        accent="info"
+      />
+      <FilterBlock
+        title="Filtrer par capteur :"
+        unknownLabel="Capteur inconnu"
+        options={sensors.options}
+        selected={sensors.selected}
+        toggle={sensors.toggle}
+        selectAll={sensors.selectAll}
+        selectNone={sensors.selectNone}
+        accent="teal"
+      />
+      <FilterBlock
+        title="Filtrer par vélo :"
+        unknownLabel="Vélo inconnu"
+        options={bikes.options}
+        selected={bikes.selected}
+        toggle={bikes.toggle}
+        selectAll={bikes.selectAll}
+        selectNone={bikes.selectNone}
+        accent="warn"
+      />
+      <p className="text-[10px] text-muted">
+        → {nFiltered} analyse{nFiltered > 1 ? "s" : ""} sélectionnée{nFiltered > 1 ? "s" : ""} sur {nTotal}
+      </p>
     </div>
   );
 }

@@ -134,6 +134,8 @@ export interface AnalysisResult {
   power_meter_warning?: string;
   power_bias_ratio?: number | null;
   power_bias_n_points?: number;
+  gear_id?: string | null;
+  gear_name?: string | null;
   cda_climb: number | null;
   cda_descent: number | null;
   cda_flat: number | null;

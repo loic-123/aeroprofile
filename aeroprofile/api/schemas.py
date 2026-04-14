@@ -66,6 +66,8 @@ class AnalysisResultOut(BaseModel):
     power_meter_warning: str = ""
     power_bias_ratio: Optional[float] = None
     power_bias_n_points: int = 0
+    gear_id: Optional[str] = None
+    gear_name: Optional[str] = None
 
     ride_date: str
     ride_distance_km: float

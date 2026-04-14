@@ -90,6 +90,8 @@ class AnalysisResult:
     power_meter_display: Optional[str] = None   # user-friendly label
     power_meter_quality: str = "unknown"        # high | medium | low | unknown
     power_meter_warning: str = ""               # localized warning text, empty if none
+    gear_id: Optional[str] = None               # Intervals.icu bike id (stable across rides)
+    gear_name: Optional[str] = None             # User-set name if any
     # Power meter bias ratio: mean(measured) / mean(theoretical) on flat-pedaling
     # portions, using the bike-type prior (CdA, Crr) as reference. >1.35 strongly
     # suggests a mis-calibrated sensor. None = not enough flat-pedaling points.
@@ -305,6 +307,8 @@ async def analyze(
     cda_prior_override: tuple[float, float] | None = None,
     disable_prior: bool = False,
     power_meter_name: str | None = None,
+    gear_id: str | None = None,
+    gear_name: str | None = None,
 ) -> AnalysisResult:
     bcfg = get_bike_config(bike_type)
     # Disable the CdA prior entirely (used in multi-ride mode where the
@@ -1033,6 +1037,8 @@ async def analyze(
         power_meter_warning=_pmi.warning,
         power_bias_ratio=power_bias_ratio,
         power_bias_n_points=power_bias_n_points,
+        gear_id=gear_id,
+        gear_name=gear_name,
     )
 
 

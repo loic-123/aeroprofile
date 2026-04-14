@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import tempfile
 from pathlib import Path
 from typing import List
@@ -16,6 +17,8 @@ from aeroprofile.api.schemas import (
 from aeroprofile.pipeline import analyze, preprocess
 from aeroprofile.solver.hierarchical import solve_hierarchical
 from aeroprofile.bike_types import get_bike_config
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -99,6 +102,17 @@ async def analyze_endpoint(
     ext = Path(file.filename or "").suffix.lower()
     if ext not in (".fit", ".gpx", ".tcx"):
         raise HTTPException(status_code=400, detail=f"Format non supporté : {ext}")
+
+    _log.info(
+        "REQUEST /analyze file=%s mass=%.1fkg bike=%s crr_fixed=%s eta=%.3f "
+        "wind_height=%.2f prior(mean=%s sigma=%s disable=%s)",
+        file.filename, mass_kg, bike_type,
+        f"{crr_fixed:.5f}" if crr_fixed is not None else "auto",
+        eta, wind_height_factor,
+        f"{cda_prior_mean:.3f}" if cda_prior_mean is not None else "None",
+        f"{cda_prior_sigma:.3f}" if cda_prior_sigma is not None else "None",
+        disable_prior,
+    )
 
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         content = await file.read()
@@ -201,6 +215,12 @@ async def analyze_batch_endpoint(
     This is mathematically more rigorous than per-ride MLE + post-hoc
     averaging (DerSimonian & Laird 1986, Gelman BDA3 ch.5).
     """
+    _log.info(
+        "REQUEST /analyze-batch n_files=%d mass=%.1fkg bike=%s crr_fixed=%s eta=%.3f max_nrmse=%.2f",
+        len(files), mass_kg, bike_type,
+        f"{crr_fixed:.5f}" if crr_fixed is not None else "auto",
+        eta, max_nrmse,
+    )
     if len(files) < 2:
         raise HTTPException(status_code=400, detail="Au moins 2 fichiers requis pour le mode hiérarchique.")
 

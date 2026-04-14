@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import tempfile
 from datetime import date, datetime
 from pathlib import Path
@@ -19,6 +20,8 @@ from aeroprofile.api.schemas import (
 )
 from aeroprofile.solver.hierarchical import solve_hierarchical
 from aeroprofile.bike_types import get_bike_config
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -142,6 +145,16 @@ async def analyze_ride(
     disable_prior: bool = Form(False),
 ):
     """Download a single activity .FIT and run the analysis pipeline."""
+    _log.info(
+        "REQUEST /intervals/analyze-ride activity_id=%s mass=%.1fkg bike=%s "
+        "crr_fixed=%s eta=%.3f prior(mean=%s sigma=%s disable=%s)",
+        activity_id, mass_kg, bike_type,
+        f"{crr_fixed:.5f}" if crr_fixed is not None else "auto",
+        eta,
+        f"{cda_prior_mean:.3f}" if cda_prior_mean is not None else "None",
+        f"{cda_prior_sigma:.3f}" if cda_prior_sigma is not None else "None",
+        disable_prior,
+    )
     client = IntervalsClient(api_key, athlete_id)
     try:
         fit_bytes = await client.download_fit(activity_id)
@@ -243,6 +256,15 @@ async def analyze_batch_intervals(
     CdA (mu) with its CI and the per-ride CdA_i.
     """
     ids = [s.strip() for s in activity_ids.split(",") if s.strip()]
+    _log.info(
+        "REQUEST /intervals/analyze-batch n_rides=%d mass=%.1fkg bike=%s "
+        "crr_fixed=%s eta=%.3f prior(mean=%s sigma=%s)",
+        len(ids), mass_kg, bike_type,
+        f"{crr_fixed:.5f}" if crr_fixed is not None else "auto",
+        eta,
+        f"{cda_prior_mean:.3f}" if cda_prior_mean is not None else "None",
+        f"{cda_prior_sigma:.3f}" if cda_prior_sigma is not None else "None",
+    )
     if len(ids) < 2:
         raise HTTPException(status_code=400, detail="Au moins 2 activity_ids requis.")
 

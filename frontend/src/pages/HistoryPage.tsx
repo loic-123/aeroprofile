@@ -177,7 +177,8 @@ export default function HistoryPage() {
       date: string;
       cda: number;
       entryId: string;
-      sensorLabel: string | null;
+      rideSensor: string | null;    // best guess for this ride individually
+      sensorLabel: string | null;   // majority sensor over the rolling window (used for colour)
       sensorQuality: string | null;
     };
     // Entries created before we added rc.powerMeter don't carry
@@ -201,12 +202,13 @@ export default function HistoryPage() {
     for (const e of filteredEntries) {
       const entrySensor = extractEntrySensor(e.powerMeterLabel || null);
       for (const rc of e.rideCdas) {
-        const perRideLabel = rc.powerMeter || entrySensor;
+        const rideSensor = rc.powerMeter || entrySensor;
         all.push({
           date: rc.date,
           cda: rc.cda,
           entryId: e.id,
-          sensorLabel: perRideLabel,
+          rideSensor,
+          sensorLabel: null, // filled below with the window-majority sensor
           sensorQuality: e.powerMeterQuality ?? null,
         });
       }
@@ -214,7 +216,27 @@ export default function HistoryPage() {
     all.sort((a, b) => a.date.localeCompare(b.date));
     const window = 10;
     const stds = rollingStd(all.map((p) => p.cda), window);
-    return all.map((p, i) => ({ ...p, std: stds[i] }));
+    // For each point, the displayed "sensor" is the *majority* sensor
+    // among the 10 rides that make up the rolling σ window. That way a
+    // point's colour tells the user "which sensor was dominant when
+    // this stability was measured". Points at a transition (50/50)
+    // take whichever sensor has one more ride; points with no ties
+    // are unambiguous.
+    const majorityWindow = (endIdx: number): string | null => {
+      const start = Math.max(0, endIdx - window + 1);
+      const counts = new Map<string, number>();
+      for (let j = start; j <= endIdx; j++) {
+        const s = all[j].rideSensor;
+        if (s) counts.set(s, (counts.get(s) || 0) + 1);
+      }
+      if (counts.size === 0) return null;
+      return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    };
+    return all.map((p, i) => ({
+      ...p,
+      std: stds[i],
+      sensorLabel: majorityWindow(i),
+    }));
   }, [filteredEntries]);
 
   return (

@@ -86,7 +86,7 @@ function aggregate(r: RiderEntry, bikeType: BikeType = "road"): RiderAgg | null 
   // (bound_hit / non_identifiable / high_nrmse) AND legacy nRMSE/CdA bounds
   let good = done.filter((rd) => {
     const res = rd.result!;
-    if (res.quality_status && res.quality_status !== "ok") return false;
+    if (res.quality_status && res.quality_status !== "ok" && res.quality_status !== "prior_dominated") return false;
     const avgP = res.avg_power_w || 1;
     const nrmse = (res.rmse_w || 0) / avgP;
     return nrmse <= MAX_NRMSE && res.cda >= MIN_CDA && res.cda <= MAX_CDA;
@@ -918,6 +918,9 @@ function RiderRow({
                       <span className="opacity-40">{(nrmse * 100).toFixed(0)}%</span>
                       {(rd.result.prior_adaptive_factor ?? 1) > 1.05 && (
                         <span className="opacity-70 text-warn" title="prior renforcé">⚡</span>
+                      )}
+                      {rd.result.quality_status === "prior_dominated" && (
+                        <span className="opacity-70 text-warn" title="résultat dominé par le prior">ⓘ</span>
                       )}
                     </>
                   )}

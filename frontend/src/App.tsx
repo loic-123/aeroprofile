@@ -86,7 +86,7 @@ export default function App() {
       const fromCache = opts.useCache !== false ? getCached(file, cacheOpts) : null;
       if (fromCache) {
         const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
-        const qBad = fromCache.quality_status && fromCache.quality_status !== "ok";
+        const qBad = fromCache.quality_status && fromCache.quality_status !== "ok" && fromCache.quality_status !== "prior_dominated";
         results.push({ file, result: fromCache, excluded: !!qBad || nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
@@ -101,7 +101,7 @@ export default function App() {
             disable_prior: isMultiRide,
           });
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
-          const qBad = res.quality_status && res.quality_status !== "ok";
+          const qBad = res.quality_status && res.quality_status !== "ok" && res.quality_status !== "prior_dominated";
           results.push({ file, result: res, excluded: !!qBad || nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
           setCache(file, res, cacheOpts);
         } catch (e: any) {
@@ -270,7 +270,7 @@ export default function App() {
         <Wind className="text-teal" size={24} />
         <h1 className="text-xl font-bold tracking-tight">AeroProfile</h1>
         <span className="text-[10px] font-mono text-muted opacity-60" title="Build ID — increment to verify hot-reload">
-          v2026.04.14-bias-timeline
+          v2026.04.14-conformal
         </span>
         <span className="text-muted text-sm ml-2 hidden md:inline">
           CdA / Crr depuis votre fichier d'activité
@@ -669,6 +669,9 @@ export default function App() {
                                     <span className="opacity-40">{(nrmseVal*100).toFixed(0)}%</span>
                                     {(r.result.prior_adaptive_factor ?? 1) > 1.05 && (
                                       <span className="opacity-70 text-warn" title="prior renforcé">⚡</span>
+                                    )}
+                                    {r.result.quality_status === "prior_dominated" && (
+                                      <span className="opacity-70 text-warn" title="résultat dominé par le prior">ⓘ</span>
                                     )}
                                   </>
                                 )}

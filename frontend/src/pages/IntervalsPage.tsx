@@ -180,13 +180,13 @@ export default function IntervalsPage() {
       const fromCache = useCache ? getCachedInterval(act.id, cacheOpts) : null;
       if (fromCache) {
         const nrmse = (fromCache.rmse_w || 0) / Math.max(fromCache.avg_power_w, 1);
-        const qBad = fromCache.quality_status && fromCache.quality_status !== "ok";
+        const qBad = fromCache.quality_status && fromCache.quality_status !== "ok" && fromCache.quality_status !== "prior_dominated";
         results.push({ activity: act, result: fromCache, excluded: !!qBad || nrmse > MAX_NRMSE || fromCache.cda < MIN_CDA || fromCache.cda > MAX_CDA });
       } else {
         try {
           const res = await analyzeRide(apiKey, athleteId, act.id, mass, crr, bikeType, priorMean, priorSigma, false);
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
-          const qBad = res.quality_status && res.quality_status !== "ok";
+          const qBad = res.quality_status && res.quality_status !== "ok" && res.quality_status !== "prior_dominated";
           results.push({ activity: act, result: res, excluded: !!qBad || nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
           setCacheInterval(act.id, res, cacheOpts);
         } catch (e: any) {
@@ -964,6 +964,9 @@ export default function IntervalsPage() {
                             <span className="opacity-40">{(nrmseVal*100).toFixed(0)}%</span>
                             {(r.result.prior_adaptive_factor ?? 1) > 1.05 && (
                               <span className="opacity-70 text-warn" title="prior renforcé">⚡</span>
+                            )}
+                            {r.result.quality_status === "prior_dominated" && (
+                              <span className="opacity-70 text-warn" title="résultat dominé par le prior — données peu informatives">ⓘ</span>
                             )}
                           </>
                         )}

@@ -12,6 +12,70 @@ from aeroprofile.parsers.models import RideData, RidePoint
 
 SEMICIRCLE_TO_DEG = 180.0 / (2**31)
 
+# Manufacturer allowlist for power meters. Rationale: Garmin bike computers
+# (Edge series) often report themselves with device_type=4 ("bike_power")
+# because they relay ANT+ power, which makes device_type alone unreliable.
+# A manufacturer allowlist is more robust — companies in this list either
+# *only* make power meters or their product IDs for power meters are well
+# known. The actual Garmin power meters (Vector, Rally) are handled by the
+# "GARMIN RALLY"/"GARMIN VECTOR" product_name pattern in classify_power_meter.
+_POWER_METER_MANUFACTURERS = {
+    "favero_electronics",
+    "stages_cycling",
+    "quarq",
+    "srm",
+    "power2max",
+    "pioneer",
+    "rotor",
+    "verve",
+    "look",
+    "4iiii_innovations",
+    "4iiii",
+    "_4iiiis",
+    "campagnolo",
+    "watteam",
+    "magene",
+    "sigeyi",
+    "wahoo_fitness",  # for Powrlink
+}
+
+
+def extract_power_meter(filepath: str | Path) -> str | None:
+    """Return ``"MANUFACTURER product_id"`` for the first power-meter device
+    found in a FIT file, or ``None`` if none can be identified.
+
+    This mirrors the format Intervals.icu stores in its ``power_meter`` JSON
+    field (e.g. ``"FAVERO_ELECTRONICS 22"``, ``"_4IIIIS 25"``), so the same
+    ``classify_power_meter`` logic works for both sources.
+
+    We explicitly ignore the FIT ``device_type == 4`` flag because Garmin
+    Edge bike computers (the relay, not the sensor) often report themselves
+    with that type when they retransmit ANT+ power. Instead we match on a
+    manufacturer allowlist that is known to only contain power-meter makers.
+
+    Errors are swallowed — a missing or corrupt device_info message should
+    never block the analysis.
+    """
+    try:
+        fit = FitFile(str(filepath))
+        for msg in fit.get_messages("device_info"):
+            d = {f.name: f.value for f in msg}
+            mfr_raw = d.get("manufacturer")
+            if mfr_raw is None:
+                continue
+            mfr = str(mfr_raw).lower()
+            if mfr not in _POWER_METER_MANUFACTURERS:
+                continue
+            prod = d.get("garmin_product")
+            if prod is None:
+                prod = d.get("product")
+            if prod is None:
+                continue
+            return f"{mfr.upper()} {prod}"
+    except Exception:
+        return None
+    return None
+
 
 def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     R = 6371000.0

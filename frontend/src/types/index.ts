@@ -121,7 +121,7 @@ export interface AnalysisResult {
   crr_was_fixed: boolean;
   solver_method: string;
   solver_note: string;
-  quality_status?: "ok" | "bound_hit" | "non_identifiable" | "high_nrmse";
+  quality_status?: "ok" | "bound_hit" | "non_identifiable" | "high_nrmse" | "prior_dominated";
   quality_reason?: string;
   prior_adaptive_factor?: number;
   cda_raw?: number | null;

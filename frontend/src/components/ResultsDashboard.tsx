@@ -1,4 +1,7 @@
+import { useMemo } from "react";
 import type { AnalysisResult } from "../types";
+import { getHistory } from "../api/history";
+import { conformalIntervalForCda } from "../lib/conformal";
 import AnomalyAlerts from "./AnomalyAlerts";
 import AltitudeChart from "./AltitudeChart";
 import CdARollingChart from "./CdARollingChart";
@@ -81,16 +84,35 @@ function CdADualCard({
   const raw = result.cda_raw;
   const showRaw = raw != null && Math.abs(raw - result.cda) > 0.02;
 
+  // Conformal interval based on the user's local history — provides a
+  // distribution-free IC that doesn't assume gaussian residuals or an
+  // interior optimum. Falls back to null when the history is too small.
+  const conformal = useMemo(() => {
+    if (unreliable) return null;
+    try {
+      const hist = getHistory();
+      return conformalIntervalForCda(result.cda, hist, 0.05);
+    } catch {
+      return null;
+    }
+  }, [result.cda, unreliable]);
+
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
       <div className="text-xs text-muted uppercase tracking-wide flex items-center">
         CdA
-        <InfoTooltip text="CdA = coefficient de traînée × surface frontale (m²). IC = intervalle de confiance 95%. Si le prior a significativement tiré l'estimation, on affiche aussi 'CdA brut' (MLE pur sans prior) pour que vous voyiez l'impact." />
+        <InfoTooltip text="CdA = coefficient de traînée × surface frontale (m²). IC Hessien = intervalle de confiance 95% basé sur la courbure de la vraisemblance au point optimal. IC conforme = intervalle distribution-free avec garantie formelle de couverture 95% sur l'historique du rider." />
       </div>
       <div className={`text-2xl font-mono font-semibold mt-1 ${colors[accent]}`}>
         {mainValue}
       </div>
       <div className="text-xs text-muted mt-1 font-mono">{mainSub}</div>
+      {conformal && (
+        <div className="text-[11px] text-info mt-1 font-mono opacity-90">
+          IC conforme {conformal.low.toFixed(3)}–{conformal.high.toFixed(3)}
+          <span className="text-muted opacity-70"> (n={conformal.n})</span>
+        </div>
+      )}
       {showFactor && (
         <div className="mt-2">
           <span className="inline-block text-[10px] font-mono px-1.5 py-0.5 rounded bg-warn/20 text-warn border border-warn/40">

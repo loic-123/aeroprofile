@@ -341,6 +341,21 @@ async def analyze(
     ride = parse_file(filepath)
     validate_ride(ride)
 
+    # If no explicit power_meter_name was passed (typical of the file-upload
+    # path), try to extract it from the FIT device_info message. Silent fallback
+    # to None if the file is not FIT or the metadata is missing (e.g. because
+    # Intervals.icu re-encoded the file and stripped device_info).
+    if power_meter_name is None and filepath is not None:
+        try:
+            _p = Path(filepath)
+            if _p.suffix.lower() == ".fit":
+                from aeroprofile.parsers.fit_parser import extract_power_meter
+                power_meter_name = extract_power_meter(_p)
+                if power_meter_name:
+                    logger.info("POWER_METER_FIT extracted '%s' from %s", power_meter_name, _p.name)
+        except Exception as _e:
+            logger.debug("extract_power_meter failed: %s", _e)
+
     df = _ride_to_df(ride)
     df = _compute_derivatives(df)
 
@@ -465,31 +480,59 @@ async def analyze(
         weather_source,
     )
 
-    # Primary solver: Martin least-squares with bike-type priors
-    logger.info("CASCADE try martin_ls ===")
-    sol: SolverResult = solve_cda_crr(
-        df, mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
-        cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
-        cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
-    )
-    solver_method = "martin_ls"
-    solver_note = (
-        "Moindres carrés de Martin et al. (1998) avec prior faible sur Crr."
-    )
+    # --- Solver cascade (option B) ---
+    # We *only* run Martin LS when heading variance is too low for wind_inverse
+    # to be meaningful (<0.25 = the ride is nearly a straight line, wind can't
+    # be identified separately from CdA). On every other ride, wind_inverse is
+    # the primary solver: it's more robust than Martin LS because it fits the
+    # wind to the data instead of trusting the 10 km Open-Meteo grid. Chung VE
+    # remains the last-resort fallback when neither of the above fits well.
+    #
+    # Before this gate, Martin LS was always tried first and almost always
+    # discarded — on a real dataset, 134 Martin LS runs out of 306 returned
+    # R² < 0, wasting ~200 ms per ride before wind_inverse took over.
+    MARTIN_LS_MAX_HV = 0.25
+    sol: SolverResult | None = None
+    solver_method = ""
+    solver_note = ""
+    best_r2 = -float("inf")
 
-    # --- Try wind-inverse solver when heading varies enough ---
+    if _hv_input < MARTIN_LS_MAX_HV:
+        logger.info("CASCADE try martin_ls (heading_var=%.2f < %.2f) ===", _hv_input, MARTIN_LS_MAX_HV)
+        sol = solve_cda_crr(
+            df, mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
+            cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
+            cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
+        )
+        solver_method = "martin_ls"
+        solver_note = (
+            "Moindres carrés de Martin et al. (1998) avec prior faible sur Crr."
+        )
+        best_r2 = sol.r_squared
+        logger.info("CASCADE martin_ls done: R²=%.3f", best_r2)
+    else:
+        logger.info(
+            "CASCADE skipping martin_ls (heading_var=%.2f ≥ %.2f, wind_inverse first)",
+            _hv_input, MARTIN_LS_MAX_HV,
+        )
+
+    # --- Wind-inverse solver: primary when heading varies enough ---
     # This jointly estimates (CdA, Crr, wind_per_segment) and typically
     # halves the RMSE because the wind is fitted to the data, not taken
     # from a 10 km weather grid. Requires heading_variance > 0.25.
-    best_r2 = sol.r_squared
-    logger.info("CASCADE martin_ls done: R²=%.3f → try wind_inverse ===", best_r2)
+    logger.info("CASCADE try wind_inverse ===")
     try:
         wi = solve_with_wind(
             df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
             cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
             cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
         )
-        if wi is not None and wi["r_squared"] > best_r2 and bcfg.cda_lower <= wi["cda"] <= bcfg.cda_upper:
+        _wi_improves = (
+            wi is not None
+            and (sol is None or wi["r_squared"] > best_r2)
+            and bcfg.cda_lower <= wi["cda"] <= bcfg.cda_upper
+        )
+        if _wi_improves:
             # Overwrite df's v_air with the wind-solved values for
             # downstream decomposition / virtual elevation.
             valid_mask = df["filter_valid"].to_numpy()
@@ -530,9 +573,14 @@ async def analyze(
     except Exception as _e:
         logger.warning("CASCADE wind_inverse raised: %s", _e)
 
-    # --- Chung VE fallback when both Martin and wind-inverse are poor ---
-    if best_r2 < 0.3:
-        logger.info("CASCADE R²=%.3f < 0.3 → try chung_ve ===", best_r2)
+    # --- Chung VE fallback: run when we have no solver result yet OR the
+    # current one is poor (R² < 0.3). Runs unconditionally if sol is still
+    # None (e.g. Martin LS was skipped AND wind_inverse returned None).
+    if sol is None or best_r2 < 0.3:
+        logger.info(
+            "CASCADE %s → try chung_ve ===",
+            "no solver result yet" if sol is None else f"R²={best_r2:.3f} < 0.3",
+        )
         try:
             chung = solve_chung_ve(
                 df,
@@ -542,7 +590,11 @@ async def analyze(
                 cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
                 cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
             )
-            if bcfg.cda_lower <= chung.cda <= bcfg.cda_upper and chung.r_squared_elev > max(best_r2, 0.0):
+            _chung_improves = (
+                bcfg.cda_lower <= chung.cda <= bcfg.cda_upper
+                and (sol is None or chung.r_squared_elev > max(best_r2, 0.0))
+            )
+            if _chung_improves:
                 sol = SolverResult(
                     cda=chung.cda,
                     crr=chung.crr,
@@ -568,6 +620,15 @@ async def analyze(
                             chung.cda, chung.r_squared_elev)
         except Exception as _e:
             logger.warning("CASCADE chung_ve raised: %s", _e)
+
+    if sol is None:
+        logger.error("CASCADE no solver succeeded")
+        raise ValueError(
+            "Aucun solveur n'a réussi à estimer le CdA sur cette sortie "
+            "(toutes les méthodes ont échoué ou donné un résultat hors bornes). "
+            "Vérifiez que la sortie contient assez de points valides, "
+            "une puissance mesurée et une altitude cohérente."
+        )
 
     logger.info("CASCADE final method=%s", solver_method)
 
@@ -806,6 +867,26 @@ async def analyze(
                 f"Modèle non-identifiable sur cette sortie (σ_CdA = {cda_sigma_hess:.3f} m², "
                 f"IC95 trop large). Probablement vent mal estimé, drafting non détecté, "
                 f"ou capteur de puissance déréglé."
+            )
+
+    # "Prior dominated" — the MLE pass (no prior) and the MAP pass (with prior)
+    # disagree significantly. The data alone weren't informative enough to pin
+    # down the CdA and the prior did most of the work. This is a softer warning
+    # than non_identifiable: the solver converged, the Hessian is not
+    # degenerate, but the point estimate is essentially the prior centre
+    # dragged a bit toward the data. The frontend should keep the ride in
+    # aggregates by default but display a ⓘ flag so the user knows.
+    if quality_status == "ok" and sol.cda_raw is not None:
+        _delta = abs(sol.cda_raw - sol.cda)
+        if _delta > 0.10:
+            quality_status = "prior_dominated"
+            quality_reason = (
+                f"Le prior a tiré le CdA de {sol.cda_raw:.3f} (MLE brut) à "
+                f"{sol.cda:.3f} (avec prior). Écart Δ={_delta:.3f} — les données "
+                "seules ne suffisaient pas à contraindre CdA/Crr, le résultat "
+                "reflète en grande partie la position choisie dans le sélecteur. "
+                "La ride reste comptée dans l'agrégat, mais son estimation "
+                "individuelle est peu fiable."
             )
 
     # NOTE: No backend nRMSE gate. The frontend slider is the only nRMSE filter —

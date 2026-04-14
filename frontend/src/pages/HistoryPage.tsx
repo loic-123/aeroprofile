@@ -17,7 +17,11 @@ function rollingStd(values: number[], window: number): (number | null)[] {
 export default function HistoryPage() {
   const [entries, setEntries] = useState(() => getHistory());
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [sensorFilter, setSensorFilter] = useState<string>("__all__");
+  // Multi-select sensor filter — null key = "unknown sensor" bucket.
+  // By default all sensors are shown (the set contains every distinct label
+  // plus a special "__unknown__" token when there are unlabeled entries).
+  const [selectedSensors, setSelectedSensors] = useState<Set<string>>(new Set());
+  const [sensorFilterInitialised, setSensorFilterInitialised] = useState(false);
 
   const handleDelete = (id: string) => {
     deleteFromHistory(id);
@@ -34,21 +38,49 @@ export default function HistoryPage() {
   const modeLabel = (m: string) =>
     m === "single" ? "Analyse" : m === "intervals" ? "Intervals" : "Comparer";
 
-  // Unique sensor labels across the history for the filter dropdown
+  // Unique sensor labels across the history for the filter checkboxes
   const sensorOptions = useMemo(() => {
-    const set = new Set<string>();
+    const counts = new Map<string, number>();
+    let unknownCount = 0;
     for (const e of entries) {
-      if (e.powerMeterLabel) set.add(e.powerMeterLabel);
+      if (e.powerMeterLabel) counts.set(e.powerMeterLabel, (counts.get(e.powerMeterLabel) || 0) + 1);
+      else unknownCount++;
     }
-    return [...set].sort();
+    const labels = [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    return { labels, unknownCount };
   }, [entries]);
 
-  // Filter entries by selected sensor
+  // Initialise selectedSensors the first time we have sensor info (select all)
+  if (!sensorFilterInitialised && (sensorOptions.labels.length > 0 || sensorOptions.unknownCount > 0)) {
+    const initial = new Set<string>();
+    for (const [lbl] of sensorOptions.labels) initial.add(lbl);
+    if (sensorOptions.unknownCount > 0) initial.add("__unknown__");
+    setSelectedSensors(initial);
+    setSensorFilterInitialised(true);
+  }
+
+  // Filter entries by selected sensors (union of selected)
   const filteredEntries = useMemo(() => {
-    if (sensorFilter === "__all__") return entries;
-    if (sensorFilter === "__unknown__") return entries.filter((e) => !e.powerMeterLabel);
-    return entries.filter((e) => e.powerMeterLabel === sensorFilter);
-  }, [entries, sensorFilter]);
+    if (selectedSensors.size === 0) return entries; // nothing selected = show all
+    return entries.filter((e) => {
+      const key = e.powerMeterLabel || "__unknown__";
+      return selectedSensors.has(key);
+    });
+  }, [entries, selectedSensors]);
+
+  const toggleSensor = (key: string) => {
+    const next = new Set(selectedSensors);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setSelectedSensors(next);
+  };
+  const selectAllSensors = () => {
+    const next = new Set<string>();
+    for (const [lbl] of sensorOptions.labels) next.add(lbl);
+    if (sensorOptions.unknownCount > 0) next.add("__unknown__");
+    setSelectedSensors(next);
+  };
+  const selectNoSensors = () => setSelectedSensors(new Set(["__none__"])); // impossible key → empty filter
 
   // Build timeline points in chronological order (across ALL entries, not just
   // the filtered ones, since the filter is for reading the list — the chart
@@ -115,29 +147,70 @@ export default function HistoryPage() {
         <RollingStdTimeline timeline={timeline} />
       )}
 
-      {sensorOptions.length > 0 && (
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-muted">Filtrer par capteur :</span>
-          <select
-            value={sensorFilter}
-            onChange={(e) => setSensorFilter(e.target.value)}
-            className="bg-panel border border-border rounded px-2 py-1 font-mono"
-          >
-            <option value="__all__">Tous ({entries.length})</option>
-            {sensorOptions.map((s) => {
-              const n = entries.filter((e) => e.powerMeterLabel === s).length;
+      {(sensorOptions.labels.length > 0 || sensorOptions.unknownCount > 0) && (
+        <div className="bg-panel border border-border rounded-lg p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-muted font-semibold">Filtrer par capteur :</span>
+            <div className="flex items-center gap-2 text-[10px]">
+              <button
+                onClick={selectAllSensors}
+                className="px-2 py-0.5 rounded border border-border hover:border-teal text-muted hover:text-teal"
+              >
+                Tous
+              </button>
+              <button
+                onClick={selectNoSensors}
+                className="px-2 py-0.5 rounded border border-border hover:border-coral text-muted hover:text-coral"
+              >
+                Aucun
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {sensorOptions.labels.map(([lbl, n]) => {
+              const checked = selectedSensors.has(lbl);
               return (
-                <option key={s} value={s}>
-                  {s} ({n})
-                </option>
+                <label
+                  key={lbl}
+                  className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border font-mono cursor-pointer transition ${
+                    checked
+                      ? "bg-teal/10 border-teal text-teal"
+                      : "bg-bg border-border text-muted hover:border-muted"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleSensor(lbl)}
+                    className="accent-teal"
+                  />
+                  <span>{lbl}</span>
+                  <span className="opacity-60">({n})</span>
+                </label>
               );
             })}
-            {entries.some((e) => !e.powerMeterLabel) && (
-              <option value="__unknown__">
-                Capteur inconnu ({entries.filter((e) => !e.powerMeterLabel).length})
-              </option>
+            {sensorOptions.unknownCount > 0 && (
+              <label
+                className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border font-mono cursor-pointer transition ${
+                  selectedSensors.has("__unknown__")
+                    ? "bg-muted/20 border-muted text-text"
+                    : "bg-bg border-border text-muted hover:border-muted"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedSensors.has("__unknown__")}
+                  onChange={() => toggleSensor("__unknown__")}
+                  className="accent-teal"
+                />
+                <span>Capteur inconnu</span>
+                <span className="opacity-60">({sensorOptions.unknownCount})</span>
+              </label>
             )}
-          </select>
+          </div>
+          <p className="text-[10px] text-muted mt-2">
+            → {filteredEntries.length} analyse{filteredEntries.length > 1 ? "s" : ""} sélectionnée{filteredEntries.length > 1 ? "s" : ""} sur {entries.length}
+          </p>
         </div>
       )}
 

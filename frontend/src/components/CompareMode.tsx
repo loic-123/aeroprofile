@@ -881,6 +881,12 @@ function RiderRow({
                   if ((rd.result.prior_adaptive_factor ?? 1) > 1.05) {
                     tooltip += `\nPrior renforcé ×${(rd.result.prior_adaptive_factor ?? 1).toFixed(1)}`;
                   }
+                  if (rd.result.power_meter_display) {
+                    tooltip += `\nCapteur : ${rd.result.power_meter_display}`;
+                    if (rd.result.power_meter_quality === "low") {
+                      tooltip += " ⚠ mono-jambe ou calibration manquante";
+                    }
+                  }
                   if (rd.result.quality_status && rd.result.quality_status !== "ok" && rd.result.quality_reason) {
                     tooltip += `\n\n⚠ Exclue : ${rd.result.quality_reason}`;
                   }

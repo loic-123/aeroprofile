@@ -128,6 +128,10 @@ export interface AnalysisResult {
   cda_raw_ci_low?: number | null;
   cda_raw_ci_high?: number | null;
   weather_source?: string;
+  power_meter_raw?: string | null;
+  power_meter_display?: string | null;
+  power_meter_quality?: "high" | "medium" | "low" | "unknown";
+  power_meter_warning?: string;
   cda_climb: number | null;
   cda_descent: number | null;
   cda_flat: number | null;

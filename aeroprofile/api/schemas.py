@@ -60,6 +60,10 @@ class AnalysisResultOut(BaseModel):
     cda_raw_ci_low: Optional[float] = None
     cda_raw_ci_high: Optional[float] = None
     weather_source: str = "unknown"
+    power_meter_raw: Optional[str] = None
+    power_meter_display: Optional[str] = None
+    power_meter_quality: str = "unknown"
+    power_meter_warning: str = ""
 
     ride_date: str
     ride_distance_km: float

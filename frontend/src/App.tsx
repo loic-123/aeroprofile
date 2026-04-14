@@ -270,7 +270,7 @@ export default function App() {
         <Wind className="text-teal" size={24} />
         <h1 className="text-xl font-bold tracking-tight">AeroProfile</h1>
         <span className="text-[10px] font-mono text-muted opacity-60" title="Build ID — increment to verify hot-reload">
-          v2026.04.14-prior-fix
+          v2026.04.14-power-meter
         </span>
         <span className="text-muted text-sm ml-2 hidden md:inline">
           CdA / Crr depuis votre fichier d'activité
@@ -633,6 +633,12 @@ export default function App() {
                                 }
                                 if ((r.result.prior_adaptive_factor ?? 1) > 1.05) {
                                   tooltip += `\nPrior renforcé ×${(r.result.prior_adaptive_factor ?? 1).toFixed(1)}`;
+                                }
+                                if (r.result.power_meter_display) {
+                                  tooltip += `\nCapteur : ${r.result.power_meter_display}`;
+                                  if (r.result.power_meter_quality === "low") {
+                                    tooltip += " ⚠ mono-jambe ou calibration manquante";
+                                  }
                                 }
                                 if (r.result.quality_status && r.result.quality_status !== "ok" && r.result.quality_reason) {
                                   tooltip += `\n\n⚠ Exclue : ${r.result.quality_reason}`;

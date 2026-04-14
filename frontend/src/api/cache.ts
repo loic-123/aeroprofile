@@ -7,7 +7,7 @@
 import type { AnalysisResult } from "../types";
 
 const CACHE_PREFIX = "aeroprofile_cache_";
-const CACHE_VERSION = "v7";
+const CACHE_VERSION = "v8";
 
 export interface CacheOpts {
   mass_kg: number;

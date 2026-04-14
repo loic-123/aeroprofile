@@ -113,6 +113,53 @@ function CdADualCard({
   );
 }
 
+function PowerMeterBanner({ result }: { result: AnalysisResult }) {
+  const quality = result.power_meter_quality;
+  const display = result.power_meter_display;
+  const warning = result.power_meter_warning || "";
+  // Nothing to show if the sensor is high-quality and silent
+  if (!quality || quality === "high") {
+    if (display && quality === "high") {
+      return (
+        <div className="text-[11px] text-muted font-mono flex items-center gap-1 opacity-70">
+          <span className="text-teal">✓</span> Capteur : {display}
+        </div>
+      );
+    }
+    return null;
+  }
+  if (!warning) return null;
+  // Parse simple **bold** segments for display
+  const segs = warning.split(/(\*\*[^*]+\*\*)/g);
+  const colorClass =
+    quality === "low"
+      ? "bg-coral/10 border-coral text-coral"
+      : quality === "medium"
+        ? "bg-warn/10 border-warn/60 text-warn"
+        : "bg-panel border-border text-muted";
+  const iconColor =
+    quality === "low" ? "text-coral" : quality === "medium" ? "text-warn" : "text-muted";
+  return (
+    <div className={`rounded-lg border p-4 flex gap-3 ${colorClass}`}>
+      <AlertCircle className={`flex-shrink-0 ${iconColor}`} size={20} />
+      <div className="text-sm">
+        <div className="font-semibold">
+          Capteur de puissance : {display ?? "inconnu"}
+        </div>
+        <p className="mt-1 text-[13px] leading-snug text-text/90">
+          {segs.map((s, i) =>
+            s.startsWith("**") && s.endsWith("**") ? (
+              <strong key={i}>{s.slice(2, -2)}</strong>
+            ) : (
+              <span key={i}>{s}</span>
+            ),
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function CdABreakdown({ result }: { result: AnalysisResult }) {
   const { cda_climb, cda_descent, cda_flat } = result;
   if (cda_climb == null && cda_descent == null && cda_flat == null) return null;
@@ -315,6 +362,9 @@ export default function ResultsDashboard({ result, massKg }: Props) {
           </div>
         </div>
       )}
+
+      <PowerMeterBanner result={result} />
+
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <CdADualCard result={result} unreliable={unreliable} accent={cdaAccent} />

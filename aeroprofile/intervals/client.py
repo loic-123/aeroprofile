@@ -45,6 +45,13 @@ class ActivitySummary:
     average_watts: float
     has_power: bool
     indoor: bool
+    # Power meter metadata as reported by Intervals.icu. Intervals stores the
+    # ANT+ product string (e.g. "FAVERO_ELECTRONICS 22" for the Assioma family,
+    # "_4IIIIS 25" for a 4iiii Precision). Used to warn the user when the
+    # sensor is known to produce noisy / drifting estimates.
+    power_meter: Optional[str] = None
+    power_meter_battery: Optional[str] = None
+    crank_length_mm: Optional[float] = None
 
 
 class IntervalsClient:
@@ -124,6 +131,16 @@ class IntervalsClient:
             indoor = bool(a.get("icu_indoor", False) or a.get("trainer", False))
             start = a.get("start_date_local", a.get("start_date", ""))[:10]
 
+            # Power meter metadata (strings from ANT+ / Garmin). May be None
+            # on rides where no meter was connected (running, walks, etc.).
+            pm_name = a.get("power_meter")
+            pm_battery = a.get("power_meter_battery")
+            crank_raw = a.get("crank_length")
+            try:
+                crank = float(crank_raw) if crank_raw is not None else None
+            except (TypeError, ValueError):
+                crank = None
+
             activities.append(ActivitySummary(
                 id=str(a.get("id", "")),
                 name=a.get("name", "Untitled"),
@@ -136,6 +153,9 @@ class IntervalsClient:
                 average_watts=watts,
                 has_power=has_power,
                 indoor=indoor,
+                power_meter=pm_name if pm_name else None,
+                power_meter_battery=pm_battery if pm_battery else None,
+                crank_length_mm=crank,
             ))
         return activities
 
@@ -184,3 +204,13 @@ class IntervalsClient:
         if data[:2] == b"\x1f\x8b":
             data = gzip.decompress(data)
         return data
+
+    async def get_activity_meta(self, activity_id: str) -> dict:
+        """Fetch a single activity's JSON payload (power_meter, crank_length, …).
+
+        Used when we have an activity_id but not the list summary — e.g. on
+        /analyze-ride, to read the sensor info for the warning banner.
+        """
+        r = await self._get(f"/activity/{activity_id}")
+        r.raise_for_status()
+        return r.json()

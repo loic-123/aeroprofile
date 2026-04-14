@@ -85,6 +85,11 @@ class AnalysisResult:
     cda_raw_ci_low: Optional[float] = None
     cda_raw_ci_high: Optional[float] = None
     weather_source: str = "unknown"     # open_meteo_tiled | open_meteo_centroid | fallback_no_wind | device_only
+    # Power meter (if known — filled by callers that have access to it)
+    power_meter_raw: Optional[str] = None       # as reported by Intervals / FIT
+    power_meter_display: Optional[str] = None   # user-friendly label
+    power_meter_quality: str = "unknown"        # high | medium | low | unknown
+    power_meter_warning: str = ""               # localized warning text, empty if none
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -294,6 +299,7 @@ async def analyze(
     bike_type: str | None = None,
     cda_prior_override: tuple[float, float] | None = None,
     disable_prior: bool = False,
+    power_meter_name: str | None = None,
 ) -> AnalysisResult:
     bcfg = get_bike_config(bike_type)
     # Disable the CdA prior entirely (used in multi-ride mode where the
@@ -836,6 +842,15 @@ async def analyze(
     elev_gain = float(np.sum(dalt[dalt > 0]))
     duration = float((df["timestamp"].iloc[-1] - df["timestamp"].iloc[0]).total_seconds())
 
+    # Power meter classification — logged for diagnostics
+    from aeroprofile.power_meter_quality import classify_power_meter
+    _pmi = classify_power_meter(power_meter_name)
+    if power_meter_name:
+        logger.info(
+            "POWER_METER %s -> quality=%s category=%s",
+            power_meter_name, _pmi.quality, _pmi.category,
+        )
+
     return AnalysisResult(
         solver_method=solver_method,
         solver_note=solver_note,
@@ -878,6 +893,10 @@ async def analyze(
             float(sol.cda_raw_ci[1]) if getattr(sol, "cda_raw_ci", None) is not None and sol.cda_raw_ci[1] is not None else None
         ),
         weather_source=weather_source,
+        power_meter_raw=_pmi.raw_name,
+        power_meter_display=_pmi.display,
+        power_meter_quality=_pmi.quality,
+        power_meter_warning=_pmi.warning,
     )
 
 

@@ -883,6 +883,12 @@ export default function IntervalsPage() {
                       if ((r.result.prior_adaptive_factor ?? 1) > 1.05) {
                         reason += `\nPrior renforcé ×${(r.result.prior_adaptive_factor ?? 1).toFixed(1)}`;
                       }
+                      if (r.result.power_meter_display) {
+                        reason += `\nCapteur : ${r.result.power_meter_display}`;
+                        if (r.result.power_meter_quality === "low") {
+                          reason += " ⚠ mono-jambe ou calibration manquante";
+                        }
+                      }
                       if (r.result.quality_status && r.result.quality_status !== "ok" && r.result.quality_reason) {
                         reason += `\n\n⚠ Exclue : ${r.result.quality_reason}`;
                       }

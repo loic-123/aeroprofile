@@ -10,6 +10,7 @@ import DraftingDetection from "./drafting-detection";
 import IterativeRefinement from "./iterative-refinement";
 import WCdaMetric from "./w-cda-metric";
 import IntervalsIntegration from "./intervals-integration";
+import PowerMeterQuality from "./power-meter-quality";
 
 export const ARTICLES: Record<string, () => JSX.Element> = {
   "power-equation": PowerEquation,
@@ -24,4 +25,5 @@ export const ARTICLES: Record<string, () => JSX.Element> = {
   "iterative-refinement": IterativeRefinement,
   "w-cda-metric": WCdaMetric,
   "intervals-integration": IntervalsIntegration,
+  "power-meter-quality": PowerMeterQuality,
 };

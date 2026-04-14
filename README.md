@@ -205,6 +205,19 @@ The dashboard reports:
 - Eight anomaly categories: out-of-range CdA/Crr, wide CI, residual bias (quantified in W), temporal drift, climb/descent asymmetry, offset estimate, drafting suspicion
 - A posture illustration matched to the estimated CdA, and derived watts-to-ride-at-V figures
 
+### 7. Power meter diagnostics
+
+AeroProfile reads the power-meter identity from each ride (from Intervals.icu's `power_meter` field, which mirrors the FIT ANT+ product string) and flags two failure modes that are invisible to the solver alone:
+
+1. **Sensor class** — a short database classifies common meters into high / medium / low quality categories. Single-side crank meters (4iiii Precision, Stages left) are "low" because they measure one leg and double it, and drift with temperature unless zero-offset is run before every ride. Dual-side pedals (Favero Assioma, Garmin Rally) and power spiders (SRM, Quarq) are "high". Home-trainer reported power is "medium".
+2. **Calibration bias ratio** — on the flat-pedaling portions of the ride (|gradient|<2%, P>50W), we compute the power predicted by the bike-type prior (CdA_prior, Crr=0.005) and divide the measured mean by the theoretical mean. A ratio >1.35 is almost always a mis-calibrated sensor reading high. This signal is independent of the solver — a well-fitting ride with a biased sensor still gets flagged.
+
+Both indicators surface in the main dashboard banner (`PowerMeterBanner` component) and as a coloured sensor chip on multi-ride chips. The history view persists the majority sensor label and median bias across each aggregated analysis, and offers a sensor filter so the user can isolate the rides made with a specific meter.
+
+### 8. Ride-to-ride stability timeline (history)
+
+The history page computes a **rolling standard deviation of CdA over a window of 10 consecutive rides**, plotted over time with coloured background bands per sensor. A sudden drop in the rolling σ corresponds to a sensor swap or a calibration fix; a sudden rise reveals the opposite. The chart makes it easy to see *when* the user's data became reliable, independently of the absolute CdA value.
+
 ## Compare mode
 
 Upload several activity files at once (one per rider). AeroProfile runs each analysis in parallel, then:

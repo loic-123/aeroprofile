@@ -73,6 +73,12 @@ const ARTICLES = [
     desc: "Pourquoi le CdA apparent chute de 30-40% dans un peloton, comment on le détecte, et ce qu'on peut quand même apprendre.",
     tags: ["drafting", "groupe"],
   },
+  {
+    slug: "power-meter-quality",
+    title: "Le capteur de puissance : la source d'erreur que le solveur ne peut pas corriger",
+    desc: "Pourquoi les capteurs mono-jambe (4iiii, Stages left) donnent un CdA 2× plus variable, et comment AeroProfile détecte un biais de calibration indépendamment du solveur.",
+    tags: ["capteur", "calibration", "diagnostic"],
+  },
 ];
 
 export default function BlogIndex() {

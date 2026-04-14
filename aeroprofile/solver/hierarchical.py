@@ -173,14 +173,11 @@ def solve_hierarchical(
             # Weight calibrated to be ~3 "virtual rides" worth
             pw = 0.3 * np.sqrt(n_rides)
             all_res.append(np.array([pw * (mu - cda_prior_mean) / cda_prior_sigma]))
-        # Soft penalty on log_tau to keep tau in [0.005, 0.20]
-        # (a half-Cauchy prior would be more rigorous, but this is enough)
-        if tau > 0.20:
-            all_res.append(np.array([(tau - 0.20) / 0.05]))
-        elif tau < 0.005:
-            all_res.append(np.array([(0.005 - tau) / 0.005]))
-        else:
-            all_res.append(np.array([0.0]))
+        # NOTE: τ is bounded in the `bounds` argument below (lb=log(0.005),
+        # ub=log(0.40)); no additional soft penalty is needed. The previous
+        # version added a `(tau - 0.20) / 0.05` term AND a hard ub=log(0.20),
+        # which made τ always collide with the plateau at 0.20 (visible on
+        # every user run). The hard bound alone is sufficient and honest.
         return np.concatenate(all_res)
 
     # Initial guess
@@ -198,7 +195,11 @@ def solve_hierarchical(
     lb = np.full(n_params, -np.inf)
     ub = np.full(n_params, np.inf)
     lb[0] = cda_lower; ub[0] = cda_upper             # mu
-    lb[1] = np.log(0.005); ub[1] = np.log(0.20)       # log_tau
+    # log_tau — upper bound raised from log(0.20) to log(0.40) (B2). The
+    # previous ceiling was reached on every real-world run, meaning the
+    # true inter-ride spread was almost always capped. 0.40 covers even
+    # very heterogeneous populations (mix of positions / equipment).
+    lb[1] = np.log(0.005); ub[1] = np.log(0.40)       # log_tau
     idx = 2
     if has_crr:
         lb[idx] = 0.0015; ub[idx] = 0.012

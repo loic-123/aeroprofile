@@ -181,20 +181,32 @@ def _solve_with_wind_inner(
         # and Bayesian prior. With noisy data, the likelihood is mechanically
         # flatter — the prior already dominates the posterior naturally,
         # without needing to scale its weight up.
+        #
+        # B7 documentation: the "pass 0" run (adaptive_factor=0) disables the
+        # CdA prior but INTENTIONALLY keeps the wind + Crr priors active. This
+        # is what we call a "conditional MLE" — CdA is freed from its prior,
+        # but wind is still regularised towards Open-Meteo and Crr towards the
+        # road default. Lifting wind regularisation at pass 0 makes the
+        # problem under-determined (150+ wind parameters vs ~3000 residuals
+        # on a typical ride) and produces random CdA values that are worse
+        # than a conditional MLE. The frontend treats `cda_raw` as "CdA
+        # estimate with zero CdA prior", not "unregularized MLE". Keep this
+        # consistent with the tooltip in ResultsDashboard.
         extras = []
         pw_base = 0.3 * np.sqrt(n)
         pw = pw_base * adaptive_factor  # 0 = MLE, 1 = default, >1 = renforcé
 
-        # Wind prior per segment (always at base weight — wind prior is not adaptive)
+        # Wind prior per segment (always at base weight — see note above)
         for s in range(n_seg):
             extras.append(pw_base * (wind_uv[s, 0] - u_prior[s]) / (wind_prior_sigma_ms * n_seg))
             extras.append(pw_base * (wind_uv[s, 1] - v_prior[s]) / (wind_prior_sigma_ms * n_seg))
 
-        # Crr prior
+        # Crr prior (always at base weight — see note above)
         if has_crr:
             extras.append(pw_base * (crr - crr_prior_mean) / crr_prior_sigma)
 
-        # CdA prior (bike-type-aware) — uses adaptive pw
+        # CdA prior (bike-type-aware) — uses adaptive pw. At pass 0 (af=0)
+        # this term is skipped entirely; only wind + Crr priors regularise.
         if cda_prior_sigma > 0 and adaptive_factor > 0:
             extras.append(pw * (cda - cda_prior_mean) / cda_prior_sigma)
 
@@ -250,18 +262,21 @@ def _solve_with_wind_inner(
     ss_tot = float(np.sum((target - target.mean()) ** 2))
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
 
-    # Confidence intervals from Hessian (drop prior rows from residuals)
-    n_data = len(res_alt)
+    # Confidence intervals from the full Laplace approximation. We include
+    # ALL residuals (data + prior rows) because the posterior Hessian is
+    # the sum of the data Hessian and the prior Hessian. Excluding the
+    # prior rows would give the wrong uncertainty in pass 2 (B8): when
+    # the prior is adaptive and dominates, the data-only curvature is
+    # flatter than the posterior curvature → σ_Hess overestimated →
+    # spurious pass-2 triggering / miscalibrated IC displayed to the user.
+    n_total = len(best.fun)
     p_total = len(best.x)
     cda_ci = (float("nan"), float("nan"))
     crr_ci = (float("nan"), float("nan"))
-    if n_data > p_total:
+    if n_total > p_total:
         try:
-            # Use only data residuals (first n_data) for CI estimation
-            jac_data = best.jac[:n_data, :]
-            fun_data = best.fun[:n_data]
-            s2 = float(np.sum(fun_data ** 2)) / max(n_data - p_total, 1)
-            cov = s2 * np.linalg.inv(jac_data.T @ jac_data)
+            s2 = 2.0 * best.cost / max(n_total - p_total, 1)
+            cov = s2 * np.linalg.inv(best.jac.T @ best.jac)
             se = np.sqrt(np.maximum(np.diag(cov), 0.0))
             cda_ci = (float(cda - 1.96 * se[0]), float(cda + 1.96 * se[0]))
             if has_crr:
@@ -359,12 +374,21 @@ def solve_with_wind(
         elif cda_prior_sigma <= 0:
             logger.info("  pass2 skipped: prior sigma = 0")
         else:
-            ratio = float(sigma_hess / cda_prior_sigma)
+            ratio_raw = float(sigma_hess / cda_prior_sigma)
+            # Cap the adaptive prior weight. Beyond 3× the base prior, the
+            # ride is effectively non-identifiable and must be flagged as
+            # such by the quality gate — not "rescued" by a prior that
+            # crushes the data.
+            ratio = min(ratio_raw, 3.0)
             if ratio <= 1.0:
                 logger.info("  pass2 skipped: ratio=%.2f ≤ 1 (data informative enough)", ratio)
             else:
-                logger.info("  pass2 running: ratio=%.2f (σ_Hess=%.3f vs σ_prior=%.3f)",
-                            ratio, sigma_hess, cda_prior_sigma)
+                if ratio_raw > 3.0:
+                    logger.info("  pass2 running: ratio=%.2f (capped from %.2f; σ_Hess=%.3f vs σ_prior=%.3f)",
+                                ratio, ratio_raw, sigma_hess, cda_prior_sigma)
+                else:
+                    logger.info("  pass2 running: ratio=%.2f (σ_Hess=%.3f vs σ_prior=%.3f)",
+                                ratio, sigma_hess, cda_prior_sigma)
                 result2 = _solve_with_wind_inner(df, adaptive_factor=ratio, **kwargs)
                 if result2 is not None:
                     _p2_sigma = (result2["cda_ci"][1] - result2["cda_ci"][0]) / 3.92 if not np.isnan(result2["cda_ci"][0]) else float("nan")

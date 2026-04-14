@@ -218,14 +218,13 @@ def _solve_chung_ve_inner(
                 best = r
         cda = float(best.x[0])
         crr = float(best.x[1])
-        # Drop the prior residual for the CI calculation so it reflects the data
-        n_data = len(alt_real)
-        fun_data = best.fun[:n_data]
-        jac_data = best.jac[:n_data, :]
-        n, p_ = n_data, 2
-        s2 = float(np.sum(fun_data ** 2)) / max(n - p_, 1)
+        # B8 — Laplace approximation with the full (data + prior) Jacobian.
+        # Same fix as wind_inverse: excluding the prior rows gave σ_Hess too
+        # large on pass 2 when the adaptive prior dominated.
+        n_total, p_ = len(best.fun), 2
+        s2 = 2.0 * best.cost / max(n_total - p_, 1)
         try:
-            cov = s2 * np.linalg.inv(jac_data.T @ jac_data)
+            cov = s2 * np.linalg.inv(best.jac.T @ best.jac)
             se = np.sqrt(np.maximum(np.diag(cov), 0.0))
             cda_ci = (cda - 1.96 * se[0], cda + 1.96 * se[0])
             crr_ci = (crr - 1.96 * se[1], crr + 1.96 * se[1])
@@ -323,12 +322,19 @@ def solve_chung_ve(
         if np.isnan(sigma_hess) or sigma_hess <= 0:
             logger.info("  pass2 skipped: σ_Hess=NaN (Hessian degenerate)")
         else:
-            ratio = float(sigma_hess / cda_prior_sigma)
+            ratio_raw = float(sigma_hess / cda_prior_sigma)
+            # Cap adaptive prior weight at 3× base (B9). Beyond that the
+            # ride is effectively non-identifiable.
+            ratio = min(ratio_raw, 3.0)
             if ratio <= 1.0:
                 logger.info("  pass2 skipped: ratio=%.2f ≤ 1", ratio)
             else:
-                logger.info("  pass2 running: ratio=%.2f (σ_Hess=%.3f vs σ_prior=%.3f)",
-                            ratio, sigma_hess, cda_prior_sigma)
+                if ratio_raw > 3.0:
+                    logger.info("  pass2 running: ratio=%.2f (capped from %.2f; σ_Hess=%.3f vs σ_prior=%.3f)",
+                                ratio, ratio_raw, sigma_hess, cda_prior_sigma)
+                else:
+                    logger.info("  pass2 running: ratio=%.2f (σ_Hess=%.3f vs σ_prior=%.3f)",
+                                ratio, sigma_hess, cda_prior_sigma)
                 try:
                     result2 = _solve_chung_ve_inner(df, adaptive_factor=ratio, **kwargs)
                     _p2sig = (result2.cda_ci[1] - result2.cda_ci[0]) / 3.92 if not np.isnan(result2.cda_ci[0]) else float("nan")

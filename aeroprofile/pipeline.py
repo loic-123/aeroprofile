@@ -194,6 +194,21 @@ def _compute_derivatives(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _local_date_from_longitude(first_ts: pd.Timestamp, lon_c: float):
+    """Approximate the ride's LOCAL calendar date from a UTC timestamp and
+    the ride centroid longitude. 15° of longitude ≈ 1 h offset. Open-Meteo
+    returns 24h of data per query so ±1h precision is enough — we just need
+    the correct calendar day (a ride starting 00:30 local = 23:30 UTC the
+    day before would otherwise hit the wrong day in the archive API).
+
+    Edge cases ignored on purpose: DST, fuseaux décalés (Népal UTC+5:45),
+    proximité de la dateline ±180°. The target user rides in Europe where
+    round(lon/15) is accurate. To upgrade later, use `timezonefinder`.
+    """
+    tz_offset_h = int(round(lon_c / 15.0))
+    return (first_ts + pd.Timedelta(hours=tz_offset_h)).date()
+
+
 async def preprocess(
     filepath: str | Path,
     mass_kg: float,
@@ -222,11 +237,7 @@ async def preprocess(
     # Weather
     lat_c = float(df["lat"].mean())
     lon_c = float(df["lon"].mean())
-    # Use local date (approximated from longitude) rather than UTC date —
-    # rides that start near midnight local time get the wrong Open-Meteo day
-    # otherwise. 15° of longitude ≈ 1h offset.
-    _tz_offset_h = int(round(lon_c / 15.0))
-    ride_date = (df["timestamp"].iloc[0] + pd.Timedelta(hours=_tz_offset_h)).date()
+    ride_date = _local_date_from_longitude(df["timestamp"].iloc[0], lon_c)
     total_km = float(df["distance"].iloc[-1]) / 1000.0 if len(df) > 1 else 0.0
 
     def _no_wind_fallback():
@@ -378,11 +389,7 @@ async def analyze(
     # Weather
     lat_c = float(df["lat"].mean())
     lon_c = float(df["lon"].mean())
-    # Use local date (approximated from longitude) rather than UTC date —
-    # rides that start near midnight local time get the wrong Open-Meteo day
-    # otherwise. 15° of longitude ≈ 1h offset.
-    _tz_offset_h = int(round(lon_c / 15.0))
-    ride_date = (df["timestamp"].iloc[0] + pd.Timedelta(hours=_tz_offset_h)).date()
+    ride_date = _local_date_from_longitude(df["timestamp"].iloc[0], lon_c)
     total_km = float(df["distance"].iloc[-1]) / 1000.0 if len(df) > 1 else 0.0
 
     def _no_wind_fallback():
@@ -615,13 +622,21 @@ async def analyze(
             cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
         )
         chung_cda = float(chung.cda)
+        # Reject Chung as winner when it sits pile à the physical bound —
+        # that's a degenerate solution, not a better fit. 0.005 m² tolerance
+        # matches the bound tolerance used downstream by the quality gate.
+        _chung_inside_bounds = (
+            bcfg.cda_lower + 0.005 < chung.cda < bcfg.cda_upper - 0.005
+        )
+        # Note (B14): wind_inverse.r_squared and chung.r_squared_elev are
+        # BOTH the R² of altitude reconstruction (wind_inverse.py:251 and
+        # chung_ve._virtual_elevation residuals). They're directly comparable.
         _chung_improves = (
-            sol is None
-            and bcfg.cda_lower <= chung.cda <= bcfg.cda_upper
+            sol is None and _chung_inside_bounds
         ) or (
             sol is not None
             and best_r2 < 0.3
-            and bcfg.cda_lower <= chung.cda <= bcfg.cda_upper
+            and _chung_inside_bounds
             and chung.r_squared_elev > max(best_r2, 0.0)
         )
         if _chung_improves:
@@ -670,6 +685,23 @@ async def analyze(
         )
 
     logger.info("CASCADE final method=%s", solver_method)
+
+    # P2 — Solver cross-check confidence (computed BEFORE the VE pass 2
+    # refinement so the Chung comparison reflects the same dataset that
+    # produced `chung_cda`). If VE pass 2 later moves `sol.cda`, it does so
+    # because a subset of points was excluded; in that case the agreement
+    # between Chung (run on the full dataset) and the pass-2 solver (run on
+    # the subset) is not meaningful. We lock in the pass-1 delta here.
+    solver_cross_check_delta: Optional[float] = None
+    solver_confidence = "unknown"
+    if chung_cda is not None:
+        solver_cross_check_delta = float(abs(chung_cda - sol.cda))
+        if solver_cross_check_delta < 0.02:
+            solver_confidence = "high"
+        elif solver_cross_check_delta < 0.05:
+            solver_confidence = "medium"
+        else:
+            solver_confidence = "low"
 
     # Virtual elevation (pass 1)
     df["altitude_virtual"] = virtual_elevation(df, sol.cda, sol.crr, mass_kg, eta)
@@ -750,13 +782,51 @@ async def analyze(
             # Temporarily swap filter_valid for the re-solve
             df["filter_valid_original"] = df["filter_valid"].copy()
             df["filter_valid"] = valid_pass2
+
+            # Acceptance check for a pass-2 candidate. Rejects the refinement
+            # when it silently degrades the solution — the historical bug
+            # (CdA_pass1=0.34 R²=0.96 → CdA_pass2=0.22) was caused by a
+            # borne-inclusive `cda_lower <= cda <= cda_upper` condition that
+            # accepted any bound hit as long as R² was vaguely defined.
+            _bound_tol = 0.005
+            _pass1_at_bound = (
+                sol.cda <= bcfg.cda_lower + _bound_tol
+                or sol.cda >= bcfg.cda_upper - _bound_tol
+            )
+
+            def _accept_pass2(cda_new: float, r2_new: float, label: str) -> bool:
+                # 1. Refuse a result pegged to a physical bound that pass-1 wasn't
+                #    on — pass 2 shouldn't introduce a new bound hit.
+                new_at_bound = (
+                    cda_new <= bcfg.cda_lower + _bound_tol
+                    or cda_new >= bcfg.cda_upper - _bound_tol
+                )
+                if new_at_bound and not _pass1_at_bound:
+                    logger.info(
+                        "VE PASS2 rejected (%s): new bound hit CdA=%.3f (pass1=%.3f)",
+                        label, cda_new, sol.cda,
+                    )
+                    return False
+                # 2. Refuse a significant R² regression (>0.05 absolute).
+                if not np.isnan(r2_new) and r2_new < best_r2 - 0.05:
+                    logger.info(
+                        "VE PASS2 rejected (%s): R² degraded %.3f → %.3f",
+                        label, best_r2, r2_new,
+                    )
+                    return False
+                logger.info(
+                    "VE PASS2 accepted (%s): CdA %.3f → %.3f | R² %.3f → %.3f",
+                    label, sol.cda, cda_new, best_r2, r2_new,
+                )
+                return True
+
             try:
                 # Re-run the best solver from pass 1
                 if solver_method == "wind_inverse":
                     wi2 = solve_with_wind(df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
                                           cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
                                           cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper)
-                    if wi2 is not None and bcfg.cda_lower <= wi2["cda"] <= bcfg.cda_upper:
+                    if wi2 is not None and _accept_pass2(wi2["cda"], wi2.get("r_squared", float("nan")), "wind_inverse"):
                         sol = SolverResult(
                             cda=wi2["cda"], crr=wi2["crr"],
                             cda_ci=wi2.get("cda_ci", (float("nan"), float("nan"))),
@@ -772,12 +842,13 @@ async def analyze(
                                 if wi2.get("cda_raw") is not None else None
                             ),
                         )
+                        best_r2 = wi2["r_squared"]
                         solver_note += f" Passe 2 itérative : {n_excluded_by_ve} points exclus (dérive VE hybride : taux > {drift_rate_threshold:.2f} m/s ou écart detrended > {drift_detrend_threshold:.0f} m)."
                 elif solver_method == "chung_ve":
                     chung2 = solve_chung_ve(df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
                                             cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
                                             cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper)
-                    if bcfg.cda_lower <= chung2.cda <= bcfg.cda_upper:
+                    if _accept_pass2(chung2.cda, chung2.r_squared_elev, "chung_ve"):
                         sol = SolverResult(
                             cda=chung2.cda, crr=chung2.crr,
                             cda_ci=chung2.cda_ci, crr_ci=chung2.crr_ci,
@@ -789,16 +860,18 @@ async def analyze(
                             cda_raw=getattr(chung2, "cda_raw", None),
                             cda_raw_ci=getattr(chung2, "cda_raw_ci", None),
                         )
+                        best_r2 = chung2.r_squared_elev
                         solver_note += f" Passe 2 : {n_excluded_by_ve} pts exclus (dérive hybride)."
                 else:
                     sol2 = solve_cda_crr(df, mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
                                          cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
                                          cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper)
-                    if bcfg.cda_lower <= sol2.cda <= bcfg.cda_upper:
+                    if _accept_pass2(sol2.cda, sol2.r_squared, "martin_ls"):
                         sol = sol2
+                        best_r2 = sol2.r_squared
                         solver_note += f" Passe 2 : {n_excluded_by_ve} pts exclus (dérive hybride)."
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.warning("VE pass 2 refinement raised: %s", _e)
             # Store VE mask for altitude chart (grey zones)
             df["filter_ve_valid"] = valid_pass2
             # Restore original filter_valid (keep pass-2 sol but show all points in charts)
@@ -919,31 +992,38 @@ async def analyze(
     quality_status = "ok"
     quality_reason = ""
 
-    # P1 — sensor_miscalib: the power meter reads clearly off theory on the
-    # flat-pedaling portions. When this happens, the solver either gets
-    # pushed against a CdA bound (compensating in the only dimension it has
-    # left once Crr is fixed) or returns a physically implausible CdA. We
-    # flag the ride BEFORE the bound_hit classification so the user gets an
-    # actionable message ("check sensor calibration") instead of an opaque
-    # "solveur bloqué".
-    _bias_miscalib = (
-        power_bias_ratio is not None
-        and (power_bias_ratio < 0.85 or power_bias_ratio > 1.15)
-    )
+    # P1 (B4 refined) — sensor_miscalib: two tiers.
+    #   - HARD: |bias - 1| > 0.20 OR (|bias - 1| > 0.15 AND CdA at bound).
+    #     The solver's estimate is unusable. Excluded from aggregates like
+    #     bound_hit. Actionable message → "check zero-offset".
+    #   - WARN: |bias - 1| > 0.10 but the solver still converged away from
+    #     the bounds. The estimate is salvageable but has a systematic bias
+    #     proportional to the sensor miscalibration. Kept in the aggregate
+    #     (like prior_dominated) with a warn badge.
     cda_bound_tol = 0.005  # ~1% of the typical bike-type range
     _cda_at_bound = (
         sol.cda <= bcfg.cda_lower + cda_bound_tol
         or sol.cda >= bcfg.cda_upper - cda_bound_tol
     )
-    if _bias_miscalib and _cda_at_bound:
+    _bias_devi = abs(power_bias_ratio - 1.0) if power_bias_ratio is not None else 0.0
+    _bias_miscalib_hard = power_bias_ratio is not None and (
+        _bias_devi > 0.20 or (_bias_devi > 0.15 and _cda_at_bound)
+    )
+    _bias_miscalib_warn = power_bias_ratio is not None and (
+        _bias_devi > 0.10 and not _bias_miscalib_hard
+    )
+    if _bias_miscalib_hard:
         quality_status = "sensor_miscalib"
         _pct = (power_bias_ratio - 1.0) * 100.0
         _direction = "au-dessus" if power_bias_ratio > 1.0 else "en-dessous"
+        _bound_note = (
+            f" Le solveur a tapé la borne CdA ({sol.cda:.3f}) pour compenser."
+            if _cda_at_bound else ""
+        )
         quality_reason = (
             f"Capteur de puissance probablement décalibré ({_pct:+.0f}% "
-            f"{_direction} de la puissance théorique sur les portions plates). "
-            f"Le solveur a tapé la borne CdA ({sol.cda:.3f}) pour compenser — "
-            "ce n'est pas un problème algorithmique mais une calibration capteur. "
+            f"{_direction} de la puissance théorique sur les portions plates)."
+            f"{_bound_note} "
             "Vérifie le zero-offset au départ de la prochaine sortie."
         )
     elif sol.cda <= bcfg.cda_lower + cda_bound_tol:
@@ -1025,21 +1105,36 @@ async def analyze(
                 "individuelle est moins fiable."
             )
 
-    # P2 — Solver cross-check confidence. Classify how well the selected
-    # solver and Chung VE agree on CdA. This is independent of the quality
-    # gate — a ride can be `ok` with `medium`/`low` confidence, in which
-    # case the UI shows a "solveurs en désaccord" badge without excluding
-    # the ride from aggregates.
-    solver_cross_check_delta: Optional[float] = None
-    solver_confidence = "unknown"
-    if chung_cda is not None:
-        solver_cross_check_delta = float(abs(chung_cda - sol.cda))
-        if solver_cross_check_delta < 0.02:
-            solver_confidence = "high"
-        elif solver_cross_check_delta < 0.05:
-            solver_confidence = "medium"
-        else:
-            solver_confidence = "low"
+    # B4 — sensor_miscalib_warn: moderate power-meter bias (10-20%) on a
+    # ride where the solver converged away from the bounds. Kept in the
+    # aggregate like prior_dominated. Fires only if no stronger gate caught
+    # the ride first.
+    if quality_status == "ok" and _bias_miscalib_warn:
+        quality_status = "sensor_miscalib_warn"
+        _pct = (power_bias_ratio - 1.0) * 100.0
+        _direction = "au-dessus" if power_bias_ratio > 1.0 else "en-dessous"
+        quality_reason = (
+            f"Biais capteur modéré ({_pct:+.0f}% {_direction} du théorique). "
+            "Le solveur a pu absorber ce biais via le champ de vent ou le "
+            "roulement, mais le CdA individuel est probablement décalé "
+            f"dans le même sens. La ride reste comptée dans l'agrégat."
+        )
+
+    # B10 — insufficient_data: too few valid points survived the segment
+    # filters. A cherry-picked subset can make the CdA look artificially
+    # stable because the hard parts of the ride (traffic, corners, climbs)
+    # were dropped. Warn (keep in aggregate) below 25% valid rate.
+    if quality_status == "ok":
+        _valid_ratio = float(df["filter_valid"].sum()) / max(len(df), 1)
+        if _valid_ratio < 0.25:
+            quality_status = "insufficient_data"
+            quality_reason = (
+                f"Seulement {100 * _valid_ratio:.0f}% des points de la sortie ont "
+                "passé les filtres (cible ≥ 25%). Trop de virages, arrêts, "
+                "accélérations ou montées raides ont été exclus. Le CdA peut "
+                "être biaisé parce que les portions gardées sont les plus lisses. "
+                "La ride reste comptée dans l'agrégat avec un avertissement."
+            )
 
     # NOTE: No backend nRMSE gate. The frontend slider is the only nRMSE filter —
     # the user must stay in control of which rides to keep by quality percentile.

@@ -612,12 +612,12 @@ export default function IntervalsPage() {
                     ({((filters.max_elevation_per_km ?? 0) / 10).toFixed(1)}% de pente moyenne)
                   </span>
                 </label>
-                <input type="range" min={5} max={100} step={5}
-                  value={filters.max_elevation_per_km ?? 100}
+                <input type="range" min={2} max={15} step={1}
+                  value={filters.max_elevation_per_km ?? 15}
                   onChange={(e) => setFilters({ ...filters, max_elevation_per_km: parseFloat(e.target.value) })}
                   className="w-full accent-teal" />
                 <p className="text-[10px] text-muted mt-1 leading-tight">
-                  Exclut les rides majoritairement en montée : à pente forte, la traînée aéro est noyée dans la gravité — CdA et Crr deviennent non identifiables. 25 m/km (2.5%) = route vallonnée ; 40 m/km (4%) = col régulier.
+                  Exclut les rides en montée : à pente forte, la traînée aéro est noyée dans la gravité et CdA devient non identifiable. 5 m/km (0.5%) = velodrome/route quasi plate ; 10 m/km (1%) = plat ondulé ; 15 m/km (1.5%) = vallonné léger.
                 </p>
               </div>
               {listed && (

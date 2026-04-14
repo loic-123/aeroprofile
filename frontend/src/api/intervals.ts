@@ -38,7 +38,7 @@ export const DEFAULT_FILTERS: RideFilters = {
   max_distance_km: 500,
   max_elevation_m: 2000,
   min_duration_h: 1.0,
-  max_elevation_per_km: 25,  // 25 m/km = 2.5% average grade
+  max_elevation_per_km: 10,  // 10 m/km = 1% average grade
 };
 
 export async function connect(apiKey: string, athleteId: string): Promise<AthleteProfile> {

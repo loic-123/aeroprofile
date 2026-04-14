@@ -55,6 +55,11 @@ class AnalysisResultOut(BaseModel):
     weather_ok: bool = True
     quality_status: str = "ok"
     quality_reason: str = ""
+    prior_adaptive_factor: float = 1.0
+    cda_raw: Optional[float] = None
+    cda_raw_ci_low: Optional[float] = None
+    cda_raw_ci_high: Optional[float] = None
+    weather_source: str = "unknown"
 
     ride_date: str
     ride_distance_km: float

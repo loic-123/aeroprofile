@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import date, datetime, timedelta, timezone
 
 import httpx
 
 from aeroprofile.weather.cache import get as _cache_get, put as _cache_put
+
+logger = logging.getLogger(__name__)
 
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
@@ -41,11 +44,14 @@ async def fetch_weather(lat: float, lon: float, ride_date: date | str) -> dict:
     # Check cache first
     cached = _cache_get(lat, lon, day_dt)
     if cached is not None:
+        logger.debug("Open-Meteo cache hit lat=%.3f lon=%.3f date=%s", lat, lon, day)
         return cached
 
     # Decide endpoint: archive is authoritative but has a ~5-day lag.
     today = datetime.now(timezone.utc).date()
     use_forecast = (today - day_dt).days < 5
+    logger.info("Open-Meteo fetch lat=%.3f lon=%.3f date=%s endpoint=%s",
+                lat, lon, day, "forecast" if use_forecast else "archive")
 
     params = {
         "latitude": lat,
@@ -63,11 +69,14 @@ async def fetch_weather(lat: float, lon: float, ride_date: date | str) -> dict:
             try:
                 r = await client.get(url, params=p)
                 if r.status_code in (429, 502, 503):
+                    logger.warning("Open-Meteo HTTP %d (attempt %d/5), backing off",
+                                   r.status_code, attempt + 1)
                     await asyncio.sleep(min(2 ** attempt, 10))
                     continue
                 return r
             except httpx.HTTPError as e:
                 last_exc = e
+                logger.warning("Open-Meteo HTTPError (attempt %d/5): %s", attempt + 1, e)
                 await asyncio.sleep(min(2 ** attempt, 10))
         if last_exc is not None:
             raise last_exc

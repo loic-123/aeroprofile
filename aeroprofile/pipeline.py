@@ -76,6 +76,12 @@ class AnalysisResult:
     # to the UI so the user knows WHY a ride was dropped.
     quality_status: str = "ok"
     quality_reason: str = ""
+    # Adaptive prior & raw MLE display
+    prior_adaptive_factor: float = 1.0  # >1 si prior renforcé (données bruitées)
+    cda_raw: Optional[float] = None     # MLE pur sans prior (for dual display)
+    cda_raw_ci_low: Optional[float] = None
+    cda_raw_ci_high: Optional[float] = None
+    weather_source: str = "unknown"     # open_meteo_tiled | open_meteo_centroid | fallback_no_wind | device_only
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -189,7 +195,11 @@ async def preprocess(
     # Weather
     lat_c = float(df["lat"].mean())
     lon_c = float(df["lon"].mean())
-    ride_date = df["timestamp"].iloc[0].date()
+    # Use local date (approximated from longitude) rather than UTC date —
+    # rides that start near midnight local time get the wrong Open-Meteo day
+    # otherwise. 15° of longitude ≈ 1h offset.
+    _tz_offset_h = int(round(lon_c / 15.0))
+    ride_date = (df["timestamp"].iloc[0] + pd.Timedelta(hours=_tz_offset_h)).date()
     total_km = float(df["distance"].iloc[-1]) / 1000.0 if len(df) > 1 else 0.0
 
     def _no_wind_fallback():
@@ -202,6 +212,7 @@ async def preprocess(
         })
 
     weather_ok = True
+    weather_source = "fallback_no_wind"
     if fetch_wx:
         wx = None
         import os
@@ -215,18 +226,25 @@ async def preprocess(
                 )
                 if tiles:
                     wx = interpolate_tiled_weather(tiles, df["timestamp"].tolist())
-            except Exception:
-                pass
+                    weather_source = "open_meteo_tiled"
+            except Exception as _e:
+                import logging as _lg
+                _lg.getLogger(__name__).warning("Tiled weather failed (lat=%.3f lon=%.3f date=%s): %s", lat_c, lon_c, ride_date, _e)
         if wx is None:
             try:
                 hourly = await fetch_weather(lat_c, lon_c, ride_date)
                 wx = interpolate_weather(hourly, df["timestamp"].tolist())
-            except Exception:
+                weather_source = "open_meteo_centroid"
+            except Exception as _e:
+                import logging as _lg
+                _lg.getLogger(__name__).warning("Centroid weather failed (lat=%.3f lon=%.3f date=%s): %s", lat_c, lon_c, ride_date, _e)
                 wx = _no_wind_fallback()
                 weather_ok = False
+                weather_source = "fallback_no_wind"
     else:
         wx = _no_wind_fallback()
         weather_ok = False
+        weather_source = "fallback_no_wind"
 
     df = pd.concat([df, wx], axis=1)
 
@@ -315,7 +333,11 @@ async def analyze(
     # Weather
     lat_c = float(df["lat"].mean())
     lon_c = float(df["lon"].mean())
-    ride_date = df["timestamp"].iloc[0].date()
+    # Use local date (approximated from longitude) rather than UTC date —
+    # rides that start near midnight local time get the wrong Open-Meteo day
+    # otherwise. 15° of longitude ≈ 1h offset.
+    _tz_offset_h = int(round(lon_c / 15.0))
+    ride_date = (df["timestamp"].iloc[0] + pd.Timedelta(hours=_tz_offset_h)).date()
     total_km = float(df["distance"].iloc[-1]) / 1000.0 if len(df) > 1 else 0.0
 
     def _no_wind_fallback():
@@ -330,6 +352,7 @@ async def analyze(
         )
 
     weather_ok = True
+    weather_source = "fallback_no_wind"
     if fetch_wx:
         wx = None
         import os
@@ -343,18 +366,25 @@ async def analyze(
                 )
                 if tiles:
                     wx = interpolate_tiled_weather(tiles, df["timestamp"].tolist())
-            except Exception:
-                pass
+                    weather_source = "open_meteo_tiled"
+            except Exception as _e:
+                import logging as _lg
+                _lg.getLogger(__name__).warning("Tiled weather failed (lat=%.3f lon=%.3f date=%s): %s", lat_c, lon_c, ride_date, _e)
         if wx is None:
             try:
                 hourly = await fetch_weather(lat_c, lon_c, ride_date)
                 wx = interpolate_weather(hourly, df["timestamp"].tolist())
-            except Exception:
+                weather_source = "open_meteo_centroid"
+            except Exception as _e:
+                import logging as _lg
+                _lg.getLogger(__name__).warning("Centroid weather failed (lat=%.3f lon=%.3f date=%s): %s", lat_c, lon_c, ride_date, _e)
                 wx = _no_wind_fallback()
                 weather_ok = False
+                weather_source = "fallback_no_wind"
     else:
         wx = _no_wind_fallback()
         weather_ok = False
+        weather_source = "fallback_no_wind"
 
     df = pd.concat([df, wx], axis=1)
 
@@ -435,6 +465,12 @@ async def analyze(
                 residuals=wi["residuals"],
                 n_points=wi["n_points"],
                 crr_was_fixed=(effective_crr_fixed is not None),
+                prior_adaptive_factor=float(wi.get("prior_adaptive_factor", 1.0)),
+                cda_raw=wi.get("cda_raw"),
+                cda_raw_ci=(
+                    (wi.get("cda_raw_ci_low"), wi.get("cda_raw_ci_high"))
+                    if wi.get("cda_raw") is not None else None
+                ),
             )
             n_seg = wi["n_segments"]
             solver_method = "wind_inverse"
@@ -468,6 +504,9 @@ async def analyze(
                     residuals=chung.residuals,
                     n_points=chung.n_points,
                     crr_was_fixed=(effective_crr_fixed is not None),
+                    prior_adaptive_factor=float(getattr(chung, "prior_adaptive_factor", 1.0)),
+                    cda_raw=getattr(chung, "cda_raw", None),
+                    cda_raw_ci=getattr(chung, "cda_raw_ci", None),
                 )
                 solver_method = "chung_ve"
                 solver_note = (
@@ -572,6 +611,12 @@ async def analyze(
                             residuals=wi2["residuals"],
                             n_points=wi2["n_points"],
                             crr_was_fixed=(effective_crr_fixed is not None),
+                            prior_adaptive_factor=float(wi2.get("prior_adaptive_factor", 1.0)),
+                            cda_raw=wi2.get("cda_raw"),
+                            cda_raw_ci=(
+                                (wi2.get("cda_raw_ci_low"), wi2.get("cda_raw_ci_high"))
+                                if wi2.get("cda_raw") is not None else None
+                            ),
                         )
                         solver_note += f" Passe 2 itérative : {n_excluded_by_ve} points exclus (dérive VE hybride : taux > {drift_rate_threshold:.2f} m/s ou écart detrended > {drift_detrend_threshold:.0f} m)."
                 elif solver_method == "chung_ve":
@@ -586,6 +631,9 @@ async def analyze(
                             residuals=chung2.residuals,
                             n_points=chung2.n_points,
                             crr_was_fixed=(effective_crr_fixed is not None),
+                            prior_adaptive_factor=float(getattr(chung2, "prior_adaptive_factor", 1.0)),
+                            cda_raw=getattr(chung2, "cda_raw", None),
+                            cda_raw_ci=getattr(chung2, "cda_raw_ci", None),
                         )
                         solver_note += f" Passe 2 : {n_excluded_by_ve} pts exclus (dérive hybride)."
                 else:
@@ -706,14 +754,9 @@ async def analyze(
                 f"ou capteur de puissance déréglé."
             )
 
-    if quality_status == "ok":
-        nrmse = rmse_w / max(float(df["power"].mean()), 1.0)
-        if nrmse > 0.60:
-            quality_status = "high_nrmse"
-            quality_reason = (
-                f"nRMSE = {nrmse * 100:.0f}% : les résidus du modèle sont plus grands "
-                f"que la moitié du signal. Le modèle ne reproduit pas la puissance mesurée."
-            )
+    # NOTE: No backend nRMSE gate. The frontend slider is the only nRMSE filter —
+    # the user must stay in control of which rides to keep by quality percentile.
+    # Backend gates only catch solver pathologies (bound_hit, non_identifiable).
 
     # Summary stats
     filter_summary = {name: int(df[name].sum()) for name in FILTER_NAMES}
@@ -757,6 +800,15 @@ async def analyze(
         weather_ok=weather_ok,
         quality_status=quality_status,
         quality_reason=quality_reason,
+        prior_adaptive_factor=float(getattr(sol, "prior_adaptive_factor", 1.0)),
+        cda_raw=getattr(sol, "cda_raw", None),
+        cda_raw_ci_low=(
+            float(sol.cda_raw_ci[0]) if getattr(sol, "cda_raw_ci", None) is not None and sol.cda_raw_ci[0] is not None else None
+        ),
+        cda_raw_ci_high=(
+            float(sol.cda_raw_ci[1]) if getattr(sol, "cda_raw_ci", None) is not None and sol.cda_raw_ci[1] is not None else None
+        ),
+        weather_source=weather_source,
     )
 
 

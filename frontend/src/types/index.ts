@@ -123,6 +123,11 @@ export interface AnalysisResult {
   solver_note: string;
   quality_status?: "ok" | "bound_hit" | "non_identifiable" | "high_nrmse";
   quality_reason?: string;
+  prior_adaptive_factor?: number;
+  cda_raw?: number | null;
+  cda_raw_ci_low?: number | null;
+  cda_raw_ci_high?: number | null;
+  weather_source?: string;
   cda_climb: number | null;
   cda_descent: number | null;
   cda_flat: number | null;

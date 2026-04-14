@@ -180,11 +180,40 @@ export default function BayesianPriors() {
         </P>
       </Section>
 
-      <Section title="Sensibilité et poids du prior">
+      <Section title="Sensibilité et poids adaptatif du prior">
         <P>
           Le poids du prior dans la fonction objectif est :
         </P>
-        <Formula>{String.raw`w_{\text{eff}} = 0.3 \cdot \sqrt{N}`}</Formula>
+        <Formula>{String.raw`w_{\text{eff}} = 0.3 \cdot \sqrt{N} \cdot \max\!\left(1,\; \frac{\sigma_{\text{Hess}}}{\sigma_{\text{prior}}}\right)`}</Formula>
+        <P>
+          Le facteur adaptatif <Tex>{String.raw`\max(1,\sigma_{\text{Hess}}/\sigma_{\text{prior}})`}</Tex>{" "}
+          implémente l'intuition bayésienne standard : quand les données sont
+          informatives (<Tex>{String.raw`\sigma_{\text{Hess}} \leq \sigma_{\text{prior}}`}</Tex>),
+          le facteur vaut 1 et le prior agit comme un stabilisateur doux. Quand
+          les données sont bruitées ou peu informatives{" "}
+          (<Tex>{String.raw`\sigma_{\text{Hess}} \gg \sigma_{\text{prior}}`}</Tex>), le
+          prior monte proportionnellement pour empêcher le solveur de suivre le
+          bruit et de taper les bornes physiques. C'est du shrinkage adaptatif
+          façon James–Stein / ridge adaptatif.
+        </P>
+        <P>
+          Le problème du chicken-and-egg — <Tex>{String.raw`\sigma_{\text{Hess}}`}</Tex>{" "}
+          n'est connu qu'après optimisation — est résolu par une stratégie en
+          deux passes :
+        </P>
+        <ol className="list-decimal pl-5 text-sm leading-relaxed my-2">
+          <li><strong>Pass 1</strong> : solveur avec poids de base <Tex>{String.raw`0.3\sqrt{N}`}</Tex>,
+          on extrait <Tex>{String.raw`\sigma_{\text{Hess}}`}</Tex> de la Hessienne.</li>
+          <li><strong>Pass 2</strong> (conditionnelle) : si le ratio dépasse 1,
+          on relance le solveur avec le poids renforcé. Sinon on garde le pass 1.</li>
+        </ol>
+        <P>
+          Un <strong>pass 0 supplémentaire</strong> (<Tex>{String.raw`w=0`}</Tex>, MLE pur)
+          est exécuté en amont pour exposer <em>CdA brut</em> dans l'UI — l'utilisateur
+          voit explicitement comment le prior a déplacé l'estimation quand les
+          données étaient peu informatives.
+        </P>
+        <Formula>{String.raw`w_{\text{eff,base}} = 0.3 \cdot \sqrt{N}`}</Formula>
         <P>
           Le facteur <Tex>{String.raw`\sqrt{N}`}</Tex> garantit qu'avec
           beaucoup de données, le prior pèse relativement <em>moins</em>

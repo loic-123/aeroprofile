@@ -269,6 +269,9 @@ export default function App() {
       <header className="border-b border-border px-6 py-4 flex items-center gap-3 flex-wrap">
         <Wind className="text-teal" size={24} />
         <h1 className="text-xl font-bold tracking-tight">AeroProfile</h1>
+        <span className="text-[10px] font-mono text-muted opacity-60" title="Build ID — increment to verify hot-reload">
+          v2026.04.14-qgate
+        </span>
         <span className="text-muted text-sm ml-2 hidden md:inline">
           CdA / Crr depuis votre fichier d'activité
         </span>
@@ -625,6 +628,12 @@ export default function App() {
                               } else if (r.result) {
                                 nrmseVal = (r.result.rmse_w || 0) / Math.max(r.result.avg_power_w, 1);
                                 tooltip = `${r.file.name}\nCdA ${r.result.cda.toFixed(3)} • nRMSE ${(nrmseVal*100).toFixed(0)}% • ±${r.result.rmse_w.toFixed(0)}W`;
+                                if (r.result.cda_raw != null && Math.abs(r.result.cda_raw - r.result.cda) > 0.02) {
+                                  tooltip += `\nCdA brut (MLE): ${r.result.cda_raw.toFixed(3)}`;
+                                }
+                                if ((r.result.prior_adaptive_factor ?? 1) > 1.05) {
+                                  tooltip += `\nPrior renforcé ×${(r.result.prior_adaptive_factor ?? 1).toFixed(1)}`;
+                                }
                                 if (r.result.quality_status && r.result.quality_status !== "ok" && r.result.quality_reason) {
                                   tooltip += `\n\n⚠ Exclue : ${r.result.quality_reason}`;
                                 }
@@ -652,6 +661,9 @@ export default function App() {
                                   <>
                                     <span className="opacity-70">{r.result.cda.toFixed(3)}</span>
                                     <span className="opacity-40">{(nrmseVal*100).toFixed(0)}%</span>
+                                    {(r.result.prior_adaptive_factor ?? 1) > 1.05 && (
+                                      <span className="opacity-70 text-warn" title="prior renforcé">⚡</span>
+                                    )}
                                   </>
                                 )}
                                 {isBad && r.result && <span className="opacity-40">{r.result.cda.toFixed(3)}</span>}

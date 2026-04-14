@@ -21,6 +21,9 @@ class SolverResult:
     residuals: np.ndarray
     n_points: int
     crr_was_fixed: bool = False
+    prior_adaptive_factor: float = 1.0
+    cda_raw: float | None = None
+    cda_raw_ci: tuple[float, float] | None = None
 
 
 def _confidence_intervals(result):
@@ -64,7 +67,7 @@ def check_speed_variety(v_ground: np.ndarray) -> tuple[bool, str]:
     return False, ""
 
 
-def solve_cda_crr(
+def _solve_cda_crr_inner(
     df,
     mass: float,
     eta: float = ETA_DEFAULT,
@@ -75,6 +78,7 @@ def solve_cda_crr(
     cda_prior_sigma: float | None = 0.12,
     cda_lower: float = 0.15,
     cda_upper: float = 0.60,
+    adaptive_factor: float = 1.0,
 ) -> SolverResult:
     """Solve CdA and Crr (or CdA only with fixed Crr) via multi-start TRF.
 
@@ -170,19 +174,22 @@ def solve_cda_crr(
     cda_arm = 0.5 * mean_rho * mean_V_air_sq * mean_V  # ∂P/∂CdA
     prior_weight_w = 3.0  # ~3 W of "prior uncertainty"
 
+    # Adaptive factor scales only the CdA prior term
+    use_cda_prior_effective = use_cda_prior and adaptive_factor > 0
+
     def residuals_with_prior(x):
         base = residual_power(x, V_ground, V_air, gradient, accel, mass, rho, P, eta,
                               cda_yaw_factor=yaw_factor)
         extras = []
         if use_crr_prior:
             extras.append(prior_weight_w * crr_arm * (x[1] - crr_prior_mean) / crr_prior_sigma)
-        if use_cda_prior:
-            extras.append(prior_weight_w * cda_arm * (x[0] - cda_prior_mean) / cda_prior_sigma)
+        if use_cda_prior_effective:
+            extras.append(prior_weight_w * adaptive_factor * cda_arm * (x[0] - cda_prior_mean) / cda_prior_sigma)
         if extras:
             return np.concatenate([base, np.array(extras)])
         return base
 
-    n_extra = int(use_crr_prior) + int(use_cda_prior)
+    n_extra = int(use_crr_prior) + int(use_cda_prior_effective)
 
     best = None
     for x0 in starts:
@@ -224,3 +231,67 @@ def solve_cda_crr(
         n_points=len(valid),
         crr_was_fixed=False,
     )
+
+
+def solve_cda_crr(
+    df,
+    mass: float,
+    eta: float = ETA_DEFAULT,
+    crr_fixed: float | None = None,
+    crr_prior_mean: float | None = 0.0035,
+    crr_prior_sigma: float | None = 0.0012,
+    cda_prior_mean: float | None = 0.30,
+    cda_prior_sigma: float | None = 0.12,
+    cda_lower: float = 0.15,
+    cda_upper: float = 0.60,
+) -> SolverResult:
+    """Wrapper: two-pass adaptive prior + MLE pass for ``cda_raw``.
+
+    When Crr is fixed, Martin LS doesn't apply a CdA prior term (see
+    ``_solve_cda_crr_inner``), so the adaptive scaling is a no-op in that
+    branch. The cascade in ``pipeline.py`` falls back to Chung VE / wind
+    inverse for hard cases anyway.
+    """
+    kwargs = dict(
+        mass=mass, eta=eta, crr_fixed=crr_fixed,
+        crr_prior_mean=crr_prior_mean, crr_prior_sigma=crr_prior_sigma,
+        cda_prior_mean=cda_prior_mean, cda_prior_sigma=cda_prior_sigma,
+        cda_lower=cda_lower, cda_upper=cda_upper,
+    )
+    prior_active = (
+        crr_fixed is None  # crr_fixed path has no CdA prior term
+        and cda_prior_sigma is not None
+        and cda_prior_sigma > 0
+    )
+
+    # Pass 0: MLE pur
+    raw_cda = None
+    raw_ci = None
+    if prior_active:
+        try:
+            raw = _solve_cda_crr_inner(df, adaptive_factor=0.0, **kwargs)
+            raw_cda = float(raw.cda)
+            raw_ci = raw.cda_ci
+        except Exception:
+            pass
+
+    # Pass 1: poids de base
+    result = _solve_cda_crr_inner(df, adaptive_factor=1.0, **kwargs)
+    adaptive_factor = 1.0
+
+    # Pass 2: adaptatif
+    if prior_active:
+        sigma_hess = (result.cda_ci[1] - result.cda_ci[0]) / 3.92
+        if not np.isnan(sigma_hess) and sigma_hess > 0 and cda_prior_sigma > 0:
+            ratio = float(sigma_hess / cda_prior_sigma)
+            if ratio > 1.0:
+                try:
+                    result = _solve_cda_crr_inner(df, adaptive_factor=ratio, **kwargs)
+                    adaptive_factor = ratio
+                except Exception:
+                    pass
+
+    result.prior_adaptive_factor = float(adaptive_factor)
+    result.cda_raw = raw_cda
+    result.cda_raw_ci = raw_ci
+    return result

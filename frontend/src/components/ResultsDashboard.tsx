@@ -56,6 +56,63 @@ function StatCard({
   );
 }
 
+function CdADualCard({
+  result,
+  unreliable,
+  accent,
+}: {
+  result: AnalysisResult;
+  unreliable: boolean;
+  accent: "text" | "teal" | "coral" | "info";
+}) {
+  const colors = {
+    text: "text-text",
+    teal: "text-teal",
+    coral: "text-coral",
+    info: "text-info",
+  };
+  const mainValue = unreliable ? "—" : result.cda.toFixed(3);
+  const mainSub = unreliable
+    ? "non fiable (R² < 0)"
+    : `IC ${result.cda_ci_low.toFixed(3)} – ${result.cda_ci_high.toFixed(3)} m²`;
+
+  const factor = result.prior_adaptive_factor ?? 1.0;
+  const showFactor = factor > 1.05;
+  const raw = result.cda_raw;
+  const showRaw = raw != null && Math.abs(raw - result.cda) > 0.02;
+
+  return (
+    <div className="bg-panel border border-border rounded-lg p-4">
+      <div className="text-xs text-muted uppercase tracking-wide flex items-center">
+        CdA
+        <InfoTooltip text="CdA = coefficient de traînée × surface frontale (m²). IC = intervalle de confiance 95%. Si le prior a significativement tiré l'estimation, on affiche aussi 'CdA brut' (MLE pur sans prior) pour que vous voyiez l'impact." />
+      </div>
+      <div className={`text-2xl font-mono font-semibold mt-1 ${colors[accent]}`}>
+        {mainValue}
+      </div>
+      <div className="text-xs text-muted mt-1 font-mono">{mainSub}</div>
+      {showFactor && (
+        <div className="mt-2">
+          <span className="inline-block text-[10px] font-mono px-1.5 py-0.5 rounded bg-warn/20 text-warn border border-warn/40">
+            prior renforcé ×{factor.toFixed(1)}
+          </span>
+        </div>
+      )}
+      {showRaw && (
+        <div className="text-[11px] text-muted mt-2 font-mono opacity-80">
+          brut (MLE): {raw!.toFixed(3)}
+          {result.cda_raw_ci_low != null && result.cda_raw_ci_high != null && (
+            <span className="opacity-70">
+              {" "}
+              [{result.cda_raw_ci_low.toFixed(3)} – {result.cda_raw_ci_high.toFixed(3)}]
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CdABreakdown({ result }: { result: AnalysisResult }) {
   const { cda_climb, cda_descent, cda_flat } = result;
   if (cda_climb == null && cda_descent == null && cda_flat == null) return null;
@@ -260,17 +317,7 @@ export default function ResultsDashboard({ result, massKg }: Props) {
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <StatCard
-          label="CdA"
-          value={unreliable ? "—" : result.cda.toFixed(3)}
-          sub={
-            unreliable
-              ? "non fiable (R² < 0)"
-              : `IC ${result.cda_ci_low.toFixed(3)} – ${result.cda_ci_high.toFixed(3)} m²`
-          }
-          accent={unreliable ? "coral" : cdaAccent}
-          tooltip="CdA = coefficient de traînée × surface frontale (m²). Représente la résistance à l'air. Typiquement 0.28–0.38 sur route mains sur cocottes, 0.22–0.28 en position basse, 0.18–0.22 en CLM. Plus petit = plus aéro. IC = intervalle de confiance à 95%."
-        />
+        <CdADualCard result={result} unreliable={unreliable} accent={cdaAccent} />
         <StatCard
           label="Crr"
           value={unreliable ? "—" : result.crr.toFixed(4)}

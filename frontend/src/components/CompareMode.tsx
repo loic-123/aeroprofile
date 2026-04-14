@@ -875,6 +875,12 @@ function RiderRow({
                   tooltip = `Erreur : ${rd.error || "analyse échouée"}`;
                 } else if (rd.status === "done" && rd.result) {
                   tooltip = `${rd.file.name}\nCdA ${rd.result.cda.toFixed(3)} • nRMSE ${(nrmse * 100).toFixed(0)}% • ±${rd.result.rmse_w.toFixed(0)}W`;
+                  if (rd.result.cda_raw != null && Math.abs(rd.result.cda_raw - rd.result.cda) > 0.02) {
+                    tooltip += `\nCdA brut (MLE): ${rd.result.cda_raw.toFixed(3)}`;
+                  }
+                  if ((rd.result.prior_adaptive_factor ?? 1) > 1.05) {
+                    tooltip += `\nPrior renforcé ×${(rd.result.prior_adaptive_factor ?? 1).toFixed(1)}`;
+                  }
                   if (rd.result.quality_status && rd.result.quality_status !== "ok" && rd.result.quality_reason) {
                     tooltip += `\n\n⚠ Exclue : ${rd.result.quality_reason}`;
                   }
@@ -904,6 +910,9 @@ function RiderRow({
                     <>
                       <span className="opacity-70">{rd.result.cda.toFixed(3)}</span>
                       <span className="opacity-40">{(nrmse * 100).toFixed(0)}%</span>
+                      {(rd.result.prior_adaptive_factor ?? 1) > 1.05 && (
+                        <span className="opacity-70 text-warn" title="prior renforcé">⚡</span>
+                      )}
                     </>
                   )}
                   {isBad && rd.result && <span className="opacity-40">{rd.result.cda.toFixed(3)}</span>}

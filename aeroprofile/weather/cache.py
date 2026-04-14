@@ -12,12 +12,14 @@ import hashlib
 import json
 import os
 import tempfile
+import time
 from datetime import date
 from pathlib import Path
 
 _mem_cache: dict[str, dict] = {}
 
 _CACHE_DIR = Path(tempfile.gettempdir()) / "aeroprofile_weather_cache"
+_DISK_TTL_SECONDS = 30 * 24 * 3600  # 30 days
 
 
 def _key(lat: float, lon: float, day: date | str) -> str:
@@ -37,10 +39,14 @@ def get(lat: float, lon: float, day: date | str) -> dict | None:
     if k in _mem_cache:
         return _mem_cache[k]
 
-    # 2. Disk
+    # 2. Disk (ignore entries older than TTL — avoids stale data persisting)
     fp = _CACHE_DIR / f"{k}.json"
     if fp.exists():
         try:
+            age = time.time() - fp.stat().st_mtime
+            if age > _DISK_TTL_SECONDS:
+                fp.unlink(missing_ok=True)
+                return None
             data = json.loads(fp.read_text(encoding="utf-8"))
             _mem_cache[k] = data  # promote to memory
             return data

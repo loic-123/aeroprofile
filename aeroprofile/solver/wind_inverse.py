@@ -49,7 +49,7 @@ def _virtual_elevation_vec(V, V_air, rho, P, dt, CdA, Crr, mass, eta,
     return np.cumsum(dh)
 
 
-def solve_with_wind(
+def _solve_with_wind_inner(
     df,
     mass: float,
     eta: float = ETA_DEFAULT,
@@ -63,12 +63,10 @@ def solve_with_wind(
     cda_prior_sigma: float = 0.12,
     cda_lower: float = 0.15,
     cda_upper: float = 0.60,
+    adaptive_factor: float = 1.0,
 ):
-    """Jointly estimate (CdA, Crr, wind_per_segment) via Chung VE.
-
-    Returns dict with keys cda, crr, r_squared, residuals, v_air_solved,
-    heading_variance, n_segments, n_points. Returns None if heading
-    variance is too low.
+    """Inner solver. ``adaptive_factor`` scales the prior weight (0 = MLE only,
+    1 = default, >1 = prior renforcé). Used by ``solve_with_wind`` two-pass.
     """
     valid = df[df["filter_valid"]].reset_index(drop=True)
     n = len(valid)
@@ -180,19 +178,20 @@ def solve_with_wind(
         # flatter — the prior already dominates the posterior naturally,
         # without needing to scale its weight up.
         extras = []
-        pw = 0.3 * np.sqrt(n)
+        pw_base = 0.3 * np.sqrt(n)
+        pw = pw_base * adaptive_factor  # 0 = MLE, 1 = default, >1 = renforcé
 
-        # Wind prior per segment
+        # Wind prior per segment (always at base weight — wind prior is not adaptive)
         for s in range(n_seg):
-            extras.append(pw * (wind_uv[s, 0] - u_prior[s]) / (wind_prior_sigma_ms * n_seg))
-            extras.append(pw * (wind_uv[s, 1] - v_prior[s]) / (wind_prior_sigma_ms * n_seg))
+            extras.append(pw_base * (wind_uv[s, 0] - u_prior[s]) / (wind_prior_sigma_ms * n_seg))
+            extras.append(pw_base * (wind_uv[s, 1] - v_prior[s]) / (wind_prior_sigma_ms * n_seg))
 
         # Crr prior
         if has_crr:
-            extras.append(pw * (crr - crr_prior_mean) / crr_prior_sigma)
+            extras.append(pw_base * (crr - crr_prior_mean) / crr_prior_sigma)
 
-        # CdA prior (bike-type-aware)
-        if cda_prior_sigma > 0:
+        # CdA prior (bike-type-aware) — uses adaptive pw
+        if cda_prior_sigma > 0 and adaptive_factor > 0:
             extras.append(pw * (cda - cda_prior_mean) / cda_prior_sigma)
 
         return np.concatenate([res_alt, np.array(extras)])
@@ -279,3 +278,80 @@ def solve_with_wind(
         "heading_variance": hv,
         "n_segments": n_seg,
     }
+
+
+def solve_with_wind(
+    df,
+    mass: float,
+    eta: float = ETA_DEFAULT,
+    crr_fixed: float | None = None,
+    segment_minutes: float = 30.0,
+    min_heading_variance: float = 0.25,
+    wind_prior_sigma_ms: float = 2.0,
+    crr_prior_mean: float = 0.0035,
+    crr_prior_sigma: float = 0.0012,
+    cda_prior_mean: float = 0.30,
+    cda_prior_sigma: float = 0.12,
+    cda_lower: float = 0.15,
+    cda_upper: float = 0.60,
+):
+    """Wrapper: two-pass adaptive prior + optional raw (MLE) pass for display.
+
+    1. Pass 0 (only if prior active): MLE with prior weight = 0, exposes cda_raw.
+    2. Pass 1: default prior weight (adaptive_factor = 1).
+    3. Pass 2 (only if sigma_Hess / sigma_prior > 1): prior renforcé.
+
+    Adds ``prior_adaptive_factor``, ``cda_raw``, ``cda_raw_ci_low/high`` to the
+    returned dict.
+    """
+    kwargs = dict(
+        mass=mass, eta=eta, crr_fixed=crr_fixed,
+        segment_minutes=segment_minutes,
+        min_heading_variance=min_heading_variance,
+        wind_prior_sigma_ms=wind_prior_sigma_ms,
+        crr_prior_mean=crr_prior_mean, crr_prior_sigma=crr_prior_sigma,
+        cda_prior_mean=cda_prior_mean, cda_prior_sigma=cda_prior_sigma,
+        cda_lower=cda_lower, cda_upper=cda_upper,
+    )
+    prior_active = cda_prior_sigma is not None and cda_prior_sigma > 0
+
+    # Pass 0: MLE pur (sans prior) pour affichage "CdA brut"
+    raw_cda = None
+    raw_ci = (float("nan"), float("nan"))
+    if prior_active:
+        try:
+            raw = _solve_with_wind_inner(df, adaptive_factor=0.0, **kwargs)
+            if raw is not None:
+                raw_cda = float(raw["cda"])
+                raw_ci = raw["cda_ci"]
+        except Exception:
+            pass
+
+    # Pass 1: poids prior de base
+    result = _solve_with_wind_inner(df, adaptive_factor=1.0, **kwargs)
+    if result is None:
+        return None
+
+    adaptive_factor = 1.0
+
+    # Pass 2: adaptatif si données peu informatives
+    if prior_active:
+        sigma_hess = (result["cda_ci"][1] - result["cda_ci"][0]) / 3.92
+        if not np.isnan(sigma_hess) and sigma_hess > 0 and cda_prior_sigma > 0:
+            ratio = float(sigma_hess / cda_prior_sigma)
+            if ratio > 1.0:
+                result2 = _solve_with_wind_inner(df, adaptive_factor=ratio, **kwargs)
+                if result2 is not None:
+                    result = result2
+                    adaptive_factor = ratio
+
+    result["prior_adaptive_factor"] = float(adaptive_factor)
+    if raw_cda is not None:
+        result["cda_raw"] = raw_cda
+        result["cda_raw_ci_low"] = float(raw_ci[0]) if not np.isnan(raw_ci[0]) else None
+        result["cda_raw_ci_high"] = float(raw_ci[1]) if not np.isnan(raw_ci[1]) else None
+    else:
+        result["cda_raw"] = None
+        result["cda_raw_ci_low"] = None
+        result["cda_raw_ci_high"] = None
+    return result

@@ -35,6 +35,9 @@ class ChungResult:
     r_squared_elev: float  # R² between virtual and real elevation
     residuals: np.ndarray
     n_points: int
+    prior_adaptive_factor: float = 1.0
+    cda_raw: float | None = None
+    cda_raw_ci: tuple[float, float] | None = None
 
 
 def _virtual_elevation_vec(
@@ -65,7 +68,8 @@ def _virtual_elevation_vec(
 
 def _residuals_ve(params, V, V_air, rho, P, dt, alt_real, mass, eta,
                   block_starts, crr_prior_mean, crr_prior_sigma,
-                  cda_prior_mean=None, cda_prior_sigma=None):
+                  cda_prior_mean=None, cda_prior_sigma=None,
+                  adaptive_factor: float = 1.0):
     """Stack of residuals for least_squares.
 
     Primary: alt_virtual minus the real altitude change, per BLOCK (we reset
@@ -96,18 +100,21 @@ def _residuals_ve(params, V, V_air, rho, P, dt, alt_real, mass, eta,
     n = len(res)
     # Prior weight is INDEPENDENT of the residual (Gelman BDA3 ch.14).
     # See wind_inverse.py for the full explanation.
-    prior_weight = 0.3 * np.sqrt(n)
+    # adaptive_factor scales only the CdA prior (0 = MLE, >1 = renforcé).
+    prior_weight_base = 0.3 * np.sqrt(n)
+    prior_weight_cda = prior_weight_base * adaptive_factor
     extras = []
     if crr_prior_mean is not None and crr_prior_sigma is not None:
-        extras.append(prior_weight * (Crr - crr_prior_mean) / crr_prior_sigma)
-    if cda_prior_mean is not None and cda_prior_sigma is not None and cda_prior_sigma > 0:
-        extras.append(prior_weight * (CdA - cda_prior_mean) / cda_prior_sigma)
+        extras.append(prior_weight_base * (Crr - crr_prior_mean) / crr_prior_sigma)
+    if (cda_prior_mean is not None and cda_prior_sigma is not None
+            and cda_prior_sigma > 0 and adaptive_factor > 0):
+        extras.append(prior_weight_cda * (CdA - cda_prior_mean) / cda_prior_sigma)
     if extras:
         return np.concatenate([res, np.array(extras)])
     return res
 
 
-def solve_chung_ve(
+def _solve_chung_ve_inner(
     df,
     mass: float,
     eta: float = ETA_DEFAULT,
@@ -118,6 +125,7 @@ def solve_chung_ve(
     cda_prior_sigma: float | None = 0.12,
     cda_lower: float = 0.15,
     cda_upper: float = 0.60,
+    adaptive_factor: float = 1.0,
 ) -> ChungResult:
     """Estimate (CdA, Crr) by minimising altitude-reconstruction error.
 
@@ -164,6 +172,8 @@ def solve_chung_ve(
             return _residuals_ve(
                 (x[0], crr_fixed), V, V_air, rho, P, dt, alt_real, mass, eta,
                 block_starts, None, None,
+                cda_prior_mean, cda_prior_sigma,
+                adaptive_factor=adaptive_factor,
             )
         mid = (cda_lower + cda_upper) / 2
         starts = [(cda_lower + 0.02,), (mid,), (cda_upper - 0.02,)]
@@ -189,12 +199,15 @@ def solve_chung_ve(
         starts = [(cda_lower + 0.02, 0.003), (mid, 0.005), (cda_upper - 0.02, 0.007)]
         best = None
         for x0 in starts:
+            def _res_free(x, af=adaptive_factor):
+                return _residuals_ve(
+                    x, V, V_air, rho, P, dt, alt_real, mass, eta,
+                    block_starts, crr_prior_mean, crr_prior_sigma,
+                    cda_prior_mean, cda_prior_sigma, adaptive_factor=af,
+                )
             r = least_squares(
-                _residuals_ve,
+                _res_free,
                 x0=x0,
-                args=(V, V_air, rho, P, dt, alt_real, mass, eta,
-                      block_starts, crr_prior_mean, crr_prior_sigma,
-                      cda_prior_mean, cda_prior_sigma),
                 bounds=(bounds_lower, bounds_upper),
                 method="trf",
             )
@@ -246,3 +259,63 @@ def solve_chung_ve(
         residuals=res_data,
         n_points=len(valid),
     )
+
+
+def solve_chung_ve(
+    df,
+    mass: float,
+    eta: float = ETA_DEFAULT,
+    crr_fixed: float | None = None,
+    crr_prior_mean: float | None = 0.0035,
+    crr_prior_sigma: float | None = 0.0012,
+    cda_prior_mean: float | None = 0.30,
+    cda_prior_sigma: float | None = 0.12,
+    cda_lower: float = 0.15,
+    cda_upper: float = 0.60,
+) -> ChungResult:
+    """Wrapper: two-pass adaptive prior + optional MLE pass for ``cda_raw``.
+
+    1. Pass 0 (if prior active): MLE (adaptive_factor = 0) → ``cda_raw``.
+    2. Pass 1: default prior weight (adaptive_factor = 1).
+    3. Pass 2 (if sigma_Hess / sigma_prior > 1): prior renforcé.
+    """
+    kwargs = dict(
+        mass=mass, eta=eta, crr_fixed=crr_fixed,
+        crr_prior_mean=crr_prior_mean, crr_prior_sigma=crr_prior_sigma,
+        cda_prior_mean=cda_prior_mean, cda_prior_sigma=cda_prior_sigma,
+        cda_lower=cda_lower, cda_upper=cda_upper,
+    )
+    prior_active = cda_prior_sigma is not None and cda_prior_sigma > 0
+
+    # Pass 0: MLE pur
+    raw_cda = None
+    raw_ci = None
+    if prior_active:
+        try:
+            raw = _solve_chung_ve_inner(df, adaptive_factor=0.0, **kwargs)
+            raw_cda = float(raw.cda)
+            raw_ci = raw.cda_ci
+        except Exception:
+            pass
+
+    # Pass 1: poids de base
+    result = _solve_chung_ve_inner(df, adaptive_factor=1.0, **kwargs)
+    adaptive_factor = 1.0
+
+    # Pass 2: adaptatif
+    if prior_active:
+        sigma_hess = (result.cda_ci[1] - result.cda_ci[0]) / 3.92
+        if not np.isnan(sigma_hess) and sigma_hess > 0 and cda_prior_sigma > 0:
+            ratio = float(sigma_hess / cda_prior_sigma)
+            if ratio > 1.0:
+                try:
+                    result2 = _solve_chung_ve_inner(df, adaptive_factor=ratio, **kwargs)
+                    result = result2
+                    adaptive_factor = ratio
+                except Exception:
+                    pass
+
+    result.prior_adaptive_factor = float(adaptive_factor)
+    result.cda_raw = raw_cda
+    result.cda_raw_ci = raw_ci
+    return result

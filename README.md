@@ -181,6 +181,19 @@ Three estimators, tried in cascade (best R² wins):
 
 All three share weak Gaussian priors on Crr ~ N(0.0035, 0.0012²) and CdA ~ N(0.30, 0.12²) to stabilise ill-conditioned fits. Confidence intervals come from the Jacobian at the MAP estimate (prior rows excluded).
 
+**Adaptive prior weighting.** Each solver runs up to three passes per ride:
+1. **Pass 0** — MLE (prior weight = 0) to expose a raw CdA for display.
+2. **Pass 1** — base prior weight `0.3·√N` (Gelman BDA3 default).
+3. **Pass 2** — if `σ_Hess(CdA) / σ_prior > 1`, the prior weight is scaled by that ratio and the solver reruns. This prevents bound-hit on noisy rides where the data carry less information than the prior (James–Stein / ridge-adaptive shrinkage).
+
+The UI displays `cda_raw` (MLE) alongside the posterior CdA when they differ by > 0.02, and shows a `⚡ prior renforcé ×N.N` badge when Pass 2 was needed.
+
+**Quality gate (automatic exclusion).** A ride is marked `quality_status = "bound_hit"` or `"non_identifiable"` — and excluded from aggregation — when:
+- The solver's CdA or Crr estimate sits on a physical bound (degenerate: the solver *wanted* to leave the plausible range), or
+- `σ_Hess(CdA) > 0.05` — the Hessian is too ill-conditioned to separate CdA from the other parameters.
+
+Rides are **not** gated by nRMSE in the backend: a fuzzy fit with well-identified parameters is still informative. The user's "nRMSE threshold" slider in the UI is the only nRMSE filter — keeping the user in control of which rides count toward the aggregate.
+
 ### 6. Reporting
 
 The dashboard reports:

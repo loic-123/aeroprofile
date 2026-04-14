@@ -180,14 +180,33 @@ export default function HistoryPage() {
       sensorLabel: string | null;
       sensorQuality: string | null;
     };
+    // Entries created before we added rc.powerMeter don't carry
+    // per-ride sensor info. The entry-level label is our only
+    // source. It can take two shapes:
+    //   - a real sensor string ("Favero Assioma (Duo / Pro)") when
+    //     all rides in the aggregate used the same sensor
+    //   - "Mixte (N capteurs — principal : XXX)" when the rides
+    //     used several sensors. We parse out the "principal" field
+    //     to keep a meaningful fallback instead of dumping every
+    //     point in an Unknown bucket.
+    const extractEntrySensor = (label: string | null): string | null => {
+      if (!label) return null;
+      const m = label.match(/principal\s*:\s*(.+?)\)?$/i);
+      if (m) return m[1].trim();
+      if (label.startsWith("Mixte")) return null; // can't parse, give up
+      return label;
+    };
+
     const all: Point[] = [];
     for (const e of filteredEntries) {
+      const entrySensor = extractEntrySensor(e.powerMeterLabel || null);
       for (const rc of e.rideCdas) {
+        const perRideLabel = rc.powerMeter || entrySensor;
         all.push({
           date: rc.date,
           cda: rc.cda,
           entryId: e.id,
-          sensorLabel: e.powerMeterLabel ?? null,
+          sensorLabel: perRideLabel,
           sensorQuality: e.powerMeterQuality ?? null,
         });
       }
@@ -660,13 +679,14 @@ function RollingStdTimeline({
   const innerH = H - PT - PB;
 
   // Date-based x axis: turn each point's ISO date into an epoch timestamp
-  // and scale linearly between the first and last ride. This respects the
-  // real calendar spacing (a one-month gap takes 30× more horizontal
-  // space than a one-day gap) instead of placing every point at the same
-  // distance regardless of when it happened.
+  // and scale linearly between the first and last VALID point (ones with
+  // a computed σ). Using the full timeline for min/max would push every
+  // visible point to the right when the first 9 points have no rolling
+  // window yet — e.g. a single old ride in 2023 followed by a long gap
+  // before the next 10+ rides in 2024.
   const tsOf = (dateStr: string) => new Date(dateStr).getTime();
-  const tsMin = tsOf(timeline[0].date);
-  const tsMax = tsOf(timeline[timeline.length - 1].date);
+  const tsMin = tsOf(valid[0].date);
+  const tsMax = tsOf(valid[valid.length - 1].date);
   const tsRange = Math.max(tsMax - tsMin, 1); // avoid /0 on a single-day history
   const xOfDate = (dateStr: string) =>
     PL + ((tsOf(dateStr) - tsMin) / tsRange) * innerW;
@@ -677,6 +697,11 @@ function RollingStdTimeline({
   // Distinct sensors in the order they first appear → assign a stable
   // colour to each. Points and phase bands use the same palette so the
   // user can read off which sensor drove each part of the curve.
+  // Palette: first colours are reserved for *named* sensors in the order
+  // they first appear in the dataset. The special "__unknown__" key is
+  // always mapped to grey regardless of its position, so rides without a
+  // sensor label (legacy entries) don't accidentally steal the first
+  // colour slot.
   const SENSOR_PALETTE = [
     "#3ba99c", // teal
     "#f59e0b", // amber
@@ -685,17 +710,17 @@ function RollingStdTimeline({
     "#3b82f6", // blue
     "#ec4899", // pink
     "#10b981", // emerald
-    "#6b7280", // grey for unknown
   ];
+  const UNKNOWN_COLOR = "#6b7280"; // grey
   const sensorOrder: string[] = [];
   for (const p of timeline) {
-    const key = p.sensorLabel || "__unknown__";
-    if (!sensorOrder.includes(key)) sensorOrder.push(key);
+    if (!p.sensorLabel) continue; // skip unknown for ordering
+    if (!sensorOrder.includes(p.sensorLabel)) sensorOrder.push(p.sensorLabel);
   }
   const sensorColor = (label: string | null): string => {
-    const key = label || "__unknown__";
-    const idx = sensorOrder.indexOf(key);
-    if (idx < 0) return SENSOR_PALETTE[SENSOR_PALETTE.length - 1];
+    if (!label) return UNKNOWN_COLOR;
+    const idx = sensorOrder.indexOf(label);
+    if (idx < 0) return UNKNOWN_COLOR;
     return SENSOR_PALETTE[idx % SENSOR_PALETTE.length];
   };
 
@@ -792,14 +817,44 @@ function RollingStdTimeline({
         <text x={PL - 4} y={H - PB + 3} fill="#6b7280" fontSize="9" textAnchor="end" fontFamily="monospace">
           0
         </text>
-        {/* Std line — uses calendar-based x positioning so gaps in time
-            are visible (a month with no rides leaves a wide flat segment). */}
-        <polyline
-          fill="none"
-          stroke="#e9edf3"
-          strokeWidth={1.5}
-          points={valid.map((p) => `${xOfDate(p.date)},${yOf(p.std)}`).join(" ")}
-        />
+        {/* Std curve — smoothed Catmull-Rom → Bezier so the line reads as
+            a trend rather than a zigzag between adjacent points. Uses
+            calendar-based x positioning so gaps in time stay visible. */}
+        {(() => {
+          const pts = valid.map((p) => ({
+            x: xOfDate(p.date),
+            y: yOf(p.std),
+          }));
+          if (pts.length < 2) return null;
+          // Catmull-Rom spline with tension 0.5, converted to cubic Bezier.
+          // For each segment p_i → p_{i+1}, the control points are derived
+          // from the neighbouring points p_{i-1} and p_{i+2} with the
+          // classic formula:
+          //   cp1 = p_i + (p_{i+1} - p_{i-1}) / 6
+          //   cp2 = p_{i+1} - (p_{i+2} - p_i) / 6
+          let d = `M ${pts[0].x},${pts[0].y}`;
+          for (let i = 0; i < pts.length - 1; i++) {
+            const p0 = pts[Math.max(i - 1, 0)];
+            const p1 = pts[i];
+            const p2 = pts[i + 1];
+            const p3 = pts[Math.min(i + 2, pts.length - 1)];
+            const cp1x = p1.x + (p2.x - p0.x) / 6;
+            const cp1y = p1.y + (p2.y - p0.y) / 6;
+            const cp2x = p2.x - (p3.x - p1.x) / 6;
+            const cp2y = p2.y - (p3.y - p1.y) / 6;
+            d += ` C ${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
+          }
+          return (
+            <path
+              d={d}
+              fill="none"
+              stroke="#e9edf3"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          );
+        })()}
         {/* Points, coloured by sensor identity (one colour per distinct
             sensor label, matching the phase band + the legend row below). */}
         {valid.map((p, j) => {
@@ -822,9 +877,12 @@ function RollingStdTimeline({
             For each quarter (Jan/Apr/Jul/Oct 1st), find the first timeline
             point on or after that date and render a tick + label there. */}
         {(() => {
-          if (timeline.length === 0) return null;
-          const firstDate = new Date(timeline[0].date);
-          const lastDate = new Date(timeline[timeline.length - 1].date);
+          if (valid.length === 0) return null;
+          // Use the valid-rides range (same as the x axis scaling)
+          // instead of the full timeline to avoid ghost ticks in a
+          // trailing empty pre-window zone.
+          const firstDate = new Date(valid[0].date);
+          const lastDate = new Date(valid[valid.length - 1].date);
           // Build ticks at every quarter boundary that falls strictly
           // inside the [firstDate, lastDate] span. Each tick's x position
           // comes from the real calendar date (xOfDate), not from a ride
@@ -876,23 +934,32 @@ function RollingStdTimeline({
             </>
           );
         })()}
-        {/* Sensor legend row below the x axis ticks */}
+        {/* Sensor legend row below the x axis ticks. We list the known
+            sensors in first-seen order + an "Inconnu" bucket when any
+            point lacks a sensor label (e.g. legacy history entries
+            analysed before rc.powerMeter existed). */}
         {(() => {
-          const sensorsWithPoints = sensorOrder.filter((s) =>
-            timeline.some((p) => (p.sensorLabel || "__unknown__") === s),
+          const knownPresent = sensorOrder.filter((s) =>
+            timeline.some((p) => p.sensorLabel === s),
           );
-          if (sensorsWithPoints.length === 0) return null;
+          const hasUnknown = timeline.some((p) => !p.sensorLabel);
+          const entries: { key: string; label: string; color: string }[] = [
+            ...knownPresent.map((s) => ({ key: s, label: s, color: sensorColor(s) })),
+          ];
+          if (hasUnknown) {
+            entries.push({ key: "__unknown__", label: "Inconnu (re-analyse pour colorer)", color: UNKNOWN_COLOR });
+          }
+          if (entries.length === 0) return null;
           const legendY = H - 4;
-          const colWidth = innerW / Math.max(sensorsWithPoints.length, 1);
+          const colWidth = innerW / Math.max(entries.length, 1);
           return (
             <g>
-              {sensorsWithPoints.map((s, i) => {
+              {entries.map((e, i) => {
                 const cx = PL + i * colWidth + 6;
-                const label = s === "__unknown__" ? "Capteur inconnu" : s;
-                const display = label.length > 22 ? label.slice(0, 20) + "…" : label;
+                const display = e.label.length > 22 ? e.label.slice(0, 20) + "…" : e.label;
                 return (
                   <g key={i}>
-                    <circle cx={cx} cy={legendY - 3} r={3} fill={sensorColor(s)} />
+                    <circle cx={cx} cy={legendY - 3} r={3} fill={e.color} />
                     <text
                       x={cx + 6}
                       y={legendY}

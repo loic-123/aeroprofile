@@ -216,6 +216,74 @@ export default function IterativeRefinement() {
         </P>
       </Section>
 
+      <Section title="Contr\u00f4le d'acceptation du r\u00e9sultat passe 2">
+        <P>
+          La logique jusqu'ici suppose implicitement que passe 2 ≤ passe 1 en
+          erreur : on retire des points &laquo; sales &raquo; donc le fit sur
+          les points restants devrait \u00eatre aussi bon ou meilleur. Mais ce
+          n'est pas toujours vrai. Retirer des points peut r\u00e9duire la
+          contrainte sur le vent (wind_inverse a 150+ param\u00e8tres vent libres)
+          au point que le solveur d\u00e9rive vers un minimum local. Dans la
+          version originale, le code acceptait <em>aveugl\u00e9ment</em> le
+          r\u00e9sultat de passe 2 tant qu'il \u00e9tait dans l'intervalle physique
+          <Tex>{String.raw`[C_{dA,\min},\, C_{dA,\max}]`}</Tex> — y compris
+          pile sur les bornes.
+        </P>
+        <Warning>
+          Un bug r\u00e9el observ\u00e9 sur 3 rides d'un run Favero (50 sorties) : la
+          passe 1 convergeait \u00e0 <Tex>{String.raw`C_dA = 0.340`}</Tex> avec{" "}
+          <Tex>{String.raw`R^2 = 0.96`}</Tex>, et la passe 2 sur le
+          sous-ensemble d\u00e9rivait \u00e0 <Tex>{String.raw`C_dA = 0.220`}</Tex>{" "}
+          pile sur la borne basse. Le r\u00e9sultat \u00e9tait silencieusement remplac\u00e9
+          et le sortie finissait en <code>bound_hit</code> — alors que la
+          vraie estimation (passe 1) \u00e9tait parfaitement valide. 55–70% des
+          rides passent par la passe 2 dans les runs r\u00e9els : le bug affectait
+          potentiellement une fraction significative du dataset.
+        </Warning>
+        <P>
+          Depuis, le r\u00e9sultat de la passe 2 est accept\u00e9 uniquement si{" "}
+          <strong>les deux crit\u00e8res suivants sont v\u00e9rifi\u00e9s</strong> :
+        </P>
+        <ol className="list-decimal ml-6 space-y-2 text-text">
+          <li>
+            <strong>Pas de nouveau bound hit.</strong> Si la passe 1 n'\u00e9tait
+            pas \u00e0 la borne et la passe 2 arrive \u00e0 moins de 0.005 m\u00b2 d'une
+            borne physique, on refuse le r\u00e9sultat. Raisonnement : la passe 2
+            est cens\u00e9e raffiner, pas introduire un nouveau cas pathologique.
+          </li>
+          <li>
+            <strong>Pas de r\u00e9gression R\u00b2.</strong> Si{" "}
+            <Tex>{String.raw`R^2_{\text{passe 2}} < R^2_{\text{passe 1}} - 0.05`}</Tex>,
+            on refuse \u00e9galement. Raisonnement : retirer des points fait
+            d\u00e9cro\u00eetre le d\u00e9nominateur donc le R\u00b2 devrait au pire rester
+            stable. S'il chute, c'est que les points retir\u00e9s \u00e9taient en fait
+            informatifs et pas vraiment &laquo; sales &raquo;.
+          </li>
+        </ol>
+        <P>
+          Si un de ces deux crit\u00e8res \u00e9choue, le pipeline log{" "}
+          <code>VE PASS2 rejected: &lt;reason&gt;</code> et garde le r\u00e9sultat
+          de la passe 1. Si les deux passent, il log{" "}
+          <code>VE PASS2 accepted: CdA X.XXX → Y.YYY | R² a.aa → b.bb</code>{" "}
+          pour que le post-mortem soit tra\u00e7able sans rejouer l'analyse.
+        </P>
+        <Note>
+          <strong>Question ouverte m\u00e9thodologique.</strong> Ces deux garde-fous
+          garantissent seulement que la passe 2 ne peut pas faire{" "}
+          <em>pire</em> que la passe 1 sur deux crit\u00e8res mesurables. Mais
+          entre deux valeurs qui passent les tests — disons passe 1 = 0.325
+          avec R\u00b2 = 0.92 et passe 2 = 0.310 avec R\u00b2 = 0.91 — rien ne
+          prouve que 0.310 est plus proche de la v\u00e9rit\u00e9. Sans ground
+          truth (soufflerie, Notio), on ne peut pas arbitrer. Le logging
+          exhaustif permet de diagnostiquer a posteriori la distribution
+          des deltas{" "}
+          <Tex>{String.raw`|C_{dA,2} - C_{dA,1}|`}</Tex> sur les rides
+          accept\u00e9es : si elle est sym\u00e9trique autour de 0, la passe 2 est
+          neutre (ou au bruit pr\u00e8s). Si elle est asym\u00e9trique, elle
+          introduit un biais syst\u00e9matique qu'il faut corriger en amont.
+        </Note>
+      </Section>
+
       <Section title="R\u00e9sum\u00e9 de l'algorithme">
         <Formula>
           {String.raw`\boxed{\begin{aligned}

@@ -182,6 +182,63 @@ C_{dA} &\sim \mathcal{N}(0.30,\; 0.12^2) \\
         </P>
       </Section>
 
+      <Section title="Contrôle croisé Chung VE (toujours actif)">
+        <P>
+          Même quand le wind-inverse fournit un résultat propre, <strong>Chung
+          VE est exécuté systématiquement</strong> sur la même ride comme
+          contrôle indépendant. Contrairement à la cascade de fallback
+          ci-dessus, ce second run n'est jamais affecté à la place du wind :
+          il sert uniquement à exposer le delta entre les deux estimations.
+        </P>
+        <P>
+          La métrique est simple :{" "}
+          <Tex>{String.raw`\Delta = |C_{dA,\text{wind}} - C_{dA,\text{chung}}|`}</Tex>.
+          Les deux solveurs utilisent la même fonction objectif (erreur de
+          reconstruction d'altitude) donc ce delta est dans les mêmes unités
+          et comparable directement. Les seuils de classification :
+        </P>
+        <ul className="list-disc ml-6 space-y-1 text-text text-sm">
+          <li>
+            <strong>high</strong> — <Tex>{String.raw`|\Delta| < 0.02`}</Tex>.
+            Les deux solveurs convergent à 2 cm² près malgré des traitements
+            du vent radicalement différents (wind-inverse fitte le vent,
+            Chung utilise l'API brute). L'estimation est robuste.
+          </li>
+          <li>
+            <strong>medium</strong> —{" "}
+            <Tex>{String.raw`0.02 \leq |\Delta| < 0.05`}</Tex>. Léger
+            désaccord, souvent dû à une erreur systématique d'Open-Meteo sur
+            la zone (sous-estimation du vent de face typique en Bretagne,
+            surestimation en Provence selon la direction dominante).
+          </li>
+          <li>
+            <strong>low</strong> — <Tex>{String.raw`|\Delta| \geq 0.05`}</Tex>.
+            Désaccord fort — la ride est très sensible au traitement du vent.
+            Typiquement une ride unidirectionnelle (vent très fort, heading
+            variance élevée) où le wind-inverse fitte un champ de vent peu
+            contraint.
+          </li>
+        </ul>
+        <P>
+          Le delta et la classification sont exposés en tant que badge sur
+          chaque chip de ride et stockés dans l'historique. L'utilisateur
+          peut activer un filtre &laquo; accord solveurs ≥ medium/high
+          &raquo; dans l'interface Intervals pour exclure les rides en
+          désaccord de l'agrégat. Par défaut, le filtre est désactivé : le
+          badge est informatif, pas coercitif.
+        </P>
+        <P>
+          Un indicateur complémentaire &laquo; biais solveur perso &raquo;
+          calcule la médiane de{" "}
+          <Tex>{String.raw`C_{dA,\text{chung}} - C_{dA,\text{wind}}`}</Tex>{" "}
+          sur les rides passées propres de l'utilisateur. Cette valeur
+          structure l'incertitude personnelle : si ton Open-Meteo est
+          systématiquement faux dans une direction, la médiane sera non nulle
+          et tu verras &laquo; Δ solveur perso : +0.020 &raquo; en dessous de
+          l'IC Hessien.
+        </P>
+      </Section>
+
       <Section title="Prior adaptatif : trois passes par solveur">
         <P>
           Chaque solveur de la cascade est lancé en réalité{" "}
@@ -189,11 +246,16 @@ C_{dA} &\sim \mathcal{N}(0.30,\; 0.12^2) \\
         </P>
         <ol className="list-decimal ml-6 space-y-2 text-text">
           <li>
-            <strong>Pass 0 — MLE pur</strong> (poids du prior = 0). Donne le{" "}
-            <Tex>{String.raw`\widehat{C_dA}_{\text{brut}}`}</Tex> qu'on affiche
-            dans l'UI quand le prior a significativement tiré l'estimation. Ça
-            permet à l'utilisateur de voir <em>où aurait été son CdA</em> sans
-            le prior.
+            <strong>Pass 0 — MLE conditionnel</strong> (poids du prior{" "}
+            <em>CdA</em> seul = 0). Donne{" "}
+            <Tex>{String.raw`\widehat{C_dA}_{\text{hors prior}}`}</Tex> qu'on
+            affiche dans l'UI quand le prior CdA a significativement tiré
+            l'estimation (écart &gt; 0.02 m²). <strong>Important</strong> : le
+            prior vent (vers Open-Meteo) et le prior Crr restent actifs à leur
+            poids de base. Les désactiver aussi rendrait le problème
+            sous-déterminé — wind_inverse a ~150 paramètres vent libres. Donc
+            ce &laquo; MLE &raquo; n'est pas un MLE pur : c'est un MLE
+            conditionnel où seule la contrainte CdA est relâchée.
           </li>
           <li>
             <strong>Pass 1 — prior de base</strong> avec{" "}
@@ -207,8 +269,24 @@ C_{dA} &\sim \mathcal{N}(0.30,\; 0.12^2) \\
             correspond à un shrinkage adaptatif type James-Stein : quand la
             vraisemblance est plate (données peu informatives), on laisse le
             prior dominer proportionnellement à son avantage informationnel.
+            <strong> Le ratio est capé à 3.0</strong> — au-delà, la ride est
+            effectivement non-identifiable et doit être marquée comme telle
+            par le quality gate, pas rescapée par un prior qui écraserait 10×
+            les données.
           </li>
         </ol>
+        <P>
+          Les intervalles de confiance sont calculés via l'approximation de
+          Laplace sur la Hessienne <em>complète</em> — c'est-à-dire en
+          incluant les lignes de résidus prior dans le Jacobien{" "}
+          <Tex>{String.raw`J`}</Tex>, puis{" "}
+          <Tex>{String.raw`\Sigma = \hat{s}^2 (J^\top J)^{-1}`}</Tex>. La
+          raison : en pass 2, le prior pèse lourd ; la Hessienne postérieure
+          est la somme de la Hessienne data et de la Hessienne prior. Exclure
+          les lignes prior donnerait une courbure sous-estimée, donc un{" "}
+          <Tex>{String.raw`\sigma_{\text{Hess}}`}</Tex> surestimé, ce qui
+          déclencherait des pass 2 superflues.
+        </P>
         <P>
           L'idée derrière le pass 2 vient du fait qu'un prior fixe à{" "}
           <Tex>{String.raw`0.3\sqrt{N}`}</Tex> pèse proportionnellement moins
@@ -259,7 +337,29 @@ C_{dA} &\sim \mathcal{N}(0.30,\; 0.12^2) \\
           Si le nombre de points exclus est significatif (
           <Tex>{String.raw`> 20`}</Tex>) et qu'il reste au moins 100 points
           valides, le meilleur solveur de passe 1 est relancé sur le jeu
-          de données filtré.
+          de données filtré. Le résultat est ensuite soumis à <strong>deux
+          garde-fous d'acceptation</strong> avant de remplacer celui de passe 1 :
+        </P>
+        <ol className="list-decimal ml-6 space-y-1 text-text text-sm">
+          <li>
+            <strong>Pas de nouveau bound hit</strong> — si passe 1 n'était pas
+            à la borne physique et passe 2 arrive à moins de 0.005 m² d'une
+            borne, le résultat est rejeté. Retirer des points n'est pas censé
+            faire dégénérer l'estimation.
+          </li>
+          <li>
+            <strong>Pas de régression R²</strong> — si{" "}
+            <Tex>{String.raw`R^2_{\text{passe 2}} < R^2_{\text{passe 1}} - 0.05`}</Tex>,
+            le résultat est rejeté. Un sous-ensemble de points informatifs
+            doit donner un fit aussi bon ou meilleur, pas pire.
+          </li>
+        </ol>
+        <P>
+          L'article dédié <em>Raffinement itératif hybride</em> détaille le
+          bug historique que ces garde-fous corrigent (acceptation silencieuse
+          d'un résultat &laquo; pile sur la borne &raquo;), la fréquence réelle
+          de la passe 2 dans les runs de production (55–70% des rides) et les
+          logs traçables produits pour le diagnostic a posteriori.
         </P>
       </Section>
 

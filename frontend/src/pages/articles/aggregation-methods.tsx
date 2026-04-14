@@ -53,6 +53,21 @@ export default function AggregationMethods() {
           (données ambiguës) y contribuent peu.
         </P>
         <P>
+          L'<strong>intervalle de confiance agrégé</strong> est calculé avec
+          une <em>variance pondérée</em> cohérente avec la moyenne :
+        </P>
+        <Formula>{String.raw`\hat{\sigma}^2_w = \frac{\sum_i w_i \bigl(\hat{C}_{dA,i} - \hat{C}_{dA,\text{agg}}\bigr)^2}{\sum_i w_i}, \quad \text{SE} = \frac{\hat{\sigma}_w}{\sqrt{N}}`}</Formula>
+        <P>
+          Une version antérieure utilisait une variance <em>non</em> pondérée
+          (somme divisée par <Tex>{String.raw`N`}</Tex> au lieu de{" "}
+          <Tex>{String.raw`\sum w_i`}</Tex>). Conséquence méthodologique : une
+          ride courte de 100 points pesait 0.01× une ride longue de 10 000
+          points dans la moyenne mais 1× dans l'IC — ce qui surestimait
+          l'incertitude quand les poids étaient très inégaux. La version
+          actuelle rend l'IC cohérent avec la moyenne : une ride qui ne pèse
+          presque rien dans la moyenne ne pèse presque rien dans l'IC non plus.
+        </P>
+        <P>
           <strong>Avantages :</strong> rapide (juste une moyenne pondérée
           côté frontend), aucun nouveau solveur côté backend, transparent.
           C'est la méthode <em>par défaut</em> d'AeroProfile.
@@ -108,10 +123,31 @@ export default function AggregationMethods() {
           globale.
         </P>
         <P>
+          <strong>Bornes sur <Tex>{String.raw`\tau`}</Tex>.</strong>{" "}
+          L'optimisation impose <Tex>{String.raw`\tau \in [0.005, 0.40]`}</Tex>.
+          Une version antérieure avait fixé le plafond à 0.20, et en pratique
+          l'estimateur le touchait sur <em>tous</em> les runs réels — ce qui
+          signifie que la variance inter-rides estimée était systématiquement
+          sous-évaluée. Relever la borne à 0.40 couvre même les populations
+          très hétérogènes (mélange de positions, d'équipements) sans
+          compromettre la convergence.
+        </P>
+        <P>
+          <strong>Gate n≥5.</strong> Méthode B n'est plus disponible sous
+          cinq rides valides : le endpoint <code>/analyze-batch</code> renvoie
+          une 422 avec un message invitant l'utilisateur à utiliser la
+          Méthode A. La raison est numérique : sous{" "}
+          <Tex>{String.raw`N=5`}</Tex>, l'estimateur de{" "}
+          <Tex>{String.raw`\tau`}</Tex> s'effondre vers le plancher ou le
+          plafond selon la graine de l'optimiseur, et la valeur retournée
+          n'est essentiellement pas une variance. Plutôt que d'afficher un
+          chiffre trompeur avec IC artificiellement serré, on refuse
+          explicitement.
+        </P>
+        <P>
           <strong>Limites :</strong> plus lourd à calculer (<Tex>{String.raw`N \times \text{points} \times \text{itérations}`}</Tex> de
           l'optimisation jointe), résultat en bloc à la fin (pas de progress
-          bar par ride), et l'estimation de <Tex>{String.raw`\tau`}</Tex>{" "}
-          est instable avec moins de 5 rides.
+          bar par ride).
         </P>
       </Section>
 
@@ -174,9 +210,11 @@ export default function AggregationMethods() {
         </P>
         <P>
           La Méthode B (hiérarchique) tourne <strong>en parallèle</strong>{" "}
-          dans tous ces modes dès qu'il y a au moins 2 rides, et son résultat
-          (<Tex>{String.raw`\mu`}</Tex> et <Tex>{String.raw`\tau`}</Tex>) est
-          affiché à côté du résultat A. Si les deux divergent
+          dans tous ces modes <strong>dès qu'il y a au moins 5 rides valides</strong>,
+          et son résultat (<Tex>{String.raw`\mu`}</Tex> et{" "}
+          <Tex>{String.raw`\tau`}</Tex>) est affiché à côté du résultat A. En
+          dessous de ce seuil, la Méthode B est désactivée avec un message
+          explicite (voir section précédente). Si les deux méthodes divergent
           de <Tex>{String.raw`> 0.01\;\text{m}^2`}</Tex>, c'est un signal :
           probablement une ride très bruitée tire la moyenne A, ou la
           variation inter-rides est suffisamment grande pour que les deux

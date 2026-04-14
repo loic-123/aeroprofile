@@ -8,7 +8,8 @@ Live demo: **https://aeroprofile.onrender.com**
 
 - Analyses *any* regular ride — no need for a controlled protocol (no velodrome, no loops, no pre-arranged out-and-back).
 - **3 solvers in cascade**: Wind-Inverse (jointly estimates wind + CdA), Chung Virtual Elevation, Martin LS — with automatic selection based on fit quality.
-- **Iterative VE refinement (hybrid)**: 2-pass algorithm using both drift rate and absolute drift to exclude divergent segments, with a 30% safety cap to avoid over-trimming. Re-solves on clean data only.
+- **Solver cross-check**: Chung VE runs on every ride as an independent control. The delta `|CdA_wind − CdA_chung|` is exposed in the UI as a confidence badge (high / medium / low) so the user sees when the estimate is robust to the wind-treatment choice.
+- **Iterative VE refinement (hybrid) with acceptance check**: 2-pass algorithm using both drift rate and absolute drift to exclude divergent segments, with a 30% safety cap. The pass-2 result is only accepted if it doesn't introduce a new bound hit and R² doesn't regress by more than 0.05 — protecting against the silent-overwrite class of bug.
 - **Yaw-angle correction**: CdA reported is the zero-yaw "wind tunnel" value, corrected for crosswind effects (Crouch et al. 2014).
 - **Per-point drafting filter**: detects and excludes segments where CdA_instantaneous < 0.12 for ≥30s (physically impossible solo).
 - **Variable η(P)**: drivetrain efficiency varies with power per Spicer et al. (2001).
@@ -108,10 +109,13 @@ npm run dev
 │   │      wind = API)    │  altitude objective ─► ✓│
 │   └─────────────────────┘                        │
 │                                                  │
-│   Each solver runs up to 3 passes per ride:      │
-│     Pass 0 — MLE (no prior, for "raw" display)   │
-│     Pass 1 — base adaptive prior (0.3·√N)        │
+│   Each solver runs up to 3 internal passes:      │
+│     Pass 0 — MLE conditional (CdA prior off,     │
+│              wind + Crr priors stay active)      │
+│     Pass 1 — base prior weight 0.3·√N            │
 │     Pass 2 — boosted prior if σ_Hess/σ_prior > 1 │
+│              (capped at ratio ≤ 3.0 to avoid     │
+│               prior domination on noisy rides)   │
 │                                                  │
 │   All solvers: η=0.977, wheel bearings,          │
 │   wheel inertia (+0.14 kg), per-point ρ          │
@@ -121,6 +125,8 @@ npm run dev
 │   6. QUALITY GATE + SENSOR DIAGNOSTICS          │
 │                                                  │
 │   · bound_hit / non_identifiable / prior_dom.   │
+│   · sensor_miscalib (hard + warn tiers)         │
+│   · insufficient_data (<25% points kept)        │
 │   · Power-meter classification (sensor DB)      │
 │   · Calibration bias ratio (flat/pedaling)      │
 └──────────────────────────────────────────────────┘
@@ -177,11 +183,13 @@ Each sample is tagged with 13 boolean filters (including per-point drafting dete
 
 Only **contiguous blocks of ≥ 30 s** of valid samples are kept. Mid-grade descents (-3% to -8%) are kept by default because their high V_air gives a strong aero signal.
 
-After the initial solve, a **hybrid iterative refinement** (pass 2) detects and excludes segments where the virtual elevation diverges from reality, using two complementary criteria:
+After the initial solve, a **hybrid iterative refinement** (pass 2 VE) detects and excludes segments where the virtual elevation diverges from reality, using two complementary criteria:
 - **Drift rate** `d(drift)/dt > max(0.10, D+/duration × 4)` m/s — catches active divergence
 - **Absolute drift** `|drift| > max(80 m, D+ × 12%)` — catches accumulated bias
 
 If >30% of valid points would be excluded, refinement is skipped (model is globally poor). Excluded segments are shown as grey zones on the altitude chart.
+
+**Acceptance check**: the pass-2 re-solve result is only kept if (a) it doesn't introduce a new CdA bound hit that pass 1 wasn't on, and (b) its R² doesn't regress by more than 0.05 from pass 1. Otherwise we log `VE PASS2 rejected: <reason>` and keep the pass-1 result. This guards against a silent-overwrite bug where a noisy pass-2 solve on a trimmed subset would accept a degenerate bound-locked CdA.
 
 ### 5. Solver
 
@@ -193,20 +201,31 @@ Three estimators, tried in cascade (best R² wins):
 
 3. **Martin LS** (baseline) — `scipy.optimize.least_squares` on per-point power residuals, multi-start (3 seeds), trust-region reflective.
 
-All three share weak Gaussian priors on Crr ~ N(0.0035, 0.0012²) and CdA ~ N(0.30, 0.12²) to stabilise ill-conditioned fits. Confidence intervals come from the Jacobian at the MAP estimate (prior rows excluded).
+All three share weak Gaussian priors on Crr ~ N(0.0035, 0.0012²) and CdA ~ N(0.30, 0.12²) to stabilise ill-conditioned fits (the CdA prior mean/sigma is also overridable per-ride by the position selector). Confidence intervals come from the full Laplace approximation at the MAP estimate: `Σ = s² · (JᵀJ)⁻¹` on the **complete** Jacobian (data rows + prior rows). Including the prior rows is necessary for Pass 2 — when the prior is adaptively boosted, the posterior Hessian is the sum of the data Hessian and the prior Hessian, so excluding prior rows would overstate σ_Hess and trigger spurious Pass 2 escalations.
 
 **Adaptive prior weighting.** Each solver runs up to three passes per ride:
-1. **Pass 0** — MLE (prior weight = 0) to expose a raw CdA for display.
+1. **Pass 0** — *CdA* prior weight = 0 (the wind prior toward Open-Meteo and the Crr prior stay active at their base weight to keep the problem well-posed, so this is a **conditional MLE** on CdA, not a pure MLE).
 2. **Pass 1** — base prior weight `0.3·√N` (Gelman BDA3 default).
-3. **Pass 2** — if `σ_Hess(CdA) / σ_prior > 1`, the prior weight is scaled by that ratio and the solver reruns. This prevents bound-hit on noisy rides where the data carry less information than the prior (James–Stein / ridge-adaptive shrinkage).
+3. **Pass 2** — if `σ_Hess(CdA) / σ_prior > 1`, the CdA prior weight is scaled by that ratio and the solver reruns. This prevents bound-hit on noisy rides where the data carry less information than the prior (James–Stein / ridge-adaptive shrinkage). The scaling ratio is **capped at 3.0**: beyond that threshold the ride is effectively non-identifiable and should be flagged as such by the quality gate, not rescued by a prior that would crush the data.
 
-The UI displays `cda_raw` (MLE) alongside the posterior CdA when they differ by > 0.02, and shows a `⚡ prior renforcé ×N.N` badge when Pass 2 was needed.
+The UI displays `cda_raw` (the Pass 0 conditional MLE) alongside the posterior CdA when they differ by > 0.02, labelled "CdA hors prior" — a reminder that only the CdA prior is removed in that pass, not all regularisation. A `⚡ prior renforcé ×N.N` badge marks rides where Pass 2 was needed.
 
-**Quality gate (automatic exclusion).** A ride is marked `quality_status = "bound_hit"` or `"non_identifiable"` — and excluded from aggregation — when:
-- The solver's CdA or Crr estimate sits on a physical bound (degenerate: the solver *wanted* to leave the plausible range), or
-- `σ_Hess(CdA) > 0.05` — the Hessian is too ill-conditioned to separate CdA from the other parameters.
+**Solver cross-check (always on).** Chung VE runs on every ride as an independent control, in addition to its role as a fallback when wind_inverse has no usable result. Both solvers use the same R² on altitude reconstruction, so the cross-check delta `|CdA_wind − CdA_chung|` is a meaningful indicator of how much the result depends on the wind-treatment choice. The delta is classified into a confidence bucket (`high` < 0.02, `medium` 0.02–0.05, `low` ≥ 0.05) and surfaced as a badge on each ride chip. A filter in the Intervals page lets the user exclude rides below a chosen confidence level from the aggregate.
 
-Rides are **not** gated by nRMSE in the backend: a fuzzy fit with well-identified parameters is still informative. The user's "nRMSE threshold" slider in the UI is the only nRMSE filter — keeping the user in control of which rides count toward the aggregate.
+**Quality gate (automatic exclusion + soft warnings).** Each ride falls into one of these statuses, checked in this order:
+1. **`sensor_miscalib`** (hard, excluded) — power-meter bias > ±20% on flat pedaling, OR > ±15% combined with a CdA bound hit. The solver's estimate is unusable; the issue is the sensor, not the algorithm.
+2. **`bound_hit`** (excluded) — the solver's CdA estimate sits pile on a physical bound after the safety checks (degenerate: the solver *wanted* to leave the plausible range).
+3. **`non_identifiable`** (excluded) — `σ_Hess(CdA) > 0.05` m² — the Hessian is too flat to separate CdA from the other parameters.
+4. **`prior_dominated`** (kept with warn) — the Pass 0 MLE and Pass 1 MAP disagree by > 0.05 m². The estimate is still informative but heavily influenced by the position prior.
+5. **`sensor_miscalib_warn`** (kept with warn) — power-meter bias ∈ [±10%, ±20%] on a ride where the solver still converged inside the bounds. The estimate is salvageable but carries a systematic bias proportional to the calibration offset.
+6. **`insufficient_data`** (kept with warn) — fewer than 25% of the total points survived the segment filters (cherry-picked subset, probably urban / stop-heavy).
+7. **`ok`** — no issue detected.
+
+Soft statuses (prior_dominated, sensor_miscalib_warn, insufficient_data) are **kept** in the aggregate so the user doesn't lose data on borderline rides, but show a badge in the UI so the user knows the estimate is less trustworthy.
+
+Rides are **not** gated by nRMSE in the backend: a fuzzy fit with well-identified parameters is still informative. The user's "nRMSE threshold" slider in the UI is the only nRMSE filter — keeping the user in control of which rides count toward the aggregate. An additional "solver agreement" filter lets the user optionally exclude rides whose Chung cross-check delta is too large.
+
+**Exhaustive decision logging.** Every threshold, gate verdict, pass-2 trigger, cross-check classification and Hessian diagnostic is logged to `logs/session_*.log` with its inputs and reference values. A future reader (or a post-hoc diagnostic script) can reconstruct why the pipeline produced a given output without rerunning it.
 
 ### 6. Reporting
 
@@ -230,7 +249,15 @@ Both indicators surface in the main dashboard banner (`PowerMeterBanner` compone
 
 ### 8. Ride-to-ride stability timeline (history)
 
-The history page computes a **rolling standard deviation of CdA over a window of 10 consecutive rides**, plotted over time with coloured background bands per sensor. A sudden drop in the rolling σ corresponds to a sensor swap or a calibration fix; a sudden rise reveals the opposite. The chart makes it easy to see *when* the user's data became reliable, independently of the absolute CdA value.
+The history page computes a **rolling standard deviation of CdA over a window of 10 consecutive rides**, plotted over time. Each point is coloured by the majority sensor in its σ window, and the line is smoothed with a Catmull-Rom cubic spline so trend changes are readable even on a noisy dataset. Horizontal reliability bands (green < 0.03, yellow 0.03–0.05, red > 0.05) give a quick visual cue of whether the current regime is good enough to detect a real CdA change.
+
+A sudden drop in the rolling σ corresponds to a sensor swap or a calibration fix; a sudden rise reveals the opposite. The chart makes it easy to see *when* the user's data became reliable, independently of the absolute CdA value.
+
+**Dedup on re-analysis.** When the same ride is analysed twice (e.g. after a Crr change or a pipeline fix), the timeline keeps only the most recent version of each `(athleteKey, rideDate)` pair — the older result is automatically replaced. Without this, re-running a batch would stack duplicate points on the same date and distort the rolling σ window.
+
+### 8b. Per-sensor calibration bias histogram
+
+Below the timeline, a **KDE bell curve per power meter** shows the distribution of the calibration bias ratio (measured ÷ theoretical watts on flat pedaling). A well-calibrated sensor centres on 1.0 with a tight spread; a drifting sensor shows a wide distribution; a systematically-biased sensor sits off-centre. The kernel bandwidth uses Silverman's rule with a floor at 0.03 so small per-sensor samples don't collapse into spikes. A vertical marker drops from each curve's estimated mean to the baseline for easy comparison.
 
 ### 9. Profiles: saved setups with one-click recall
 
@@ -239,7 +266,7 @@ A single AeroProfile installation is often used to analyse several cyclists or s
 - **Upload mode** — mass, bike type, position preset, Crr setting, nRMSE threshold.
 - **Intervals mode** — all of the above, plus your Intervals.icu API key and athlete id, plus the entire ride-filter state (distance range, max D+, pente moyenne max, min duration, exclude-group toggle).
 
-The "Moi" profile is pre-seeded with sensible defaults (75 kg, road, Aéro drops, Crr auto, nRMSE 45%) so a fresh install has one profile ready to go. The **ProfilePicker** toolbar at the top of each mode has:
+The "Moi" profile is pre-seeded with sensible defaults (75 kg, road, Aéro drops, Crr fixed at 0.0032 = modern GP5000 tubeless, nRMSE 45%) so a fresh install has one profile ready to go. The "Auto" Crr mode is available in expert settings but no longer the default — on real-world rides the speed variety is rarely high enough to separate CdA from Crr reliably, and the Auto fallback ended up pinning ~70% of rides at Crr = 0.005 anyway. Fixing Crr to a tyre preset gives tighter CdA estimates and eliminates the Crr bound-hit class of failures entirely. The **ProfilePicker** toolbar at the top of each mode has:
 
 - **Profile chips** — click any chip to load that profile's settings into the current form.
 - **"Nouveau"** — clones the current form state into a brand-new profile.
@@ -268,6 +295,24 @@ Implementation details:
 - The conformal interval is displayed as a second line under the Hessian CI in the main dashboard (`IC conforme low–high (n=N)` in info colour).
 
 Because conformal prediction only guarantees marginal coverage (over the population of rides, not per individual ride), it is **not** a substitute for the solver's own CI — it complements it by catching the cases where the solver is overconfident.
+
+### 11. Aggregate statistics (Method A and Method B)
+
+AeroProfile reports two independent aggregate CdA values when more than one ride is analysed:
+
+- **Method A — weighted mean.** Each ride contributes `w_i = valid_points_i × quality_weight_i` where `quality_weight_i` interpolates between 1.0 (worst nRMSE in the batch) and 3.0 (best). The aggregate is `Σ(w_i · CdA_i) / Σw_i`. The IC95 is computed from a **weighted** sample variance `Σ(w_i · (CdA_i − μ)²) / Σw_i` — consistent with the weighting of the mean (an earlier version used an unweighted variance, which made short rides pollute the uncertainty). The standard error is `σ_w / √n` for the mean's interval.
+
+- **Method B — hierarchical random-effects (joint MLE).** When ≥ 5 valid rides are available, a single joint optimisation fits `(μ, τ, [Crr,] CdA_1, …, CdA_N)` where `CdA_i ~ N(μ, τ²)` and Crr is shared across rides. τ is bounded in `[0.005, 0.40]` — an earlier version capped it at 0.20, which was reached on virtually every real-world run because the ceiling was too low. The mu CI comes from the full Laplace approximation on the joint Jacobian. Below 5 rides the method is explicitly refused with a 422 — τ is ill-defined on too few rides and the user is told to rely on Method A instead.
+
+Both methods share the same rule: rides marked `bound_hit`, `sensor_miscalib` or `non_identifiable` are excluded; rides marked `prior_dominated`, `sensor_miscalib_warn` or `insufficient_data` are kept but badged as lower-confidence.
+
+### 12. Performance — Method B batches
+
+Running Method B on a year of Intervals.icu rides used to take ~8 min on a warm cache (the rate-limit sleep between Open-Meteo tiles was unconditional, even for cache hits). Two changes cut this to ~30 s:
+
+- **Skip sleep on cache hits**: `fetch_weather_tiled` tracks whether the previous tile was a real network call or a cache lookup, and only sleeps 300 ms between *network* calls.
+- **Parallel preprocess**: `/analyze-batch` preprocesses up to 4 rides concurrently via an `asyncio.Semaphore(4)` instead of sequentially.
+- **Shared preprocess cache**: `aeroprofile/api/preprocess_cache.py` holds an LRU of raw FIT bytes AND preprocessed `(df, ride)` tuples keyed by `(athlete, activity, mass, eta)`. When Method B runs right after a Method A loop over the same rides, the batch endpoint reuses everything instead of re-downloading and re-preprocessing.
 
 ## Compare mode
 

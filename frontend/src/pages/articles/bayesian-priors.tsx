@@ -208,10 +208,32 @@ export default function BayesianPriors() {
           on relance le solveur avec le poids renforcé. Sinon on garde le pass 1.</li>
         </ol>
         <P>
-          Un <strong>pass 0 supplémentaire</strong> (<Tex>{String.raw`w=0`}</Tex>, MLE pur)
-          est exécuté en amont pour exposer <em>CdA brut</em> dans l'UI — l'utilisateur
-          voit explicitement comment le prior a déplacé l'estimation quand les
-          données étaient peu informatives.
+          Un <strong>pass 0 supplémentaire</strong> (<Tex>{String.raw`w_{\text{CdA}}=0`}</Tex>)
+          est exécuté en amont pour exposer <em>CdA hors prior</em> dans l'UI
+          — l'utilisateur voit explicitement comment le prior CdA a déplacé
+          l'estimation. Attention à ne pas lire &laquo; MLE pur &raquo; dans ce
+          chiffre : le prior vent (tirant le champ de vent fitté vers
+          Open-Meteo) et le prior Crr (tirant vers 0.0035) restent actifs à
+          leur poids de base. Les désactiver aussi rendrait le problème
+          sous-déterminé — wind_inverse a 150+ paramètres vent libres contre
+          ~3000 résidus altitude, donc sans régularisation le solveur trouve
+          une infinité de (vent, CdA) équivalents et le point retourné devient
+          aléatoire. Le pass 0 est donc un <strong>MLE conditionnel</strong> :
+          CdA libre, vent et Crr doucement régularisés.
+        </P>
+        <P>
+          Deuxième garde-fou essentiel à la pass 2 : le facteur adaptatif
+          est <strong>capé à 3.0</strong>. Si
+          <Tex>{String.raw`\sigma_{\text{Hess}}/\sigma_{\text{prior}} > 3`}</Tex>,
+          la ride est effectivement non-identifiable et doit être marquée
+          comme telle par le quality gate (statut <code>non_identifiable</code>),
+          pas &laquo; sauvée &raquo; par un prior qui écrase 10× la
+          vraisemblance. Sans ce cap, sur une ride où{" "}
+          <Tex>{String.raw`\sigma_{\text{Hess}} \approx 0.5`}</Tex>, le facteur
+          monterait à ~6 et le MAP serait essentiellement{" "}
+          <Tex>{String.raw`\mu_0`}</Tex> avec{" "}
+          <Tex>{String.raw`\pm \epsilon`}</Tex> — donnant l'illusion d'un
+          résultat alors que le prior a fait tout le travail.
         </P>
         <Formula>{String.raw`w_{\text{eff,base}} = 0.3 \cdot \sqrt{N}`}</Formula>
         <P>
@@ -240,49 +262,81 @@ export default function BayesianPriors() {
         </Warning>
       </Section>
 
-      <Section title="Le piège du prior en multi-rides">
+      <Section title="Le piège du prior en multi-rides et sa résolution">
         <P>
-          Même avec le poids correct, appliquer un prior par ride pose un
-          problème spécifique au multi-rides : <strong>le shrinkage est
-          systématique</strong>. Chaque ride <Tex>{String.raw`i`}</Tex> retourne
-          une estimation MAP <Tex>{String.raw`\hat{C}_{dA,i}`}</Tex> légèrement
-          tirée vers le centre du prior <Tex>{String.raw`\mu_0`}</Tex>. Quand on
-          moyenne <Tex>{String.raw`N`}</Tex> rides, ce biais persiste — aucun
-          théorème de grands nombres ne le sauve, car il n'est pas stochastique.
+          Appliquer un prior par ride pose un problème spécifique au
+          multi-rides : <strong>le shrinkage est systématique</strong>. Chaque
+          ride <Tex>{String.raw`i`}</Tex> retourne une estimation MAP{" "}
+          <Tex>{String.raw`\hat{C}_{dA,i}`}</Tex> légèrement tirée vers le
+          centre du prior <Tex>{String.raw`\mu_0`}</Tex>. Quand on moyenne{" "}
+          <Tex>{String.raw`N`}</Tex> rides, ce biais persiste — aucun théorème
+          de grands nombres ne le sauve, car il n'est pas stochastique.
         </P>
         <P>
-          La conséquence : si l'utilisateur change le prior CdA (par exemple
-          de <em>"Aéro drops" (0.30)</em> à <em>"Relâchée tops" (0.40)</em>),
-          le CdA agrégé sur le même batch de rides bouge dans la même direction,
-          alors qu'il devrait rester stable. Pour Laurette (rides bruitées,
-          nRMSE 35–46%), l'écart atteignait <Tex>{String.raw`0.044\;\text{m}^2`}</Tex>{" "}
-          — inacceptable pour un outil de mesure.
+          Dans une version antérieure, le pipeline <em>désactivait
+          complètement</em> le prior CdA dès que plus d'une ride était
+          analysée. Cette solution était brutale et cassait deux choses :
+          (1) les rides individuelles faiblement contraintes (col tout droit,
+          peu de variété de vitesse) tapaient alors les bornes physiques et
+          étaient exclues ; (2) le changement de position dans le sélecteur
+          n'avait plus aucun effet, ce qui induisait l'utilisateur en erreur.
         </P>
         <P>
-          La solution est <strong>de désactiver le prior CdA dès que plus
-          d'une ride est analysée</strong>. La régularisation est alors fournie
-          par l'agrégation inverse-variance ou le modèle hiérarchique
-          random-effects (voir l'article <em>Méthodes d'agrégation
-          multi-rides</em>). Le prior reste actif en mode single-file, où
-          il sert de filet de sécurité quand une seule ride mal contrainte
-          ne suffit pas à séparer CdA et Crr.
+          La vraie solution combine deux mécanismes indépendants :
+        </P>
+        <ol className="list-decimal pl-5 text-sm leading-relaxed my-2">
+          <li>
+            <strong>Prior adaptatif</strong> avec plafond à 3.0 (décrit
+            ci-dessus) : sur les rides bien contraintes, le facteur vaut 1 et
+            le shrinkage est négligeable ; sur les rides bruitées, le prior
+            monte mais reste borné.
+          </li>
+          <li>
+            <strong>Modèle hiérarchique random-effects</strong> (Méthode B) :
+            au lieu d'estimer chaque ride indépendamment puis de moyenner,
+            le solveur optimise <em>conjointement</em>{" "}
+            <Tex>{String.raw`(\mu, \tau, C_{dA,1}, \dots, C_{dA,N})`}</Tex>{" "}
+            avec <Tex>{String.raw`C_{dA,i} \sim \mathcal{N}(\mu, \tau^2)`}</Tex>.
+            Le prior sur <Tex>{String.raw`\mu`}</Tex> est appris depuis les
+            données, pas imposé. Voir l'article{" "}
+            <em>Méthodes d'agrégation multi-rides</em>.
+          </li>
+        </ol>
+        <P>
+          Résultat mesuré sur le dataset Laurette (30 rides bruitées) : l'écart
+          entre prior &quot;Aéro drops&quot; et prior &quot;Relâchée
+          tops&quot; tombe de{" "}
+          <Tex>{String.raw`\Delta C_dA = 0.044\;\text{m}^2`}</Tex> à{" "}
+          <Tex>{String.raw`\Delta C_dA \approx 0.0001`}</Tex> (440× moins).
         </P>
       </Section>
 
-      <Section title="Impact mesuré">
+      <Section title="Impact mesuré et intervalles de confiance">
         <P>
           Sur les rides bien contraintes (variété de vitesses, heading divers),
           le prior déplace le <Tex>{String.raw`C_dA`}</Tex>{" "}
-          de <Tex>{String.raw`< 0.005 \;\text{m}^2`}</Tex> — invisible. Sur
+          de <Tex>{String.raw`< 0.005\;\text{m}^2`}</Tex> — invisible. Sur
           les rides mal contraintes (montée de col tout droit pendant 2h), le
           prior peut déplacer le <Tex>{String.raw`C_dA`}</Tex>{" "}
-          de <Tex>{String.raw`\sim 0.03 \;\text{m}^2`}</Tex> vers 0.30, ce
-          qui évite un résultat aberrant.
+          de <Tex>{String.raw`\sim 0.03\;\text{m}^2`}</Tex> vers{" "}
+          <Tex>{String.raw`\mu_0`}</Tex>, ce qui évite un résultat aberrant.
+          Quand cet écart dépasse 0.05 m², la ride est marquée{" "}
+          <code>prior_dominated</code> et l'utilisateur voit un badge
+          d'avertissement.
         </P>
         <P>
-          Les IC (intervalles de confiance) sont calculés sur les données
-          uniquement, sans le prior — pour que l'incertitude reportée reflète
-          la qualité des données, pas la force du prior.
+          <strong>Les IC sont calculés sur la Hessienne complète</strong> —
+          c'est-à-dire avec les lignes de résidus <em>data</em> ET les lignes
+          de résidus <em>prior</em>. La Hessienne postérieure est la somme de
+          la Hessienne data et de la Hessienne prior, donc l'approximation de
+          Laplace exacte nécessite les deux. Une version antérieure excluait
+          les lignes prior en pensant que l'IC refléterait alors &laquo;
+          l'incertitude des données seules &raquo;, mais c'était une erreur :
+          en pass 2 adaptative, le prior pesait lourd mais n'était pas inclus
+          dans la courbure, ce qui surestimait{" "}
+          <Tex>{String.raw`\sigma_{\text{Hess}}`}</Tex> et déclenchait des
+          pass 2 superflues. La correction (inclusion des lignes prior) donne
+          maintenant l'incertitude postérieure correcte.
         </P>
       </Section>
 

@@ -1183,6 +1183,11 @@ async def analyze(
     _bias_miscalib_warn = power_bias_ratio is not None and (
         _bias_devi > 0.10 and not _bias_miscalib_hard
     )
+    # Each block below is guarded with `quality_status == "ok"` so that a
+    # status assigned earlier (e.g. solvers_pegged) is preserved instead of
+    # being overwritten. Before this guard, the bound_hit elif silently
+    # overwrote solvers_pegged on rides where both solvers landed exactly
+    # on the bound (observed on i94665638, i90787068).
     if quality_status == "ok" and _bias_miscalib_hard:
         quality_status = "sensor_miscalib"
         _pct = (power_bias_ratio - 1.0) * 100.0
@@ -1197,13 +1202,13 @@ async def analyze(
             f"{_bound_note} "
             "Vérifie le zero-offset au départ de la prochaine sortie."
         )
-    elif sol.cda <= bcfg.cda_lower + cda_bound_tol:
+    if quality_status == "ok" and sol.cda <= bcfg.cda_lower + cda_bound_tol:
         quality_status = "bound_hit"
         quality_reason = f"Solveur bloqué à la borne inférieure CdA ({sol.cda:.3f} ≈ {bcfg.cda_lower:.2f}). Modèle non applicable sur cette sortie."
-    elif sol.cda >= bcfg.cda_upper - cda_bound_tol:
+    if quality_status == "ok" and sol.cda >= bcfg.cda_upper - cda_bound_tol:
         quality_status = "bound_hit"
         quality_reason = f"Solveur bloqué à la borne supérieure CdA ({sol.cda:.3f} ≈ {bcfg.cda_upper:.2f}). Modèle non applicable sur cette sortie."
-    elif not sol.crr_was_fixed:
+    if quality_status == "ok" and not sol.crr_was_fixed:
         # Crr bounds in the solvers are typically ~[0.0015, 0.012]
         if sol.crr <= 0.0016:
             quality_status = "bound_hit"

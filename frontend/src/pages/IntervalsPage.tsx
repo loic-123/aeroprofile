@@ -1249,12 +1249,43 @@ export default function IntervalsPage() {
                           reason += `\n  Chung hors prior: ${r.result.chung_cda_raw.toFixed(3)}`;
                         }
                       }
+                      // Soft quality warning (doesn't exclude by itself):
+                      // show it as a contextual note BEFORE the exclusion
+                      // block so the user understands the ride's flags
+                      // without confusing the tooltip's "reste comptée"
+                      // language with the hard exclusion from another rule.
+                      const _softStatuses = new Set([
+                        "prior_dominated",
+                        "sensor_miscalib_warn",
+                        "insufficient_data",
+                      ]);
+                      if (r.result.quality_status && _softStatuses.has(r.result.quality_status)) {
+                        const label = r.result.quality_status === "prior_dominated"
+                          ? "prior dominé"
+                          : r.result.quality_status === "sensor_miscalib_warn"
+                            ? "biais capteur modéré"
+                            : "trop de points filtrés";
+                        reason += `\nⓘ Signalement : ${label}`;
+                      }
                       // Exhaustive exclusion explanation: enumerate every
                       // cause that contributes to the red chip so the user
                       // doesn't have to guess why a ride was dropped.
+                      // Only include quality_reason for HARD statuses —
+                      // soft statuses (sensor_miscalib_warn, prior_dominated,
+                      // insufficient_data) explicitly say "reste comptée
+                      // dans l'agrégat" in their message and must never be
+                      // presented as an exclusion cause.
                       if (isBad) {
                         const causes: string[] = [];
-                        if (r.result.quality_status && r.result.quality_status !== "ok" && r.result.quality_reason) {
+                        const SOFT_STATUSES = new Set([
+                          "ok",
+                          "prior_dominated",
+                          "sensor_miscalib_warn",
+                          "insufficient_data",
+                        ]);
+                        const isHardStatus = r.result.quality_status
+                          && !SOFT_STATUSES.has(r.result.quality_status);
+                        if (isHardStatus && r.result.quality_reason) {
                           causes.push(r.result.quality_reason);
                         }
                         if (nrmseVal > nrmseCutoff) {

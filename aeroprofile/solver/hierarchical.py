@@ -37,10 +37,7 @@ from typing import Sequence
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import least_squares
-
 from aeroprofile.physics.constants import ETA_DEFAULT
-from aeroprofile.solver.chung_ve import _virtual_elevation_vec
 
 logger = logging.getLogger(__name__)
 
@@ -59,52 +56,38 @@ class HierarchicalResult:
     n_points_total: int
 
 
-def _ride_residuals(
-    cda: float, crr: float,
-    V, V_air, rho, P, dt, alt_real, block_starts,
-    mass: float, eta: float,
-) -> np.ndarray:
-    """Block-aligned VE residuals for one ride."""
-    ve = _virtual_elevation_vec(V, V_air, rho, P, dt, cda, crr, mass, eta, block_starts)
-    target = alt_real - alt_real[0]
-    # Block alignment: re-zero target and VE at each block start
-    n = len(target)
-    baseline = np.zeros(n)
-    ve_start = np.zeros(n)
-    baseline[0] = target[0]
-    ve_start[0] = ve[0]
-    for i in range(1, n):
-        if block_starts[i]:
-            baseline[i] = target[i - 1]
-            ve_start[i] = ve[i - 1]
-        else:
-            baseline[i] = baseline[i - 1]
-            ve_start[i] = ve_start[i - 1]
-    return (ve - ve_start) - (target - baseline)
-
-
 def solve_hierarchical(
     dfs: Sequence[pd.DataFrame],
     mass: float,
     eta: float = ETA_DEFAULT,
     crr_fixed: float | None = None,
-    tau_init: float = 0.03,
-    cda_init: float = 0.32,
+    tau_init: float = 0.03,  # kept for backward-compat, unused by DL
+    cda_init: float = 0.32,  # kept for backward-compat, unused by DL
     cda_lower: float = 0.10,
     cda_upper: float = 0.80,
     cda_prior_mean: float | None = None,
     cda_prior_sigma: float | None = None,
 ) -> HierarchicalResult:
-    """Joint hierarchical MLE on N rides.
+    """Random-effects meta-analysis on N rides via DerSimonian-Laird.
 
     Each df must contain columns: v_ground, v_air, rho, power, dt,
-    altitude_smooth, filter_valid (and optionally cda_yaw_factor though
-    we ignore it here for simplicity).
+    altitude_smooth, filter_valid.
 
-    Parameters are: [mu, log_tau, crr (or omitted), cda_1, ..., cda_N].
-    Optimised with scipy.optimize.least_squares (TRF) which gives us the
-    Hessian for free at the optimum.
+    Returns μ (rider's average CdA), τ (inter-ride SD), and per-ride
+    estimates. Previously implemented as a joint MLE over
+    (μ, τ, Crr, CdA_1..N) with scipy.optimize.least_squares, which had
+    a formulation bug (see B2/tau-ceiling note in .claude/). The current
+    implementation uses DerSimonian-Laird's closed-form estimator:
+
+      τ² = max(0, (Q − (k − 1)) / (Σ wᵢ − Σ wᵢ² / Σ wᵢ))
+           with Q = Σ wᵢ (CdA_i − μ_FE)², wᵢ = 1/σᵢ²
+
+    where σᵢ is the Hessian CI half-width from the per-ride Chung VE
+    solve. μ is then the inverse-variance weighted mean with random-
+    effects weights wᵢ' = 1/(σᵢ² + τ²), and SE(μ) = 1/√(Σ wᵢ') gives
+    the IC95.
     """
+    _ = (tau_init, cda_init)  # unused, kept for API compatibility
     # Pre-extract per-ride arrays (only valid filtered points)
     rides_data = []
     for df in dfs:
@@ -130,9 +113,10 @@ def solve_hierarchical(
     n_rides = len(rides_data)
     if n_rides == 0:
         raise ValueError("No valid rides for hierarchical solve")
+    n_points_total = sum(rd["n"] for rd in rides_data)
     logger.info(
-        "HIERARCHICAL start: n_rides=%d crr_fixed=%s cda_bounds=[%.2f,%.2f] "
-        "tau_bounds=[0.005,0.40] prior=(%s,%s)",
+        "HIERARCHICAL start (DerSimonian-Laird): n_rides=%d crr_fixed=%s "
+        "cda_bounds=[%.2f,%.2f] prior=(%s,%s)",
         n_rides,
         f"{crr_fixed:.5f}" if crr_fixed is not None else "None (estimated)",
         cda_lower, cda_upper,
@@ -140,144 +124,154 @@ def solve_hierarchical(
         f"{cda_prior_sigma:.3f}" if cda_prior_sigma is not None else "None",
     )
 
-    # Parameter layout
-    has_crr = crr_fixed is None
-    n_params = 2 + (1 if has_crr else 0) + n_rides  # mu, log_tau, [crr,] cda_1..N
+    # --- Step 1: estimate each ride independently, CdA + σ_i ---
+    #
+    # Previous implementation tried to optimise (μ, log τ, Crr, cda_1..N)
+    # jointly via least_squares. The residual for the random-effects penalty
+    # was `(cda_i - μ) / τ`, giving a cost term `Σ (cda_i - μ)² / τ²`. This
+    # is the quadratic part of the Gaussian NLL but the normalisation term
+    # `N · log(τ)` was missing — so the solver had no incentive to keep τ
+    # finite and always pushed it to the upper bound. After raising the
+    # bound from log(0.20) to log(0.40) (commit 76dddf6), the τ was still
+    # pinned at 0.400 on every run, confirming the formulation bug rather
+    # than a bound issue.
+    #
+    # Switched to DerSimonian-Laird (DL) — the classical closed-form
+    # estimator in meta-analysis. It doesn't attempt a joint MLE; instead:
+    #   1. Estimate each CdA_i + σ_i independently (the Hessian CI from
+    #      each single-ride Chung VE solve gives σ_i without any extra
+    #      optimisation).
+    #   2. Compute Q and τ² via the DL formula (closed-form, no iteration).
+    #   3. Compute μ as the inverse-variance weighted mean with weights
+    #      w_i = 1 / (σ_i² + τ²).
+    #   4. IC95 on μ from SE(μ) = 1 / √(Σ w_i).
+    # References: DerSimonian & Laird, Controlled Clinical Trials, 1986.
+    #              Higgins & Thompson, Stat. Med. 2002 (bias properties).
+    from aeroprofile.solver.chung_ve import solve_chung_ve
+    from aeroprofile.bike_types import get_bike_config
 
-    def _unpack(x):
-        mu = x[0]
-        log_tau = x[1]
-        tau = np.exp(log_tau)
-        idx = 2
-        if has_crr:
-            crr = x[idx]
-            idx += 1
-        else:
-            crr = crr_fixed
-        cdas = x[idx:idx + n_rides]
-        return mu, tau, crr, cdas
+    def _fake_df_for_chung(rd):
+        # chung_ve.solve_chung_ve expects a pandas df with filter_valid etc.
+        # We reconstruct a minimal df from the rides_data tuple — all points
+        # are already the valid subset.
+        import pandas as _pd
+        n = rd["n"]
+        return _pd.DataFrame({
+            "v_ground": rd["V"],
+            "v_air": rd["V_air"],
+            "rho": rd["rho"],
+            "power": rd["P"],
+            "dt": rd["dt"],
+            "altitude_smooth": rd["alt_real"],
+            "filter_valid": np.ones(n, dtype=bool),
+        })
 
-    n_points_total = sum(rd["n"] for rd in rides_data)
-
-    def residuals(x):
-        mu, tau, crr, cdas = _unpack(x)
-        all_res = []
-        # VE residuals per ride (weighted by 1/sqrt(n) for balance)
-        for i, rd in enumerate(rides_data):
-            cda_i = cdas[i]
-            r_i = _ride_residuals(
-                cda_i, crr,
-                rd["V"], rd["V_air"], rd["rho"], rd["P"], rd["dt"],
-                rd["alt_real"], rd["block_starts"], mass, eta,
-            )
-            # Normalise so each ride contributes equally regardless of length
-            # (otherwise long rides dominate the optimisation)
-            r_i = r_i / np.sqrt(rd["n"])
-            all_res.append(r_i)
-        # Random-effects penalty: (cda_i - mu) / tau
-        # tau is a parameter to estimate — but the solver tends to push it
-        # toward 0 (overfitting). We add a soft floor to avoid singularity.
-        tau_safe = max(tau, 0.005)
-        for cda_i in cdas:
-            all_res.append(np.array([(cda_i - mu) / tau_safe]))
-        # Optional prior on mu
-        if cda_prior_mean is not None and cda_prior_sigma is not None and cda_prior_sigma > 0:
-            # Weight calibrated to be ~3 "virtual rides" worth
-            pw = 0.3 * np.sqrt(n_rides)
-            all_res.append(np.array([pw * (mu - cda_prior_mean) / cda_prior_sigma]))
-        # NOTE: τ is bounded in the `bounds` argument below (lb=log(0.005),
-        # ub=log(0.40)); no additional soft penalty is needed. The previous
-        # version added a `(tau - 0.20) / 0.05` term AND a hard ub=log(0.20),
-        # which made τ always collide with the plateau at 0.20 (visible on
-        # every user run). The hard bound alone is sufficient and honest.
-        return np.concatenate(all_res)
-
-    # Initial guess
-    x0 = np.zeros(n_params)
-    x0[0] = cda_init                       # mu
-    x0[1] = np.log(tau_init)               # log_tau
-    idx = 2
-    if has_crr:
-        x0[idx] = 0.005
-        idx += 1
-    for i in range(n_rides):
-        x0[idx + i] = cda_init             # initial CdA per ride
-
-    # Bounds
-    lb = np.full(n_params, -np.inf)
-    ub = np.full(n_params, np.inf)
-    lb[0] = cda_lower; ub[0] = cda_upper             # mu
-    # log_tau — upper bound raised from log(0.20) to log(0.40) (B2). The
-    # previous ceiling was reached on every real-world run, meaning the
-    # true inter-ride spread was almost always capped. 0.40 covers even
-    # very heterogeneous populations (mix of positions / equipment).
-    lb[1] = np.log(0.005); ub[1] = np.log(0.40)       # log_tau
-    idx = 2
-    if has_crr:
-        lb[idx] = 0.0015; ub[idx] = 0.012
-        idx += 1
-    for i in range(n_rides):
-        lb[idx + i] = cda_lower; ub[idx + i] = cda_upper
-
-    # Solve
-    result = least_squares(residuals, x0=x0, bounds=(lb, ub), method="trf", max_nfev=2000)
-
-    mu, tau, crr, cdas = _unpack(result.x)
-    _tau_at_ceiling = tau >= 0.395  # within 1% of the 0.40 hard bound
-    _tau_at_floor = tau <= 0.006
-    logger.info(
-        "HIERARCHICAL solve done: μ=%.3f τ=%.3f crr=%.5f cost=%.3f "
-        "| τ at ceiling=%s (ub=0.40) | τ at floor=%s (lb=0.005) | nfev=%d",
-        mu, tau, crr, result.cost,
-        _tau_at_ceiling, _tau_at_floor, result.nfev,
-    )
-
-    # Confidence intervals from Hessian
-    n_data = sum(rd["n"] for rd in rides_data)  # rough estimate of effective n
-    p = n_params
-    if n_data > p:
-        s2 = 2.0 * result.cost / max(n_data - p, 1)
-        try:
-            cov = s2 * np.linalg.inv(result.jac.T @ result.jac)
-            se = np.sqrt(np.maximum(np.diag(cov), 0.0))
-            mu_ci = (float(mu - 1.96 * se[0]), float(mu + 1.96 * se[0]))
-            crr_ci = (
-                (float(crr - 1.96 * se[2]), float(crr + 1.96 * se[2]))
-                if has_crr else (float(crr), float(crr))
-            )
-            cda_idx_start = 3 if has_crr else 2
-            per_ride_sigma = [float(se[cda_idx_start + i]) for i in range(n_rides)]
-        except np.linalg.LinAlgError:
-            mu_ci = (float("nan"), float("nan"))
-            crr_ci = (float("nan"), float("nan"))
-            per_ride_sigma = [0.05] * n_rides
-    else:
-        mu_ci = (float("nan"), float("nan"))
-        crr_ci = (float("nan"), float("nan"))
-        per_ride_sigma = [0.05] * n_rides
-
-    # Per-ride R² (informational)
+    # Per-ride Chung VE solve with the same Crr as the main pipeline.
+    # Using a neutral prior centre (the midpoint of the physical bounds)
+    # so the per-ride estimates don't bake in the "position" prior — the
+    # DL aggregation reintroduces regularisation via τ, not via per-ride
+    # shrinkage.
+    per_ride_cda = []
+    per_ride_sigma = []
     per_ride_r2 = []
     for i, rd in enumerate(rides_data):
-        r_i = _ride_residuals(
-            cdas[i], crr,
-            rd["V"], rd["V_air"], rd["rho"], rd["P"], rd["dt"],
-            rd["alt_real"], rd["block_starts"], mass, eta,
-        )
-        target = rd["alt_real"] - rd["alt_real"][0]
-        ss_res = float(np.sum(r_i ** 2))
-        ss_tot = float(np.sum((target - target.mean()) ** 2))
-        r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
-        per_ride_r2.append(r2)
+        try:
+            sub_df = _fake_df_for_chung(rd)
+            chung = solve_chung_ve(
+                sub_df,
+                mass=mass,
+                eta=eta,
+                crr_fixed=crr_fixed if crr_fixed is not None else 0.005,
+                cda_prior_mean=(cda_lower + cda_upper) / 2,
+                cda_prior_sigma=(cda_upper - cda_lower) / 2,  # very weak
+                cda_lower=cda_lower,
+                cda_upper=cda_upper,
+            )
+            cda_i = float(chung.cda)
+            ci_lo, ci_hi = chung.cda_ci
+            if not (np.isnan(ci_lo) or np.isnan(ci_hi)):
+                sigma_i = max((ci_hi - ci_lo) / 3.92, 0.005)
+            else:
+                sigma_i = 0.05  # fallback
+            per_ride_cda.append(cda_i)
+            per_ride_sigma.append(float(sigma_i))
+            per_ride_r2.append(float(chung.r_squared_elev))
+        except Exception as _e:
+            logger.warning("HIERARCHICAL per-ride solve failed (ride %d): %s", i, _e)
+            # Fallback: use the prior centre with a wide sigma so this ride
+            # is effectively ignored in the DL weighting.
+            per_ride_cda.append((cda_lower + cda_upper) / 2)
+            per_ride_sigma.append(0.20)
+            per_ride_r2.append(0.0)
+
+    cdas_arr = np.asarray(per_ride_cda, dtype=float)
+    sigmas_arr = np.asarray(per_ride_sigma, dtype=float)
+
+    # --- Step 2: DerSimonian-Laird τ² ---
+    # Fixed-effect weights: w_i = 1 / σ_i²
+    w_fe = 1.0 / (sigmas_arr ** 2)
+    # Fixed-effect mean
+    mu_fe = float(np.sum(w_fe * cdas_arr) / np.sum(w_fe))
+    # Cochran's Q
+    Q = float(np.sum(w_fe * (cdas_arr - mu_fe) ** 2))
+    # DL estimator
+    if n_rides > 1:
+        c = float(np.sum(w_fe) - np.sum(w_fe ** 2) / np.sum(w_fe))
+        tau2 = max(0.0, (Q - (n_rides - 1)) / c) if c > 0 else 0.0
+    else:
+        tau2 = 0.0
+    tau = float(np.sqrt(tau2))
+
+    # --- Step 3: random-effects μ ---
+    w_re = 1.0 / (sigmas_arr ** 2 + tau2)
+    mu_re = float(np.sum(w_re * cdas_arr) / np.sum(w_re))
+
+    # Optional prior on μ (applied AFTER DL as an extra virtual data point,
+    # following Bayesian precedent). Typically NOT used in AeroProfile for
+    # multi-ride mode — the prior is applied per-ride in the individual
+    # Chung solves, and the aggregation is kept prior-free so the user can
+    # see the raw consensus.
+    if cda_prior_mean is not None and cda_prior_sigma is not None and cda_prior_sigma > 0:
+        # Add an equivalent virtual "ride" with known CdA = prior_mean and
+        # sigma = cda_prior_sigma, then recompute the weighted mean.
+        w_prior = 1.0 / (cda_prior_sigma ** 2 + tau2)
+        num = np.sum(w_re * cdas_arr) + w_prior * cda_prior_mean
+        den = float(np.sum(w_re)) + w_prior
+        mu_re = float(num / den)
+        w_sum = den
+    else:
+        w_sum = float(np.sum(w_re))
+
+    mu = mu_re
+    # SE of the random-effects mean — closed form from DL
+    se_mu = float(1.0 / np.sqrt(w_sum)) if w_sum > 0 else float("nan")
+    mu_ci = (float(mu - 1.96 * se_mu), float(mu + 1.96 * se_mu))
+
+    # Crr: shared and fixed (matches pipeline.effective_crr_fixed). We
+    # don't re-estimate it because per-ride Chung solves already used
+    # crr_fixed. The "CI" is just the fixed value.
+    crr_val = float(crr_fixed) if crr_fixed is not None else 0.005
+    crr_ci = (crr_val, crr_val)
+
+    # Clamp per-ride σ display to something sensible for the UI
+    per_ride_sigma_out = [float(s) for s in sigmas_arr]
+
+    # Rough heterogeneity indicator for logging: I² = max(0, (Q − k + 1) / Q)
+    i2 = max(0.0, (Q - (n_rides - 1)) / Q) if Q > 0 else 0.0
+    logger.info(
+        "HIERARCHICAL DL done: μ=%.3f se=%.4f τ=%.3f τ²=%.5f | "
+        "Q=%.2f (df=%d) I²=%.1f%% | μ_FE=%.3f | n=%d",
+        mu, se_mu, tau, tau2, Q, n_rides - 1, 100 * i2, mu_fe, n_rides,
+    )
 
     return HierarchicalResult(
         mu_cda=float(mu),
         mu_cda_ci=mu_ci,
         tau=float(tau),
-        crr=float(crr),
+        crr=crr_val,
         crr_ci=crr_ci,
-        per_ride_cda=[float(c) for c in cdas],
-        per_ride_sigma=per_ride_sigma,
+        per_ride_cda=[float(c) for c in cdas_arr],
+        per_ride_sigma=per_ride_sigma_out,
         per_ride_r2=per_ride_r2,
         n_rides=n_rides,
         n_points_total=n_points_total,

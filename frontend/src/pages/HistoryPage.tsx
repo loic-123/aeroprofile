@@ -988,31 +988,71 @@ function RollingStdTimeline({
         <text x={PL - 4} y={H - PB + 3} fill="#6b7280" fontSize="9" textAnchor="end" fontFamily="monospace">
           0
         </text>
-        {/* Std curve — smoothed Catmull-Rom → Bezier so the line reads as
-            a trend rather than a zigzag between adjacent points. Uses
-            calendar-based x positioning so gaps in time stay visible. */}
+        {/* Std curve — monotone cubic interpolation (Fritsch-Carlson 1980).
+            Earlier versions used uniform Catmull-Rom which, on a calendar
+            time x-axis with irregular spacing (two consecutive days next
+            to a 30-day gap), produces overshoots and visible self-crossing
+            loops. Monotone cubic guarantees the interpolant never
+            overshoots the data between points — no loops, ever, by
+            construction. Reference: Fritsch & Carlson, "Monotone Piecewise
+            Cubic Interpolation", SIAM J. Numer. Anal. 17(2), 1980. */}
         {(() => {
           const pts = valid.map((p) => ({
             x: xOfDate(p.date),
             y: yOf(p.std),
           }));
           if (pts.length < 2) return null;
-          // Catmull-Rom spline with tension 0.5, converted to cubic Bezier.
-          // For each segment p_i → p_{i+1}, the control points are derived
-          // from the neighbouring points p_{i-1} and p_{i+2} with the
-          // classic formula:
-          //   cp1 = p_i + (p_{i+1} - p_{i-1}) / 6
-          //   cp2 = p_{i+1} - (p_{i+2} - p_i) / 6
-          let d = `M ${pts[0].x},${pts[0].y}`;
-          for (let i = 0; i < pts.length - 1; i++) {
-            const p0 = pts[Math.max(i - 1, 0)];
-            const p1 = pts[i];
-            const p2 = pts[i + 1];
-            const p3 = pts[Math.min(i + 2, pts.length - 1)];
-            const cp1x = p1.x + (p2.x - p0.x) / 6;
-            const cp1y = p1.y + (p2.y - p0.y) / 6;
-            const cp2x = p2.x - (p3.x - p1.x) / 6;
-            const cp2y = p2.y - (p3.y - p1.y) / 6;
+          const n = pts.length;
+          // Secants dk = (yk+1 − yk) / (xk+1 − xk)
+          const dks: number[] = new Array(n - 1);
+          for (let k = 0; k < n - 1; k++) {
+            const dx = pts[k + 1].x - pts[k].x || 1e-6;
+            dks[k] = (pts[k + 1].y - pts[k].y) / dx;
+          }
+          // Initial tangents: average of adjacent secants; endpoints take
+          // the single adjacent secant.
+          const ms: number[] = new Array(n);
+          ms[0] = dks[0];
+          ms[n - 1] = dks[n - 2];
+          for (let k = 1; k < n - 1; k++) {
+            if (dks[k - 1] * dks[k] <= 0) {
+              // Sign change or zero slope → enforce flat tangent to
+              // preserve monotonicity of each segment.
+              ms[k] = 0;
+            } else {
+              ms[k] = (dks[k - 1] + dks[k]) / 2;
+            }
+          }
+          // Fritsch-Carlson correction: ensure (α, β) = (m_k / d_k, m_k+1 / d_k)
+          // stays inside the circle α² + β² ≤ 9 (equivalently inside [0,3]²).
+          for (let k = 0; k < n - 1; k++) {
+            if (dks[k] === 0) {
+              ms[k] = 0;
+              ms[k + 1] = 0;
+              continue;
+            }
+            const a = ms[k] / dks[k];
+            const b = ms[k + 1] / dks[k];
+            const h = a * a + b * b;
+            if (h > 9) {
+              const t = 3 / Math.sqrt(h);
+              ms[k] = t * a * dks[k];
+              ms[k + 1] = t * b * dks[k];
+            }
+          }
+          // Emit cubic Bezier segments. For Hermite → Bezier with tangents
+          // m_k, m_{k+1} and length h_k = x_{k+1} − x_k:
+          //   cp1 = (x_k + h_k/3,     y_k     + m_k     * h_k/3)
+          //   cp2 = (x_{k+1} − h_k/3, y_{k+1} − m_{k+1} * h_k/3)
+          let d = `M ${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`;
+          for (let k = 0; k < n - 1; k++) {
+            const p1 = pts[k];
+            const p2 = pts[k + 1];
+            const h = p2.x - p1.x;
+            const cp1x = p1.x + h / 3;
+            const cp1y = p1.y + (ms[k] * h) / 3;
+            const cp2x = p2.x - h / 3;
+            const cp2y = p2.y - (ms[k + 1] * h) / 3;
             d += ` C ${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
           }
           return (

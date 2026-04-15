@@ -30,6 +30,10 @@ export interface HistoryEntry {
   cdaPriorSigma: number | null;
   // Quality threshold
   maxNrmse: number | null;
+  // Solver agreement filter (P3): "off" (default) keeps all rides,
+  // "medium" excludes low-confidence rides, "high" keeps only rides
+  // where wind and Chung agree to < 2% AND neither hit a physical bound.
+  minConfidence?: "off" | "medium" | "high";
   // Cache setting
   useCache: boolean | null;
   // Multi-ride: whether the prior was disabled (always true for n>=2 since the fix)

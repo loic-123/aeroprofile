@@ -282,16 +282,25 @@ export default function IntervalsPage() {
         sensorFilter.size < availableSensors.list.length + (availableSensors.unknown > 0 ? 1 : 0)
           ? Array.from(sensorFilter)
           : null,
+      // UI-level filters that shape the aggregate — included in the
+      // session log so a future reader can reproduce the exact view the
+      // user was looking at.
+      min_confidence: minConfidence,
+      use_cache: useCache,
     });
 
     // Confidence-based exclusion (P3). When the user asks for a minimum
-    // solver agreement, rides with `solver_confidence == "low"` (or "low"+
-    // "medium") are excluded from the aggregate.
+    // solver agreement, rides with insufficient confidence are excluded
+    // from the aggregate. "unknown" means the cross-check is not
+    // meaningful (e.g. a solver hit a physical bound so the agreement
+    // is an artefact of the bound, not a real signal) — we treat it as
+    // "at least as bad as low" when the filter is active, because the
+    // ride carries no reliable cross-check information.
     const confidenceExcludes = (conf: string | undefined): boolean => {
       if (minConfidence === "off") return false;
-      if (!conf || conf === "unknown") return false;
-      if (minConfidence === "medium") return conf === "low";
-      if (minConfidence === "high") return conf === "low" || conf === "medium";
+      if (!conf) return false; // legacy entries without cross-check
+      if (minConfidence === "medium") return conf === "low" || conf === "unknown";
+      if (minConfidence === "high") return conf === "low" || conf === "medium" || conf === "unknown";
       return false;
     };
 
@@ -447,6 +456,7 @@ export default function IntervalsPage() {
         cdaPriorMean: posP?.cdaPrior ?? null,
         cdaPriorSigma: posP?.cdaSigma ?? null,
         maxNrmse: MAX_NRMSE,
+        minConfidence,
         useCache,
         disablePrior: false,
         aggregationMethod: "inverse_var",
@@ -792,8 +802,8 @@ export default function IntervalsPage() {
                     v === "off"
                       ? "Garder toutes les sorties, ne pas filtrer sur l'accord solveur"
                       : v === "medium"
-                        ? "Exclure les sorties où |ΔCdA wind−chung| ≥ 0.05 (désaccord fort)"
-                        : "Garder uniquement les sorties où |ΔCdA wind−chung| < 0.02 (solveurs en accord)"
+                        ? "Exclure les sorties où |ΔCdA wind−chung| ≥ 0.05 (désaccord fort) ET les sorties où un solveur a touché une borne physique (cross-check non fiable)"
+                        : "Garder uniquement les sorties où |ΔCdA wind−chung| < 0.02 (solveurs en accord) et aucun solveur à la borne"
                   }
                 >
                   {v === "off" ? "off" : v === "medium" ? "≥ medium" : "high only"}
@@ -803,7 +813,10 @@ export default function IntervalsPage() {
             <p className="text-[10px] text-muted mt-1 max-w-sm leading-tight">
               Chaque sortie est aussi analysée avec Chung VE comme contrôle.
               Quand les deux solveurs divergent sur CdA, la sortie est moins
-              robuste au choix du traitement du vent. Filtre désactivé par défaut.
+              robuste au choix du traitement du vent. La comparaison utilise
+              en priorité les valeurs "hors prior" pour détecter les cas où
+              les deux solveurs convergent à la borne (accord artificiel).
+              Filtre désactivé par défaut.
             </p>
           </div>
 
@@ -1229,8 +1242,12 @@ export default function IntervalsPage() {
                         const d = r.result.solver_cross_check_delta;
                         const label = r.result.solver_confidence === "high" ? "accord solveurs"
                                     : r.result.solver_confidence === "medium" ? "désaccord léger"
-                                    : "désaccord fort";
+                                    : r.result.solver_confidence === "low" ? "désaccord fort"
+                                    : "non fiable (solveur à la borne)";
                         reason += `\nCross-check Chung VE: ${r.result.chung_cda.toFixed(3)} (Δ=${d.toFixed(3)} — ${label})`;
+                        if (r.result.chung_cda_raw != null) {
+                          reason += `\n  Chung hors prior: ${r.result.chung_cda_raw.toFixed(3)}`;
+                        }
                       }
                       // Exhaustive exclusion explanation: enumerate every
                       // cause that contributes to the red chip so the user
@@ -1251,9 +1268,14 @@ export default function IntervalsPage() {
                         }
                         if (minConfidence !== "off" && r.result.solver_confidence) {
                           const c = r.result.solver_confidence;
-                          const triggers = minConfidence === "medium" ? c === "low" : (c === "low" || c === "medium");
+                          const triggers = minConfidence === "medium"
+                            ? (c === "low" || c === "unknown")
+                            : (c === "low" || c === "medium" || c === "unknown");
                           if (triggers) {
-                            causes.push(`Confiance solveurs "${c}" sous le seuil demandé "${minConfidence === "medium" ? "≥ medium" : "high only"}"`);
+                            const label = c === "unknown"
+                              ? 'non fiable (solveur à la borne)'
+                              : `"${c}"`;
+                            causes.push(`Confiance solveurs ${label} sous le seuil demandé "${minConfidence === "medium" ? "≥ medium" : "high only"}"`);
                           }
                         }
                         if (causes.length > 0) {
@@ -1305,6 +1327,12 @@ export default function IntervalsPage() {
                                 className="opacity-60 text-warn"
                                 title={`solveurs en désaccord léger — Δ=${(r.result.solver_cross_check_delta ?? 0).toFixed(3)} (wind vs chung)`}
                               >≈</span>
+                            )}
+                            {r.result.solver_confidence === "unknown" && r.result.chung_cda != null && (
+                              <span
+                                className="opacity-70 text-muted"
+                                title={`cross-check non fiable — un solveur a touché une borne physique (wind=${r.result.cda.toFixed(3)}, chung=${r.result.chung_cda.toFixed(3)})`}
+                              >?</span>
                             )}
                           </>
                         )}

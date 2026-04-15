@@ -157,6 +157,7 @@ export interface AnalysisResult {
   // When the two solvers disagree, the CdA depends heavily on the wind
   // treatment and is less robust.
   chung_cda?: number | null;
+  chung_cda_raw?: number | null;
   solver_cross_check_delta?: number | null;
   solver_confidence?: "high" | "medium" | "low" | "unknown";
   gear_id?: string | null;

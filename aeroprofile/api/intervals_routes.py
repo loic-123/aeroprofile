@@ -452,25 +452,27 @@ async def analyze_batch_intervals(
                 ride_date="", excluded=True, exclusion_reason=reason,
             ))
 
-    if len(all_dfs) < 5:
-        # Method B estimates τ (inter-ride standard deviation) as a free
-        # parameter. Below n=5, τ is essentially arbitrary (it collapses to
-        # the floor or the ceiling depending on the optimiser's initial
-        # guess). The inverse-variance aggregation (Method A) already
-        # handles small n correctly — we just refuse to mislead the user
-        # with a "hierarchical" estimate that isn't really hierarchical.
+    if len(all_dfs) < 10:
+        # The DerSimonian–Laird random-effects estimator needs enough rides
+        # for τ² (inter-ride variance) to be statistically meaningful. Below
+        # n=10, the Q statistic has too few degrees of freedom and τ collapses
+        # to the floor on most realistic datasets. The inverse-variance
+        # aggregation (Method A, weighted mean) already handles small n
+        # correctly — refusing to run Method B below 10 prevents misleading
+        # the user with a "hierarchical" estimate that has no inter-ride
+        # signal to actually estimate.
         _log.info(
-            "METHOD_B skipped: only %d valid rides, minimum required is 5 "
-            "(τ is ill-defined below that threshold)",
+            "METHOD_B skipped: only %d valid rides, minimum required is 10 "
+            "(DL τ² is ill-defined below that threshold)",
             len(all_dfs),
         )
         raise HTTPException(
             status_code=422,
-            detail=f"Méthode B nécessite au moins 5 sorties valides "
+            detail=f"Méthode hiérarchique nécessite au moins 10 sorties valides "
                    f"(seulement {len(all_dfs)} disponibles après le preprocessing). "
-                   "En dessous de 5 rides, τ (la variance inter-rides) ne peut pas "
-                   "être estimée de façon fiable — la moyenne pondérée (méthode A) "
-                   "est plus honnête pour ce volume de données."
+                   "En dessous de 10 rides, τ² (la variance inter-rides DerSimonian–Laird) "
+                   "ne peut pas être estimée de façon fiable — la moyenne pondérée "
+                   "(méthode A) reste plus honnête pour ce volume de données."
         )
 
     # Fallback on bike-type default prior if the user didn't override.
@@ -538,5 +540,6 @@ async def analyze_batch_intervals(
         crr_ci_high=_f(h_result.crr_ci[1]),
         n_rides=h_result.n_rides,
         n_points_total=h_result.n_points_total,
+        n_eff=_f(h_result.n_eff),
         rides=summaries,
     )

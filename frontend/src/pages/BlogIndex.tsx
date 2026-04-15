@@ -46,7 +46,7 @@ const ARTICLES = [
   {
     slug: "aggregation-methods",
     title: "Méthodes d'agrégation multi-rides : inverse-variance vs hiérarchique",
-    desc: "Comment AeroProfile combine N rides en un seul CdA représentatif : moyenne pondérée par la précision (méthode A) et modèle hiérarchique random-effects (méthode B). Référence DerSimonian-Laird 1986.",
+    desc: "Comment AeroProfile combine N rides en un seul CdA représentatif : moyenne pondérée par la précision (méthode A) et méta-analyse hiérarchique DerSimonian–Laird (méthode hiérarchique). Référence DerSimonian & Laird 1986.",
     tags: ["statistiques", "multi-rides", "avancé"],
   },
   {
@@ -78,6 +78,12 @@ const ARTICLES = [
     title: "Le capteur de puissance : la source d'erreur que le solveur ne peut pas corriger",
     desc: "Pourquoi les capteurs mono-jambe (4iiii, Stages left) donnent un CdA 2× plus variable, et comment AeroProfile détecte un biais de calibration indépendamment du solveur.",
     tags: ["capteur", "calibration", "diagnostic"],
+  },
+  {
+    slug: "prior-invariance",
+    title: "L'invariance au prior : pourquoi votre choix de position ne devrait pas bouger le CdA agrégé",
+    desc: "Le test de cohérence le plus puissant en méta-analyse : relancer la même analyse avec deux priors différents. Quand l'invariance casse, c'est presque toujours un bug de convergence — et l'histoire d'un fix sur le dataset Laurette.",
+    tags: ["statistiques", "diagnostic", "avancé"],
   },
 ];
 

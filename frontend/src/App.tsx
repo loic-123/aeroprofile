@@ -580,12 +580,12 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Hierarchical (Method B) banner — for comparison */}
+                        {/* Méthode hiérarchique (DerSimonian–Laird) banner — for comparison */}
                         {(hierLoading || hierResult || hierError) && (
                           <div className="bg-panel border border-info/40 rounded-lg p-4">
                             <div className="text-xs text-muted uppercase tracking-wide flex items-center">
-                              CdA moyen — méthode hiérarchique (random-effects)
-                              <InfoTooltip text="Méthode B : optimisation conjointe sur toutes les rides simultanément, avec un seul Crr partagé et des CdAᵢ par ride contraints à varier autour d'un μ commun (modèle random-effects, DerSimonian & Laird 1986, Gelman BDA3 ch.5). Mathématiquement plus rigoureuse — partage l'information entre rides." />
+                              CdA moyen — méthode hiérarchique (DerSimonian–Laird)
+                              <InfoTooltip text="Méta-analyse à effets aléatoires : chaque ride contribue son CdA_i avec son incertitude σ_i (Hessienne du fit Chung VE). L'estimateur DerSimonian–Laird agrège ensuite τ² (variance inter-rides), puis combine les CdA_i avec les poids w_i = 1/(σ_i² + τ²). Réf. DerSimonian & Laird (Controlled Clinical Trials, 1986)." />
                             </div>
                             {hierLoading && (
                               <div className="text-sm text-muted mt-2 flex items-center gap-2">

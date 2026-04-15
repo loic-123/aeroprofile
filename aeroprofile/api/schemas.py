@@ -118,4 +118,9 @@ class HierarchicalAnalysisOut(BaseModel):
     crr_ci_high: float
     n_rides: int
     n_points_total: int
+    # Effective sample size from random-effects weights = (Σ w_i)² / Σ w_i².
+    # Equals n_rides when all per-ride σ_i are identical, drops below when
+    # one or two rides dominate. Lets the UI flag a "Méthode hiérarchique"
+    # estimate that's actually being driven by a small subset.
+    n_eff: float = 0.0
     rides: list[HierarchicalRideSummary]

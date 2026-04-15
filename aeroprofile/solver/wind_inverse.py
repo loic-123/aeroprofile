@@ -212,8 +212,15 @@ def _solve_with_wind_inner(
 
         return np.concatenate([res_alt, np.array(extras)])
 
-    # Bounds
-    x0_list = [cda_prior_mean]
+    # Bounds. The initial guess for x0[0] is the MIDPOINT of the bike-type
+    # bounds, NOT cda_prior_mean. This guarantees that the multi-start sweep
+    # is fully independent of the user-chosen position prior — pass 0
+    # ("hors prior CdA") is then strictly reproducible across two runs that
+    # differ only in the prior. The 5 cda_starts below override x0[0]
+    # before each solve, but the sentinel value matters when other
+    # parameters (vent, Crr) interact with x0[0] via the gradient.
+    _cda_init = (cda_lower + cda_upper) / 2
+    x0_list = [_cda_init]
     lb_list = [cda_lower]
     ub_list = [cda_upper]
     if has_crr:
@@ -232,15 +239,23 @@ def _solve_with_wind_inner(
     # Multi-start on CdA — denser sweep across the bounds to avoid local minima.
     # Critical: with the wind_inverse model (many parameters), the cost surface
     # has multiple valleys and the result depends on the starting point.
-    # Use 5 starts uniformly spaced across the bounds.
+    # Use 5 starts uniformly spaced across the bounds. Linspace on bike-type
+    # bounds → fully deterministic across runs with different priors.
     cda_starts = list(np.linspace(cda_lower + 0.02, cda_upper - 0.02, 5))
     best = None
     for c0 in cda_starts:
         x0_try = x0.copy()
         x0_try[0] = c0
         try:
-            r = least_squares(residuals, x0=x0_try, bounds=(lb, ub),
-                              method="trf", max_nfev=800)
+            # Tighten convergence tolerances so two runs with the same data
+            # always converge to the same minimum (default scipy tolerances
+            # are loose enough that float-comparison non-determinism can
+            # produce different answers across runs).
+            r = least_squares(
+                residuals, x0=x0_try, bounds=(lb, ub),
+                method="trf", max_nfev=800,
+                x_scale="jac", ftol=1e-10, xtol=1e-10, gtol=1e-10,
+            )
             if best is None or r.cost < best.cost:
                 best = r
         except Exception:

@@ -638,7 +638,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
                       {hierByRider[a.rider.id] && (
                         <div
                           className="text-[10px] text-info font-mono mt-0.5"
-                          title="Méthode B : modèle hiérarchique random-effects (DerSimonian–Laird)"
+                          title="Méthode hiérarchique : DerSimonian–Laird (random-effects)"
                         >
                           μ={hierByRider[a.rider.id]!.mu_cda.toFixed(3)} τ=±{hierByRider[a.rider.id]!.tau.toFixed(3)}
                         </div>

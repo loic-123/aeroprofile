@@ -11,6 +11,7 @@ import IterativeRefinement from "./iterative-refinement";
 import WCdaMetric from "./w-cda-metric";
 import IntervalsIntegration from "./intervals-integration";
 import PowerMeterQuality from "./power-meter-quality";
+import PriorInvariance from "./prior-invariance";
 
 export const ARTICLES: Record<string, () => JSX.Element> = {
   "power-equation": PowerEquation,
@@ -26,4 +27,5 @@ export const ARTICLES: Record<string, () => JSX.Element> = {
   "w-cda-metric": WCdaMetric,
   "intervals-integration": IntervalsIntegration,
   "power-meter-quality": PowerMeterQuality,
+  "prior-invariance": PriorInvariance,
 };

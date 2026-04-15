@@ -54,6 +54,7 @@ class HierarchicalResult:
     per_ride_r2: list[float]          # R² of altitude reconstruction per ride
     n_rides: int
     n_points_total: int
+    n_eff: float                      # effective n from RE weights, ≤ n_rides
 
 
 def solve_hierarchical(
@@ -190,7 +191,15 @@ def solve_hierarchical(
             cda_i = float(chung.cda)
             ci_lo, ci_hi = chung.cda_ci
             if not (np.isnan(ci_lo) or np.isnan(ci_hi)):
-                sigma_i = max((ci_hi - ci_lo) / 3.92, 0.005)
+                # Floor raised from 0.005 to 0.010: a per-ride σ below 1 m²·1%
+                # is unrealistic on cycling data (sensor noise + wind +
+                # rolling resistance variability all contribute). Floors that
+                # are too low let a single "lucky" ride dominate the DL
+                # weighted mean (w_i ∝ 1/σ_i² → ratio of 4× per halving of
+                # σ_i). The 0.010 floor caps that to a 4× advantage over the
+                # average ride, which is still real but no longer drowning
+                # out all peers.
+                sigma_i = max((ci_hi - ci_lo) / 3.92, 0.010)
             else:
                 sigma_i = 0.05  # fallback
             per_ride_cda.append(cda_i)
@@ -263,6 +272,26 @@ def solve_hierarchical(
         "Q=%.2f (df=%d) I²=%.1f%% | μ_FE=%.3f | n=%d",
         mu, se_mu, tau, tau2, Q, n_rides - 1, 100 * i2, mu_fe, n_rides,
     )
+    # Per-ride σ_i diagnostic: lets us see at a glance which rides drove the
+    # DL weighted mean (weight ∝ 1/σ_i²) and which were down-weighted. If
+    # one σ_i is clearly smaller than the rest, that ride dominates the
+    # estimate — useful when investigating an unexpected μ shift between
+    # two runs.
+    sigma_strs = ", ".join(f"{s:.3f}" for s in sigmas_arr)
+    cda_strs = ", ".join(f"{c:.3f}" for c in cdas_arr)
+    logger.info("HIERARCHICAL DL per-ride σ_i = [%s]", sigma_strs)
+    logger.info("HIERARCHICAL DL per-ride CdA = [%s]", cda_strs)
+    # Effective sample size from random-effects weights:
+    #   n_eff = (Σ w_i)² / Σ w_i²
+    # Equals n_rides when all σ_i are identical, drops below n when one or
+    # two rides dominate. Useful sanity check vs. the nominal n.
+    sum_w = float(np.sum(w_re))
+    sum_w2 = float(np.sum(w_re ** 2))
+    n_eff = (sum_w ** 2) / sum_w2 if sum_w2 > 0 else float(n_rides)
+    logger.info(
+        "HIERARCHICAL DL n_eff = %.1f (nominal n = %d, ratio = %.2f)",
+        n_eff, n_rides, n_eff / n_rides if n_rides > 0 else 0.0,
+    )
 
     return HierarchicalResult(
         mu_cda=float(mu),
@@ -275,4 +304,5 @@ def solve_hierarchical(
         per_ride_r2=per_ride_r2,
         n_rides=n_rides,
         n_points_total=n_points_total,
+        n_eff=float(n_eff),
     )

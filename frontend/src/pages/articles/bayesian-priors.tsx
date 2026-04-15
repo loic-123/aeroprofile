@@ -292,12 +292,13 @@ export default function BayesianPriors() {
             monte mais reste borné.
           </li>
           <li>
-            <strong>Modèle hiérarchique random-effects</strong> (Méthode B) :
-            au lieu d'estimer chaque ride indépendamment puis de moyenner,
-            le solveur optimise <em>conjointement</em>{" "}
-            <Tex>{String.raw`(\mu, \tau, C_{dA,1}, \dots, C_{dA,N})`}</Tex>{" "}
-            avec <Tex>{String.raw`C_{dA,i} \sim \mathcal{N}(\mu, \tau^2)`}</Tex>.
-            Le prior sur <Tex>{String.raw`\mu`}</Tex> est appris depuis les
+            <strong>Méthode hiérarchique (DerSimonian–Laird)</strong> : au
+            lieu d'estimer chaque ride indépendamment puis de moyenner, on
+            estime <Tex>{String.raw`\hat{\tau}^2`}</Tex> en forme fermée à
+            partir de Cochran's Q, puis on combine les{" "}
+            <Tex>{String.raw`C_{dA,i}`}</Tex> avec les poids random-effects{" "}
+            <Tex>{String.raw`w_i = 1/(\sigma_i^2 + \hat{\tau}^2)`}</Tex>. Le
+            prior sur <Tex>{String.raw`\mu`}</Tex> est appris depuis les
             données, pas imposé. Voir l'article{" "}
             <em>Méthodes d'agrégation multi-rides</em>.
           </li>

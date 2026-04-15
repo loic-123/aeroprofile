@@ -65,10 +65,11 @@ export const SOFT_QUALITY_STATUSES = new Set<string>([
   "sensor_miscalib_warn",
   "model_mismatch_warn",
   "insufficient_data",
+  "weak_estimate",
 ]);
 
 /** Return true when a quality_status means the ride should be excluded from
- *  aggregate statistics (CdA moyen, Méthode B, etc.). */
+ *  aggregate statistics (CdA moyen, Méthode hiérarchique, etc.). */
 export function isHardFailure(status: string | undefined | null): boolean {
   if (!status) return false;
   return !SOFT_QUALITY_STATUSES.has(status);
@@ -126,6 +127,7 @@ export interface HierarchicalAnalysisResult {
   crr_ci_high: number;
   n_rides: number;
   n_points_total: number;
+  n_eff?: number;
   rides: HierarchicalRideSummary[];
 }
 
@@ -140,7 +142,7 @@ export interface AnalysisResult {
   crr_was_fixed: boolean;
   solver_method: string;
   solver_note: string;
-  quality_status?: "ok" | "bound_hit" | "non_identifiable" | "high_nrmse" | "prior_dominated" | "sensor_miscalib" | "sensor_miscalib_warn" | "model_mismatch" | "model_mismatch_warn" | "insufficient_data" | "solvers_pegged";
+  quality_status?: "ok" | "bound_hit" | "non_identifiable" | "high_nrmse" | "prior_dominated" | "sensor_miscalib" | "sensor_miscalib_warn" | "model_mismatch" | "model_mismatch_warn" | "insufficient_data" | "solvers_pegged" | "weak_estimate";
 
   quality_reason?: string;
   prior_adaptive_factor?: number;

@@ -313,7 +313,12 @@ export default function HistoryPage() {
       });
     }
     all.sort((a, b) => a.date.localeCompare(b.date));
-    const window = 10;
+    // Adaptive rolling window: 10 is the target on a "rich" history
+    // (≥30 rides), but on a small dataset (e.g. a fresh user with 12 rides)
+    // a fixed window of 10 leaves only 3 visible points. Scale the window
+    // to ~n/3 with floor 4 and ceiling 10, so the chart stays useful even
+    // when the user has just started analysing rides.
+    const window = Math.max(4, Math.min(10, Math.ceil(all.length / 3)));
     const stds = rollingStd(all.map((p) => p.cda), window);
     // For each point, the displayed "sensor" is the *majority* sensor
     // among the 10 rides that make up the rolling σ window. That way a
@@ -407,8 +412,23 @@ export default function HistoryPage() {
       />
 
       {filteredEntries.length === 0 && entries.length > 0 && (
-        <div className="bg-panel border border-border rounded-lg p-4 text-center text-muted text-sm">
-          Aucune analyse ne correspond au filtre capteur.
+        <div className="bg-panel border border-amber-500/40 rounded-lg p-4 text-center text-muted text-sm space-y-2">
+          <div>
+            Aucune analyse ne correspond aux filtres en cours
+            {(selectedSensors.has("__none__") || selectedAthletes.has("__none__") || selectedBikes.has("__none__")) && (
+              <span> — un filtre est entièrement décoché.</span>
+            )}
+          </div>
+          <button
+            onClick={() => {
+              selectAllSensors();
+              selectAllAthletes();
+              selectAllBikes();
+            }}
+            className="text-info hover:text-info/80 underline text-xs"
+          >
+            Réinitialiser tous les filtres
+          </button>
         </div>
       )}
 
@@ -793,7 +813,7 @@ function FilterBlocks({ athletes, sensors, bikes, nFiltered, nTotal }: FilterBlo
   );
 }
 
-/** Mini-chart: rolling 10-ride CdA std over time, coloured by sensor quality.
+/** Mini-chart: rolling N-ride CdA std over time, coloured by sensor quality.
  *  A high std means high ride-to-ride variance — usually a sign that the
  *  sensor drifted or that the user's position was inconsistent. Sudden drops
  *  correspond to sensor swaps or better calibration. */
@@ -812,6 +832,9 @@ function RollingStdTimeline({
     typeof timeline[number] & { std: number }
   >;
   if (valid.length < 2) return null;
+  // Same adaptive formula as the parent — re-derive locally from the
+  // total timeline length so the title accurately states the window N.
+  const rollingWindowN = Math.max(4, Math.min(10, Math.ceil(timeline.length / 3)));
   const maxStd = Math.max(...valid.map((p) => p.std));
   // σ interpretation thresholds:
   //   < GOOD (0.03)    — good: rides are reproducible
@@ -899,19 +922,19 @@ function RollingStdTimeline({
     <div className="bg-panel border border-border rounded-lg p-4">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-semibold">
-          Stabilité du CdA (écart-type glissant sur 10 sorties)
+          Stabilité du CdA (écart-type glissant sur {rollingWindowN} sorties)
         </h3>
         <span className="text-[10px] text-muted font-mono">
           {valid.length} fenêtres · <span className="text-teal">σ&lt;{GOOD_STD.toFixed(2)}</span> bon · <span className="text-warn">&lt;{WARN_STD.toFixed(2)}</span> moyen · <span className="text-coral">&gt;{WARN_STD.toFixed(2)}</span> peu fiable
         </span>
       </div>
       <p className="text-[11px] text-muted mb-2 leading-tight">
-        Écart-type (σ) de votre CdA sur les 10 dernières sorties à chaque date.
+        Écart-type (σ) de votre CdA sur les {rollingWindowN} dernières sorties à chaque date.
         Plus c'est bas, plus vos estimations sont reproductibles. Une baisse
         brutale = changement de capteur ou meilleure calibration. Les zones
         horizontales indiquent le niveau de fiabilité (vert = bon, jaune =
-        moyen, rouge = peu fiable). Le fond teinté par capteur est
-        volontairement discret pour ne pas masquer les seuils.
+        moyen, rouge = peu fiable). La taille de la fenêtre est adaptée
+        au volume de votre historique (cible 10, plancher 4).
       </p>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
         {/* Horizontal σ interpretation bands: green = good, yellow = moderate,
@@ -1219,11 +1242,24 @@ function BiasHistogram({ entries, selectedSensors }: { entries: HistoryEntry[]; 
   type Sample = { ratio: number; sensor: string };
   const noSensorFilter = selectedSensors.size === 0;
   const bestByKey = new Map<string, { entry: HistoryEntry; rc: HistoryEntry["rideCdas"][number] }>();
+  // Counters used in the header so the user understands why some rides do
+  // not appear on the histogram. We split the "lost" rides into two buckets:
+  //   - missingBias: ride simply has no biasRatio recorded (legacy entries
+  //     created before bias persistence, or rides where the bias regression
+  //     failed). Not actionable for the user.
+  //   - filteredOutOfRange: bias is recorded but lies outside the histogram
+  //     window [0.6, 1.6]. Hiding them keeps the KDE readable, but the user
+  //     deserves to know the count so they can investigate the outliers.
+  let missingBias = 0;
+  let filteredOutOfRange = 0;
   for (const e of entries) {
     const athKey = e.athleteKey || "__unknown__";
     const entryHasPerRide = e.rideCdas.some((rc) => rc.powerMeter);
     for (const rc of e.rideCdas) {
-      if (rc.biasRatio == null || !Number.isFinite(rc.biasRatio)) continue;
+      if (rc.biasRatio == null || !Number.isFinite(rc.biasRatio)) {
+        missingBias++;
+        continue;
+      }
       // Resolve per-ride sensor key for the filter check.
       let sensorKey: string;
       if (rc.powerMeter) sensorKey = rc.powerMeter;
@@ -1250,8 +1286,13 @@ function BiasHistogram({ entries, selectedSensors }: { entries: HistoryEntry[]; 
   }
   const samples: Sample[] = [];
   for (const { entry: e, rc } of bestByKey.values()) {
+    const r = rc.biasRatio!;
+    if (r < 0.6 || r > 1.6) {
+      filteredOutOfRange++;
+      continue;
+    }
     samples.push({
-      ratio: rc.biasRatio!,
+      ratio: r,
       sensor: rc.powerMeter || e.powerMeterLabel || "Inconnu",
     });
   }
@@ -1352,8 +1393,19 @@ function BiasHistogram({ entries, selectedSensors }: { entries: HistoryEntry[]; 
         <h3 className="text-sm font-semibold">
           Distribution du biais de calibration par capteur
         </h3>
-        <span className="text-[10px] text-muted font-mono">
-          {samples.length} rides avec bias
+        <span
+          className="text-[10px] text-muted font-mono"
+          title={
+            (missingBias > 0 ? `${missingBias} ride${missingBias > 1 ? "s" : ""} sans biais enregistré (entrées historiques anciennes ou régression échouée). ` : "") +
+            (filteredOutOfRange > 0 ? `${filteredOutOfRange} ride${filteredOutOfRange > 1 ? "s" : ""} hors fenêtre [0.6, 1.6] non affichés (capteurs très décalibrés ou bug capteur).` : "")
+          }
+        >
+          {samples.length} rides
+          {(missingBias > 0 || filteredOutOfRange > 0) && (
+            <span className="text-amber-500/90">
+              {" "}(+{missingBias + filteredOutOfRange} masqués)
+            </span>
+          )}
         </span>
       </div>
       <p className="text-[11px] text-muted mb-2 leading-tight">

@@ -182,7 +182,10 @@ def _solve_chung_ve_inner(
         starts = [(cda_lower + 0.02,), (mid,), (cda_upper - 0.02,)]
         best = None
         for x0 in starts:
-            r = least_squares(res1, x0=x0, bounds=([cda_lower], [cda_upper]), method="trf")
+            r = least_squares(
+                res1, x0=x0, bounds=([cda_lower], [cda_upper]), method="trf",
+                x_scale="jac", ftol=1e-10, xtol=1e-10, gtol=1e-10,
+            )
             if best is None or r.cost < best.cost:
                 best = r
         cda = float(best.x[0])
@@ -213,6 +216,7 @@ def _solve_chung_ve_inner(
                 x0=x0,
                 bounds=(bounds_lower, bounds_upper),
                 method="trf",
+                x_scale="jac", ftol=1e-10, xtol=1e-10, gtol=1e-10,
             )
             if best is None or r.cost < best.cost:
                 best = r

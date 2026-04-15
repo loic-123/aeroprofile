@@ -1107,12 +1107,12 @@ export default function IntervalsPage() {
                 </div>
               </div>
 
-              {/* Method B (hierarchical) banner */}
+              {/* Méthode hiérarchique (DerSimonian–Laird) banner */}
               {(hierLoading || hierResult || hierError) && (
                 <div className="bg-panel border border-info/40 rounded-lg p-4">
                   <div className="text-xs text-muted uppercase tracking-wide flex items-center mb-2">
-                    Méthode B — Hiérarchique random-effects
-                    <InfoTooltip text="Optimisation conjointe sur toutes les rides : 1 Crr unique partagé, des CdA_i par ride contraints à varier autour d'un μ commun avec écart-type inter-rides τ. Réf. DerSimonian-Laird (1986), Gelman BDA3 ch.5." />
+                    Méthode hiérarchique (DerSimonian–Laird)
+                    <InfoTooltip text="Méta-analyse à effets aléatoires : chaque ride contribue son CdA_i avec son incertitude σ_i (Hessienne du fit Chung VE), puis l'estimateur DerSimonian–Laird combine ces estimations en agrégeant la variance inter-rides τ². Réf. DerSimonian & Laird (Controlled Clinical Trials, 1986), Higgins & Thompson (Stat. Med. 2002)." />
                   </div>
                   {hierLoading && (
                     <div className="flex items-center gap-2 text-muted text-sm">
@@ -1148,8 +1148,18 @@ export default function IntervalsPage() {
                         <div className="text-xl font-mono text-muted">±{hierResult.tau.toFixed(3)}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-muted">N rides</div>
-                        <div className="text-xl font-mono text-muted">{hierResult.n_rides}</div>
+                        <div className="text-xs text-muted flex items-center">
+                          N rides
+                          <InfoTooltip text="N = nombre de rides dans la méta-analyse. n_eff = effective sample size après pondération random-effects (Σwᵢ)²/Σwᵢ². Si n_eff << N, l'estimation est dominée par quelques rides (σ_i petits)." />
+                        </div>
+                        <div className="text-xl font-mono text-muted">
+                          {hierResult.n_rides}
+                          {typeof hierResult.n_eff === "number" && hierResult.n_eff > 0 && (
+                            <span className="text-xs text-muted font-normal ml-2">
+                              (n_eff = {hierResult.n_eff.toFixed(1)})
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1221,6 +1231,13 @@ export default function IntervalsPage() {
                     const nrmseCutoff = maxNrmse >= 100 ? 9.99 : maxNrmse / 100;
                     let reason = "";
                     let nrmseVal = 0;
+                    // exclusionCategory drives the chip colour so the user
+                    // can see at a glance what kind of problem dominated:
+                    //   "fit"   = nRMSE too high / model couldn't fit (red)
+                    //   "phys"  = CdA outside physical bounds (orange)
+                    //   "noisy" = solver bound-pegged or low confidence (yellow)
+                    //   "data"  = error / missing result (slate)
+                    let exclusionCategory: "fit" | "phys" | "noisy" | "data" | null = null;
                     if (r.error) {
                       reason = `Erreur : ${r.error}`;
                     } else if (r.result) {
@@ -1259,6 +1276,7 @@ export default function IntervalsPage() {
                         "sensor_miscalib_warn",
                         "model_mismatch_warn",
                         "insufficient_data",
+                        "weak_estimate",
                       ]);
                       if (r.result.quality_status && _softStatuses.has(r.result.quality_status)) {
                         const label = r.result.quality_status === "prior_dominated"
@@ -1267,7 +1285,9 @@ export default function IntervalsPage() {
                             ? "biais capteur modéré"
                             : r.result.quality_status === "model_mismatch_warn"
                               ? "modèle physique imparfait (vent API ou position inhabituelle)"
-                              : "trop de points filtrés";
+                              : r.result.quality_status === "weak_estimate"
+                                ? "estimation peu précise (σ_CdA élevée)"
+                                : "trop de points filtrés";
                         reason += `\nⓘ Signalement : ${label}`;
                       }
                       // Exhaustive exclusion explanation: enumerate every
@@ -1286,6 +1306,7 @@ export default function IntervalsPage() {
                           "sensor_miscalib_warn",
                           "model_mismatch_warn",
                           "insufficient_data",
+                          "weak_estimate",
                         ]);
                         const isHardStatus = r.result.quality_status
                           && !SOFT_STATUSES.has(r.result.quality_status);
@@ -1318,7 +1339,29 @@ export default function IntervalsPage() {
                         } else {
                           reason += `\n\n⚠ Exclue (raison non identifiée)`;
                         }
+                        // Pick the dominant category — order by user-actionability:
+                        // physical bound first (most diagnostic), then noisy
+                        // solvers, then nRMSE fit failure, then quality_status.
+                        if (r.result.cda < bikeBounds.minCda || r.result.cda > bikeBounds.maxCda) {
+                          exclusionCategory = "phys";
+                        } else if (
+                          r.result.quality_status === "bound_hit"
+                          || r.result.quality_status === "non_identifiable"
+                          || r.result.quality_status === "solvers_pegged"
+                          || r.result.solver_confidence === "low"
+                          || r.result.solver_confidence === "unknown"
+                        ) {
+                          exclusionCategory = "noisy";
+                        } else if (nrmseVal > nrmseCutoff) {
+                          exclusionCategory = "fit";
+                        } else if (r.result.quality_status === "sensor_miscalib" || r.result.quality_status === "model_mismatch") {
+                          exclusionCategory = "noisy";
+                        } else {
+                          exclusionCategory = "fit";
+                        }
                       }
+                    } else if (r.error) {
+                      exclusionCategory = "data";
                     }
                     return (
                       <button
@@ -1332,7 +1375,13 @@ export default function IntervalsPage() {
                         title={reason}
                         className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-mono transition ${
                           isBad
-                            ? "bg-red-900/20 text-red-400/60 line-through border border-red-900/40"
+                            ? exclusionCategory === "phys"
+                              ? "bg-orange-900/20 text-orange-400/70 line-through border border-orange-900/50"
+                              : exclusionCategory === "noisy"
+                                ? "bg-yellow-900/20 text-yellow-400/70 line-through border border-yellow-900/50"
+                                : exclusionCategory === "data"
+                                  ? "bg-slate-800/30 text-slate-400/70 line-through border border-slate-700"
+                                  : "bg-red-900/20 text-red-400/60 line-through border border-red-900/40"
                             : "bg-emerald-900/30 text-emerald-400 border border-emerald-800 hover:border-teal cursor-pointer"
                         }`}
                       >
@@ -1377,12 +1426,21 @@ export default function IntervalsPage() {
                     );
                   })}
                 </div>
-                <div className="flex gap-4 mt-1.5 text-[10px] text-muted">
+                <div className="flex gap-3 mt-1.5 text-[10px] text-muted flex-wrap">
                   <span className="flex items-center gap-1">
                     <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> Retenue (cliquer → détail)
                   </span>
-                  <span className="flex items-center gap-1">
-                    <span className="inline-block w-2 h-2 rounded-full bg-red-500" /> Exclue
+                  <span className="flex items-center gap-1" title="nRMSE trop élevé : le modèle physique ne reproduit pas la puissance mesurée">
+                    <span className="inline-block w-2 h-2 rounded-full bg-red-500" /> Fit raté (nRMSE)
+                  </span>
+                  <span className="flex items-center gap-1" title="CdA estimé hors des bornes physiques pour ce type de vélo">
+                    <span className="inline-block w-2 h-2 rounded-full bg-orange-500" /> Hors plage physique
+                  </span>
+                  <span className="flex items-center gap-1" title="Solveur en désaccord, borne touchée, ou Hessienne mal conditionnée">
+                    <span className="inline-block w-2 h-2 rounded-full bg-yellow-500" /> Solveur peu fiable
+                  </span>
+                  <span className="flex items-center gap-1" title="Erreur d'analyse — fichier corrompu ou pré-traitement échoué">
+                    <span className="inline-block w-2 h-2 rounded-full bg-slate-500" /> Erreur
                   </span>
                 </div>
                 <p className="text-[10px] text-muted mt-2 leading-relaxed">

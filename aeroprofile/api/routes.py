@@ -314,5 +314,6 @@ async def analyze_batch_endpoint(
         crr_ci_high=_f(h_result.crr_ci[1]),
         n_rides=h_result.n_rides,
         n_points_total=h_result.n_points_total,
+        n_eff=_f(h_result.n_eff),
         rides=summaries,
     )

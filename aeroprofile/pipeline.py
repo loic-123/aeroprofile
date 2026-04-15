@@ -1300,6 +1300,20 @@ async def analyze(
                 f"IC95 trop large). Probablement vent mal estimé, drafting non détecté, "
                 f"ou capteur de puissance déréglé."
             )
+        elif not np.isnan(cda_sigma_hess) and cda_sigma_hess > 0.03:
+            # weak_estimate (soft): the Hessian-based uncertainty on CdA is
+            # significant (>0.03 m²) but not catastrophic (≤0.05). Ride is
+            # kept in the aggregate because its CdA still carries some
+            # signal, but the user is warned that the individual estimate
+            # is noisy. Catches the middle band that the binary
+            # ok/non_identifiable split was missing.
+            quality_status = "weak_estimate"
+            quality_reason = (
+                f"Estimation peu précise sur cette sortie (σ_CdA = {cda_sigma_hess:.3f} m², "
+                f"juste sous le seuil de non-identifiabilité 0.05). La ride reste "
+                f"comptée dans l'agrégat (avec un poids faible en Méthode hiérarchique "
+                f"grâce à son σ_i élevé), mais son CdA individuel est peu fiable."
+            )
 
     # "Prior dominated" — the MLE pass (no prior) and the MAP pass (with prior)
     # disagree significantly. The data alone weren't informative enough to pin

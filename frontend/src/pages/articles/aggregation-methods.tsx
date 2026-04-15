@@ -82,10 +82,10 @@ export default function AggregationMethods() {
         </P>
       </Section>
 
-      <Section title="Méthode B — Meta-analyse random-effects (DerSimonian-Laird)">
+      <Section title="Méthode hiérarchique — Meta-analyse random-effects (DerSimonian–Laird)">
         <P>
-          La Méthode B traite explicitement la variation inter-rides comme un
-          paramètre à estimer. On suppose :
+          La méthode hiérarchique traite explicitement la variation inter-rides
+          comme un paramètre à estimer. On suppose :
         </P>
         <Formula>{String.raw`C_{dA,i} \sim \mathcal{N}(\mu,\; \tau^2),\quad \hat{C}_{dA,i} \sim \mathcal{N}(C_{dA,i},\; \sigma_i^2)`}</Formula>
         <P>
@@ -131,7 +131,7 @@ export default function AggregationMethods() {
         </P>
         <Warning>
           <strong>Bug historique corrigé en 2026.</strong> Une version
-          antérieure implémentait la Méthode B comme un <em>joint MLE</em>{" "}
+          antérieure implémentait la méthode hiérarchique comme un <em>joint MLE</em>{" "}
           sur <Tex>{String.raw`(\mu, \log\tau, C_{rr}, C_{dA,1}, \ldots, C_{dA,N})`}</Tex>{" "}
           via <code>scipy.optimize.least_squares</code>. La fonction de
           résidus passait <Tex>{String.raw`(C_{dA,i} - \mu) / \tau`}</Tex>{" "}
@@ -149,12 +149,30 @@ export default function AggregationMethods() {
           <Tex>{String.raw`\tau`}</Tex>.
         </Warning>
         <P>
-          <strong>Gate n≥5.</strong> Méthode B n'est pas disponible sous
-          cinq rides valides : le endpoint <code>/analyze-batch</code> renvoie
-          une 422 avec un message invitant l'utilisateur à utiliser la
-          Méthode A. Même avec DerSimonian-Laird, Cochran's Q sur 2-4 rides
-          est trop bruité pour donner un{" "}
-          <Tex>{String.raw`\hat{\tau}^2`}</Tex> informatif.
+          <strong>Gate n≥10.</strong> La méthode hiérarchique n'est pas
+          disponible sous dix rides valides : le endpoint{" "}
+          <code>/analyze-batch</code> renvoie une 422 avec un message invitant
+          l'utilisateur à utiliser la Méthode A. Même avec DerSimonian–Laird,
+          Cochran's Q sur 2-9 rides a trop peu de degrés de liberté pour donner
+          un <Tex>{String.raw`\hat{\tau}^2`}</Tex> informatif (le ratio Q/df
+          devient instable, et <Tex>{String.raw`\hat{\tau}^2`}</Tex> s'écroule
+          au plancher sur la plupart des datasets réels).
+        </P>
+        <P>
+          <strong>Floor σ_i ≥ 0.010.</strong> Le σ_i de chaque ride (extrait
+          de la Hessienne du fit Chung VE) est plafonné à un minimum de
+          0.010 m². Sans ce plancher, une ride au σ_i numériquement très
+          petit (par exemple 0.003) capturerait <Tex>{String.raw`(0.010/0.003)^2 \approx 11`}</Tex>×{" "}
+          plus de poids que la moyenne — un résultat absurde dominé par une
+          seule ride. Le plancher 0.010 limite ce ratio à <Tex>{String.raw`\sim 4`}</Tex>×.
+        </P>
+        <P>
+          <strong>n_eff.</strong> L'UI affiche{" "}
+          <Tex>{String.raw`n_{\text{eff}} = (\sum_i w_i^{RE})^2 / \sum_i (w_i^{RE})^2`}</Tex>{" "}
+          à côté du nombre nominal de rides. Si{" "}
+          <Tex>{String.raw`n_{\text{eff}} \ll N`}</Tex>, c'est qu'une ou deux
+          rides dominent la moyenne — l'estimation reste valide mais l'IC95
+          est plus serré qu'il ne devrait l'être avec un dataset homogène.
         </P>
       </Section>
 
@@ -190,7 +208,7 @@ export default function AggregationMethods() {
                 <td className="font-sans text-teal">440× moins de biais</td>
               </tr>
               <tr>
-                <td className="py-1.5">Méthode B (hiérarchique random-effects)</td>
+                <td className="py-1.5">Méthode hiérarchique (DerSimonian–Laird)</td>
                 <td className="text-teal">0.0000 m²</td>
                 <td className="font-sans text-teal">Indépendant du prior par construction</td>
               </tr>
@@ -198,13 +216,14 @@ export default function AggregationMethods() {
           </table>
         </div>
         <Note>
-          Les méthodes A et B convergent vers le même chiffre à{" "}
-          <Tex>{String.raw`\sim 0.005\;\text{m}^2`}</Tex> près sur la plupart
-          des datasets. La Méthode B est utile surtout comme <strong>contrôle
-          de cohérence</strong> et pour estimer la variance inter-rides{" "}
-          <Tex>{String.raw`\tau`}</Tex> — qui est un signal physique
-          intéressant en soi (un cycliste avec <Tex>{String.raw`\tau`}</Tex>{" "}
-          élevé a une position moins reproductible).
+          Les méthodes A (inverse-variance) et hiérarchique convergent vers
+          le même chiffre à <Tex>{String.raw`\sim 0.005\;\text{m}^2`}</Tex>{" "}
+          près sur la plupart des datasets. La méthode hiérarchique est utile
+          surtout comme <strong>contrôle de cohérence</strong> et pour
+          estimer la variance inter-rides <Tex>{String.raw`\tau`}</Tex> — qui
+          est un signal physique intéressant en soi (un cycliste avec{" "}
+          <Tex>{String.raw`\tau`}</Tex> élevé a une position moins
+          reproductible).
         </Note>
       </Section>
 
@@ -216,11 +235,11 @@ export default function AggregationMethods() {
           interprétation est intuitive.
         </P>
         <P>
-          La Méthode B (hiérarchique) tourne <strong>en parallèle</strong>{" "}
-          dans tous ces modes <strong>dès qu'il y a au moins 5 rides valides</strong>,
+          La méthode hiérarchique tourne <strong>en parallèle</strong>{" "}
+          dans tous ces modes <strong>dès qu'il y a au moins 10 rides valides</strong>,
           et son résultat (<Tex>{String.raw`\mu`}</Tex> et{" "}
           <Tex>{String.raw`\tau`}</Tex>) est affiché à côté du résultat A. En
-          dessous de ce seuil, la Méthode B est désactivée avec un message
+          dessous de ce seuil, la méthode hiérarchique est désactivée avec un message
           explicite (voir section précédente). Si les deux méthodes divergent
           de <Tex>{String.raw`> 0.01\;\text{m}^2`}</Tex>, c'est un signal :
           probablement une ride très bruitée tire la moyenne A, ou la

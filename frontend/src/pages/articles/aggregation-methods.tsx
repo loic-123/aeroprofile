@@ -82,72 +82,79 @@ export default function AggregationMethods() {
         </P>
       </Section>
 
-      <Section title="Méthode B — Modèle hiérarchique random-effects">
+      <Section title="Méthode B — Meta-analyse random-effects (DerSimonian-Laird)">
         <P>
           La Méthode B traite explicitement la variation inter-rides comme un
-          paramètre du modèle. On suppose :
+          paramètre à estimer. On suppose :
         </P>
-        <Formula>{String.raw`C_{dA,i} \sim \mathcal{N}(\mu_{C_dA},\; \tau^2), \quad C_{rr} = \text{constante (équipement fixe)}`}</Formula>
+        <Formula>{String.raw`C_{dA,i} \sim \mathcal{N}(\mu,\; \tau^2),\quad \hat{C}_{dA,i} \sim \mathcal{N}(C_{dA,i},\; \sigma_i^2)`}</Formula>
         <P>
-          Les <Tex>{String.raw`N`}</Tex> rides ont chacune leur propre{" "}
-          <Tex>{String.raw`C_{dA,i}`}</Tex>, mais ces valeurs sont contraintes
-          à varier autour d'une moyenne <Tex>{String.raw`\mu_{C_dA}`}</Tex>{" "}
-          avec un écart-type inter-rides <Tex>{String.raw`\tau`}</Tex>. Le{" "}
-          <Tex>{String.raw`C_{rr}`}</Tex> est partagé (l'équipement ne change
-          pas entre les rides). On optimise simultanément :
-        </P>
-        <ul className="list-disc ml-6 space-y-1 text-text">
-          <li><strong><Tex>{String.raw`\mu_{C_dA}`}</Tex></strong> — le "CdA annuel" du cycliste, paramètre d'intérêt</li>
-          <li><strong><Tex>{String.raw`\tau`}</Tex></strong> — variance inter-rides (typiquement 0.01–0.04)</li>
-          <li><strong><Tex>{String.raw`C_{rr}`}</Tex></strong> — coefficient de roulement unique</li>
-          <li><strong><Tex>{String.raw`C_{dA,1}, \ldots, C_{dA,N}`}</Tex></strong> — un par ride, libres mais contraints</li>
-        </ul>
-        <P>
-          La fonction objectif est la somme, sur toutes les rides, des résidus
-          Chung Virtual Elevation, plus un terme de pénalité gaussien qui
-          contraint les <Tex>{String.raw`C_{dA,i}`}</Tex> à rester proches
-          de <Tex>{String.raw`\mu`}</Tex> :
-        </P>
-        <Formula>{String.raw`\mathcal{L} = \sum_{i=1}^{N}\sum_{t} \bigl(h_{\text{virt},i,t} - h_{\text{réel},i,t}\bigr)^2 + \sum_{i=1}^{N} \frac{(C_{dA,i} - \mu)^2}{\tau^2}`}</Formula>
-        <P>
-          C'est exactement le modèle DerSimonian-Laird (1986) appliqué au
-          cyclisme, ou en termes de Gelman BDA3 ch. 5, un modèle "partial
-          pooling" : ni "complete pooling" (un seul CdA pour tout) ni "no
-          pooling" (CdA totalement indépendants).
+          où <Tex>{String.raw`\mu`}</Tex> est le CdA "vrai" moyen du
+          cycliste, <Tex>{String.raw`\tau`}</Tex> est l'écart-type inter-rides
+          (la variance de son CdA d'une sortie à l'autre — fatigue, position
+          légèrement différente, veste, etc.), et{" "}
+          <Tex>{String.raw`\sigma_i`}</Tex> est l'incertitude de mesure sur
+          la <Tex>{String.raw`i`}</Tex>-ème ride (issue de la Hessienne du
+          solveur pour cette ride particulière).
         </P>
         <P>
-          <strong>Avantages :</strong> mathématiquement le plus rigoureux,
-          modélise explicitement la variation inter-rides, élimine
-          complètement le biais de prior (pas de prior par ride). L'IC final
-          de <Tex>{String.raw`\mu`}</Tex> vient directement de la Hessienne
-          globale.
+          C'est le modèle classique de la méta-analyse en random-effects,
+          attribué à DerSimonian & Laird (1986). La formule fermée pour{" "}
+          <Tex>{String.raw`\tau^2`}</Tex> et <Tex>{String.raw`\mu`}</Tex>{" "}
+          passe par <em>Cochran's Q</em>, une statistique d'hétérogénéité
+          calculée à partir de la moyenne fixed-effect et des poids inverses
+          de la variance :
+        </P>
+        <Formula>{String.raw`w_i^{FE} = \frac{1}{\sigma_i^2},\quad \mu_{FE} = \frac{\sum_i w_i^{FE} \hat{C}_{dA,i}}{\sum_i w_i^{FE}}`}</Formula>
+        <Formula>{String.raw`Q = \sum_{i=1}^{N} w_i^{FE}\,(\hat{C}_{dA,i} - \mu_{FE})^2`}</Formula>
+        <Formula>{String.raw`\hat{\tau}^2 = \max\!\left(0,\; \frac{Q - (N - 1)}{\sum_i w_i^{FE} - \sum_i (w_i^{FE})^2 / \sum_i w_i^{FE}}\right)`}</Formula>
+        <P>
+          Une fois <Tex>{String.raw`\hat{\tau}^2`}</Tex> connu, les poids
+          random-effects redistribuent le poids entre "incertitude de mesure"
+          et "vraie variance inter-rides" :
+        </P>
+        <Formula>{String.raw`w_i^{RE} = \frac{1}{\sigma_i^2 + \hat{\tau}^2},\quad \hat{\mu} = \frac{\sum_i w_i^{RE} \hat{C}_{dA,i}}{\sum_i w_i^{RE}},\quad \text{SE}(\hat{\mu}) = \frac{1}{\sqrt{\sum_i w_i^{RE}}}`}</Formula>
+        <P>
+          L'IC95 sur <Tex>{String.raw`\mu`}</Tex> est{" "}
+          <Tex>{String.raw`\hat{\mu} \pm 1.96\,\text{SE}(\hat{\mu})`}</Tex>{" "}
+          — distribution-free, pas de Hessienne globale, pas d'optimisation
+          non-linéaire sur <Tex>{String.raw`\tau`}</Tex>.
         </P>
         <P>
-          <strong>Bornes sur <Tex>{String.raw`\tau`}</Tex>.</strong>{" "}
-          L'optimisation impose <Tex>{String.raw`\tau \in [0.005, 0.40]`}</Tex>.
-          Une version antérieure avait fixé le plafond à 0.20, et en pratique
-          l'estimateur le touchait sur <em>tous</em> les runs réels — ce qui
-          signifie que la variance inter-rides estimée était systématiquement
-          sous-évaluée. Relever la borne à 0.40 couvre même les populations
-          très hétérogènes (mélange de positions, d'équipements) sans
-          compromettre la convergence.
+          <strong>Avantages :</strong> forme fermée, rapide, robuste. Chaque
+          ride est estimée indépendamment (on réutilise le solveur Chung VE
+          single-ride existant), puis la fusion se fait analytiquement.
+          L'hétérogénéité est exposée via{" "}
+          <Tex>{String.raw`\hat{\tau}`}</Tex> et l'indice{" "}
+          <Tex>{String.raw`I^2 = \max(0, (Q - N + 1)/Q)`}</Tex> (0% = rides
+          parfaitement cohérentes, 100% = toute la variance est inter-rides).
         </P>
+        <Warning>
+          <strong>Bug historique corrigé en 2026.</strong> Une version
+          antérieure implémentait la Méthode B comme un <em>joint MLE</em>{" "}
+          sur <Tex>{String.raw`(\mu, \log\tau, C_{rr}, C_{dA,1}, \ldots, C_{dA,N})`}</Tex>{" "}
+          via <code>scipy.optimize.least_squares</code>. La fonction de
+          résidus passait <Tex>{String.raw`(C_{dA,i} - \mu) / \tau`}</Tex>{" "}
+          qui donne le terme quadratique du log-vraisemblance Gaussien{" "}
+          <Tex>{String.raw`\sum_i (C_{dA,i} - \mu)^2 / \tau^2`}</Tex> — mais
+          le terme de normalisation <Tex>{String.raw`N \log \tau`}</Tex> du
+          vrai négatif log-vraisemblance était absent. Sans ce terme, le
+          solveur pouvait rendre le coût arbitrairement petit en augmentant{" "}
+          <Tex>{String.raw`\tau`}</Tex>, donc{" "}
+          <Tex>{String.raw`\tau^\star = +\infty`}</Tex> et la solution
+          atterrissait systématiquement à la borne supérieure. Relever le
+          plafond de 0.20 à 0.40 n'a rien changé : le bug était structurel,
+          pas une question de bornes. Le passage à DerSimonian-Laird élimine
+          entièrement le problème en évitant l'optimisation non-linéaire sur{" "}
+          <Tex>{String.raw`\tau`}</Tex>.
+        </Warning>
         <P>
-          <strong>Gate n≥5.</strong> Méthode B n'est plus disponible sous
+          <strong>Gate n≥5.</strong> Méthode B n'est pas disponible sous
           cinq rides valides : le endpoint <code>/analyze-batch</code> renvoie
           une 422 avec un message invitant l'utilisateur à utiliser la
-          Méthode A. La raison est numérique : sous{" "}
-          <Tex>{String.raw`N=5`}</Tex>, l'estimateur de{" "}
-          <Tex>{String.raw`\tau`}</Tex> s'effondre vers le plancher ou le
-          plafond selon la graine de l'optimiseur, et la valeur retournée
-          n'est essentiellement pas une variance. Plutôt que d'afficher un
-          chiffre trompeur avec IC artificiellement serré, on refuse
-          explicitement.
-        </P>
-        <P>
-          <strong>Limites :</strong> plus lourd à calculer (<Tex>{String.raw`N \times \text{points} \times \text{itérations}`}</Tex> de
-          l'optimisation jointe), résultat en bloc à la fin (pas de progress
-          bar par ride).
+          Méthode A. Même avec DerSimonian-Laird, Cochran's Q sur 2-4 rides
+          est trop bruité pour donner un{" "}
+          <Tex>{String.raw`\hat{\tau}^2`}</Tex> informatif.
         </P>
       </Section>
 

@@ -1112,6 +1112,62 @@ async def analyze(
     quality_status = "ok"
     quality_reason = ""
 
+    cda_bound_tol = 0.005  # ~1% of the typical bike-type range
+    _cda_at_bound = (
+        sol.cda <= bcfg.cda_lower + cda_bound_tol
+        or sol.cda >= bcfg.cda_upper - cda_bound_tol
+    )
+
+    # --- solvers_pegged (hard) ---
+    # A stronger version of bound_hit: BOTH the kept solver (wind_inverse
+    # after pass-2 if any, or Chung as fallback) AND the Chung cross-check
+    # are sitting at a physical bound. When both independent solvers agree
+    # that the "best" CdA is pile à the bound, the ride is fundamentally
+    # non-identifiable — the data don't contain a coherent aero signal,
+    # and the apparent "agreement" is an artefact of the bound, not of the
+    # physics. Observed typical cause: drafting in a group, where the
+    # measured power is ~30-60 W higher than the theoretical power at the
+    # rider's actual CdA, so both solvers push CdA to the max to dissipate
+    # the excess power. Cannot be distinguished from a 30%+ power-meter
+    # bias by any solver alone. Excluded from aggregates.
+    #
+    # Check uses a slightly wider tolerance (0.010 m²) than the single-
+    # solver bound_hit (0.005 m²), because the "both pegged" signal is
+    # informative even when one of the two is technically at 0.494 (like
+    # the observed i93281538 drafting ride: wind=0.494, chung=0.500).
+    _two_solvers_pegged_tol = 0.010
+    _wind_pegged = (
+        sol.cda <= bcfg.cda_lower + _two_solvers_pegged_tol
+        or sol.cda >= bcfg.cda_upper - _two_solvers_pegged_tol
+    )
+    _chung_pegged = (
+        chung_cda is not None
+        and (chung_cda <= bcfg.cda_lower + _two_solvers_pegged_tol
+             or chung_cda >= bcfg.cda_upper - _two_solvers_pegged_tol)
+    )
+    if _wind_pegged and _chung_pegged:
+        quality_status = "solvers_pegged"
+        _side_high = sol.cda >= bcfg.cda_upper - _two_solvers_pegged_tol
+        _side = "supérieure" if _side_high else "inférieure"
+        _cause_high = (
+            "vent réel plus fort que celui d'Open-Meteo (souvent sur côte "
+            "ou vallée), position très droite ce jour-là, ou biais capteur "
+            "positif combiné"
+        )
+        _cause_low = (
+            "vent réel plus faible que celui d'Open-Meteo (ou vent arrière "
+            "réel plus fort), position très aérodynamique, drafting effectif, "
+            "ou biais capteur négatif combiné"
+        )
+        quality_reason = (
+            f"Les deux solveurs indépendants (wind_inverse et Chung VE) "
+            f"ont convergé à la borne {_side} (wind={sol.cda:.3f}, "
+            f"chung={chung_cda:.3f}). Le modèle physique ne trouve pas "
+            f"de CdA cohérent pour cette sortie — causes possibles : "
+            f"{_cause_high if _side_high else _cause_low}. "
+            f"Ride exclue de l'agrégat."
+        )
+
     # P1 (B4 refined) — sensor_miscalib: two tiers.
     #   - HARD: |bias - 1| > 0.20 OR (|bias - 1| > 0.15 AND CdA at bound).
     #     The solver's estimate is unusable. Excluded from aggregates like
@@ -1120,11 +1176,6 @@ async def analyze(
     #     the bounds. The estimate is salvageable but has a systematic bias
     #     proportional to the sensor miscalibration. Kept in the aggregate
     #     (like prior_dominated) with a warn badge.
-    cda_bound_tol = 0.005  # ~1% of the typical bike-type range
-    _cda_at_bound = (
-        sol.cda <= bcfg.cda_lower + cda_bound_tol
-        or sol.cda >= bcfg.cda_upper - cda_bound_tol
-    )
     _bias_devi = abs(power_bias_ratio - 1.0) if power_bias_ratio is not None else 0.0
     _bias_miscalib_hard = power_bias_ratio is not None and (
         _bias_devi > 0.20 or (_bias_devi > 0.15 and _cda_at_bound)
@@ -1132,7 +1183,7 @@ async def analyze(
     _bias_miscalib_warn = power_bias_ratio is not None and (
         _bias_devi > 0.10 and not _bias_miscalib_hard
     )
-    if _bias_miscalib_hard:
+    if quality_status == "ok" and _bias_miscalib_hard:
         quality_status = "sensor_miscalib"
         _pct = (power_bias_ratio - 1.0) * 100.0
         _direction = "au-dessus" if power_bias_ratio > 1.0 else "en-dessous"

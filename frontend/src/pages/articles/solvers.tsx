@@ -218,6 +218,33 @@ C_{dA} &\sim \mathcal{N}(0.30,\; 0.12^2) \\
             variance élevée) où le wind-inverse fitte un champ de vent peu
             contraint.
           </li>
+          <li>
+            <strong>unknown</strong> — un ou plusieurs solveurs (wind MAP,
+            chung MAP, wind raw, chung raw) sont collés à{" "}
+            <Tex>{String.raw`0.005\;\text{m}^2`}</Tex> d'une borne physique.
+            Dans ce cas, le delta entre les deux solveurs peut sembler
+            minuscule alors qu'en réalité ils sont tous les deux scotchés
+            contre le mur — leur "accord" est un artefact de la borne, pas
+            un signal que l'estimation est robuste. L'utilisation en priorité
+            des valeurs <em>hors prior</em> (pass 0) permet de détecter ces
+            cas : si même sans le prior le solveur ne bouge pas de la borne,
+            c'est que les données forcent le résultat contre la contrainte
+            physique.
+          </li>
+          <li>
+            <strong>solvers_pegged</strong> (une classe à part) — quand{" "}
+            <em>les deux</em> solveurs (le principal et le Chung cross-check)
+            sont à moins de <Tex>{String.raw`0.010\;\text{m}^2`}</Tex> d'une
+            borne physique <em>après</em> la passe 2 VE, la ride est
+            classée <code>solvers_pegged</code> et{" "}
+            <strong>exclue de l'agrégat</strong>. Deux solveurs indépendants
+            qui convergent tous deux à la borne signifient que le modèle
+            physique ne trouve pas de CdA cohérent pour cette sortie — les
+            causes typiques sont un vent réel très différent d'Open-Meteo,
+            une position très éloignée du prior, ou une combinaison vent +
+            biais capteur. Aucun solveur isolé ne peut démêler ces causes,
+            donc on refuse explicitement d'afficher une valeur.
+          </li>
         </ul>
         <P>
           Le delta et la classification sont exposés en tant que badge sur

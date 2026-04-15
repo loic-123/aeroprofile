@@ -126,6 +126,7 @@ npm run dev
 │                                                  │
 │   · bound_hit / non_identifiable / prior_dom.   │
 │   · sensor_miscalib (hard + warn tiers)         │
+│   · solvers_pegged (both solvers at bound)      │
 │   · insufficient_data (<25% points kept)        │
 │   · Power-meter classification (sensor DB)      │
 │   · Calibration bias ratio (flat/pedaling)      │
@@ -213,13 +214,14 @@ The UI displays `cda_raw` (the Pass 0 conditional MLE) alongside the posterior C
 **Solver cross-check (always on).** Chung VE runs on every ride as an independent control, in addition to its role as a fallback when wind_inverse has no usable result. Both solvers use the same R² on altitude reconstruction, so the cross-check delta `|CdA_wind − CdA_chung|` is a meaningful indicator of how much the result depends on the wind-treatment choice. The delta is classified into a confidence bucket (`high` < 0.02, `medium` 0.02–0.05, `low` ≥ 0.05) and surfaced as a badge on each ride chip. A filter in the Intervals page lets the user exclude rides below a chosen confidence level from the aggregate.
 
 **Quality gate (automatic exclusion + soft warnings).** Each ride falls into one of these statuses, checked in this order:
-1. **`sensor_miscalib`** (hard, excluded) — power-meter bias > ±20% on flat pedaling, OR > ±15% combined with a CdA bound hit. The solver's estimate is unusable; the issue is the sensor, not the algorithm.
-2. **`bound_hit`** (excluded) — the solver's CdA estimate sits pile on a physical bound after the safety checks (degenerate: the solver *wanted* to leave the plausible range).
-3. **`non_identifiable`** (excluded) — `σ_Hess(CdA) > 0.05` m² — the Hessian is too flat to separate CdA from the other parameters.
-4. **`prior_dominated`** (kept with warn) — the Pass 0 MLE and Pass 1 MAP disagree by > 0.05 m². The estimate is still informative but heavily influenced by the position prior.
-5. **`sensor_miscalib_warn`** (kept with warn) — power-meter bias ∈ [±10%, ±20%] on a ride where the solver still converged inside the bounds. The estimate is salvageable but carries a systematic bias proportional to the calibration offset.
-6. **`insufficient_data`** (kept with warn) — fewer than 25% of the total points survived the segment filters (cherry-picked subset, probably urban / stop-heavy).
-7. **`ok`** — no issue detected.
+1. **`solvers_pegged`** (hard, excluded) — **both** the main solver (wind_inverse or its pass-2 refinement) **and** the independent Chung VE cross-check have converged to a physical bound (wind within 0.010 m² AND chung within 0.010 m² of either `cda_lower` or `cda_upper`). Two independent solvers agreeing on "the best CdA is pile at the bound" means the ride is fundamentally non-identifiable by the physical model — the apparent "agreement" is an artefact of the bound. Common causes: Open-Meteo wind speed off on the rider's local conditions, position very far from the bike-type prior, or a combined sensor + wind error. No single gate can tease these apart.
+2. **`sensor_miscalib`** (hard, excluded) — power-meter bias > ±20% on flat pedaling, OR > ±15% combined with a CdA bound hit. The solver's estimate is unusable; the issue is likely the sensor.
+3. **`bound_hit`** (excluded) — the kept solver's CdA estimate sits pile on a physical bound after the safety checks (degenerate: the solver *wanted* to leave the plausible range), but the Chung cross-check disagrees enough that `solvers_pegged` didn't fire. A less severe single-solver dead-end.
+4. **`non_identifiable`** (excluded) — `σ_Hess(CdA) > 0.05` m² — the Hessian is too flat to separate CdA from the other parameters.
+5. **`prior_dominated`** (kept with warn) — the Pass 0 MLE and Pass 1 MAP disagree by > 0.05 m². The estimate is still informative but heavily influenced by the position prior.
+6. **`sensor_miscalib_warn`** (kept with warn) — power-meter bias ∈ [±10%, ±20%] on a ride where the solver still converged inside the bounds. The estimate is salvageable but carries a systematic bias proportional to the calibration offset. (Note: on rides in unusual conditions like strong wind or very straight terrain, this flag can fire as a *false positive* — the bias ratio is computed against the `CdA_prior` baseline, and a real CdA far from the prior looks the same as a biased sensor.)
+7. **`insufficient_data`** (kept with warn) — fewer than 25% of the total points survived the segment filters (cherry-picked subset, probably urban / stop-heavy).
+8. **`ok`** — no issue detected.
 
 Soft statuses (prior_dominated, sensor_miscalib_warn, insufficient_data) are **kept** in the aggregate so the user doesn't lose data on borderline rides, but show a badge in the UI so the user knows the estimate is less trustworthy.
 
@@ -302,9 +304,13 @@ AeroProfile reports two independent aggregate CdA values when more than one ride
 
 - **Method A — weighted mean.** Each ride contributes `w_i = valid_points_i × quality_weight_i` where `quality_weight_i` interpolates between 1.0 (worst nRMSE in the batch) and 3.0 (best). The aggregate is `Σ(w_i · CdA_i) / Σw_i`. The IC95 is computed from a **weighted** sample variance `Σ(w_i · (CdA_i − μ)²) / Σw_i` — consistent with the weighting of the mean (an earlier version used an unweighted variance, which made short rides pollute the uncertainty). The standard error is `σ_w / √n` for the mean's interval.
 
-- **Method B — hierarchical random-effects (joint MLE).** When ≥ 5 valid rides are available, a single joint optimisation fits `(μ, τ, [Crr,] CdA_1, …, CdA_N)` where `CdA_i ~ N(μ, τ²)` and Crr is shared across rides. τ is bounded in `[0.005, 0.40]` — an earlier version capped it at 0.20, which was reached on virtually every real-world run because the ceiling was too low. The mu CI comes from the full Laplace approximation on the joint Jacobian. Below 5 rides the method is explicitly refused with a 422 — τ is ill-defined on too few rides and the user is told to rely on Method A instead.
+- **Method B — random-effects meta-analysis (DerSimonian-Laird).** When ≥ 5 valid rides are available, Method B runs a **DerSimonian-Laird (DL)** random-effects estimator — the classical closed-form meta-analysis formula from DerSimonian & Laird (1986). Each ride is first estimated independently via Chung VE (the Hessian CI from the per-ride solve gives σ_i), then τ² is computed in closed form from Cochran's Q: `τ² = max(0, (Q − (k−1)) / (Σw_i − Σw_i²/Σw_i))`. Finally μ is the random-effects weighted mean with `w_i' = 1/(σ_i² + τ²)`, and its IC95 comes from `SE(μ) = 1/√(Σw_i')`.
 
-Both methods share the same rule: rides marked `bound_hit`, `sensor_miscalib` or `non_identifiable` are excluded; rides marked `prior_dominated`, `sensor_miscalib_warn` or `insufficient_data` are kept but badged as lower-confidence.
+  An earlier version tried a joint MLE on `(μ, log τ, CdA_1..N)` via `least_squares`, but the residual formulation passed `(cda_i − μ) / τ` which gives the quadratic term of the Gaussian NLL without the normalising term `N · log(τ)`. Without the normaliser, the solver always pushed τ to the upper bound — first 0.20, then 0.40 after we raised it — on every real-world run. DL sidesteps this entirely with its closed-form τ² and reports a true inter-ride dispersion (observed range on the Favero dataset: 0.02–0.05 m²).
+
+  Below 5 rides Method B is explicitly refused with a 422 — even with DL, Cochran's Q on 2-4 rides is too noisy to be useful, and the user is told to rely on Method A.
+
+Both methods share the same rule: rides marked `solvers_pegged`, `bound_hit`, `sensor_miscalib` or `non_identifiable` are excluded; rides marked `prior_dominated`, `sensor_miscalib_warn` or `insufficient_data` are kept but badged as lower-confidence.
 
 ### 12. Performance — Method B batches
 

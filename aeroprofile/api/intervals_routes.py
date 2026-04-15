@@ -171,6 +171,13 @@ class SessionLogPayload(BaseModel):
     n_candidates: Optional[int] = None  # rides matching filters
     n_selected: Optional[int] = None    # after sensor filter etc
     sensor_filter: Optional[list[str]] = None  # e.g. ['FAVERO_ELECTRONICS 22']
+    # Post-analysis UI filters that shape which rides contribute to the
+    # aggregate. Logged here so the session log carries the full context
+    # the user was looking at, even for soft filters that don't affect
+    # individual ride analysis.
+    min_confidence: Optional[str] = None  # "off" | "medium" | "high"
+    use_cache: Optional[bool] = None
+    ignored_entries_count: Optional[int] = None  # history entries hidden from charts
 
 
 @router.post("/log-session")
@@ -183,7 +190,8 @@ async def log_session(payload: SessionLogPayload):
         "SESSION_START profile='%s'(%s) mode=%s mass=%s bike=%s pos='%s' "
         "crr=%s prior=(%s,%s) maxNrmse=%s "
         "dates=[%s..%s] dist=[%s..%s]km D+<%sm D+/km<%s dur>%sh excl_group=%s "
-        "n_cand=%s n_sel=%s sensors=%s",
+        "n_cand=%s n_sel=%s sensors=%s "
+        "| ui_filters: min_confidence=%s use_cache=%s ignored_entries=%s",
         payload.profile_name, payload.profile_key, payload.mode,
         payload.mass_kg, payload.bike_type, payload.position_label,
         payload.crr_fixed, payload.cda_prior_mean, payload.cda_prior_sigma,
@@ -194,6 +202,9 @@ async def log_session(payload: SessionLogPayload):
         payload.exclude_group,
         payload.n_candidates, payload.n_selected,
         ",".join(payload.sensor_filter) if payload.sensor_filter else "all",
+        payload.min_confidence or "off",
+        payload.use_cache if payload.use_cache is not None else "unset",
+        payload.ignored_entries_count if payload.ignored_entries_count is not None else "unset",
     )
     return {"status": "ok"}
 
@@ -317,6 +328,7 @@ def _build_analysis_out(result):
         power_bias_ratio=_f(result.power_bias_ratio) if result.power_bias_ratio is not None else None,
         power_bias_n_points=result.power_bias_n_points,
         chung_cda=_f(result.chung_cda) if result.chung_cda is not None else None,
+        chung_cda_raw=_f(result.chung_cda_raw) if result.chung_cda_raw is not None else None,
         solver_cross_check_delta=_f(result.solver_cross_check_delta) if result.solver_cross_check_delta is not None else None,
         solver_confidence=result.solver_confidence,
         gear_id=result.gear_id,

@@ -67,6 +67,7 @@ class AnalysisResultOut(BaseModel):
     power_bias_ratio: Optional[float] = None
     power_bias_n_points: int = 0
     chung_cda: Optional[float] = None
+    chung_cda_raw: Optional[float] = None
     solver_cross_check_delta: Optional[float] = None
     solver_confidence: str = "unknown"
     gear_id: Optional[str] = None

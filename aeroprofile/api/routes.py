@@ -185,6 +185,7 @@ async def analyze_endpoint(
         power_bias_ratio=_f(result.power_bias_ratio) if result.power_bias_ratio is not None else None,
         power_bias_n_points=result.power_bias_n_points,
         chung_cda=_f(result.chung_cda) if result.chung_cda is not None else None,
+        chung_cda_raw=_f(result.chung_cda_raw) if result.chung_cda_raw is not None else None,
         solver_cross_check_delta=_f(result.solver_cross_check_delta) if result.solver_cross_check_delta is not None else None,
         solver_confidence=result.solver_confidence,
         gear_id=result.gear_id,

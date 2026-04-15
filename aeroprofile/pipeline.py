@@ -106,7 +106,11 @@ class AnalysisResult:
     #   confidence = "high"   when |delta| < 0.02
     #   confidence = "medium" when 0.02 <= |delta| < 0.05
     #   confidence = "low"    when |delta| >= 0.05
+    #   confidence = "unknown" when the comparison is meaningless (a solver
+    #                pegged to the physical bound — the agreement is an
+    #                artefact of the bound, not of the data)
     chung_cda: Optional[float] = None
+    chung_cda_raw: Optional[float] = None
     solver_cross_check_delta: Optional[float] = None
     solver_confidence: str = "unknown"
 
@@ -645,6 +649,7 @@ async def analyze(
             cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
         )
         chung_cda = float(chung.cda)
+        chung_cda_raw = float(chung.cda_raw) if getattr(chung, "cda_raw", None) is not None else None
         # Reject Chung as winner when it sits pile à the physical bound —
         # that's a degenerate solution, not a better fit. 0.005 m² tolerance
         # matches the bound tolerance used downstream by the quality gate.
@@ -730,17 +735,71 @@ async def analyze(
     solver_cross_check_delta: Optional[float] = None
     solver_confidence = "unknown"
     if chung_cda is not None:
-        solver_cross_check_delta = float(abs(chung_cda - sol.cda))
-        if solver_cross_check_delta < 0.02:
+        # Prefer the "hors prior" (cda_raw) values when both solvers expose
+        # them. They reflect the data signal without the position prior
+        # pulling, so comparing them catches a class of false positives:
+        # when wind_inverse and Chung are both at the physical bound, their
+        # cda values look identical (Δ=0) giving fake "high" confidence
+        # even though neither has converged to a real solution. The cda_raw
+        # values escape the bound because pass-0 removes the CdA prior
+        # entirely and the solver drifts freely.
+        _wind_raw = sol.cda_raw
+        _chung_raw = chung_cda_raw
+        _use_raw = (
+            _wind_raw is not None
+            and _chung_raw is not None
+            and not (np.isnan(_wind_raw) or np.isnan(_chung_raw))
+        )
+        _cmp_main = _wind_raw if _use_raw else sol.cda
+        _cmp_chung = _chung_raw if _use_raw else chung_cda
+        _cmp_label = "raw" if _use_raw else "MAP"
+
+        # Any of the compared values at a physical bound → the comparison is
+        # meaningless. Mark the ride as confidence="unknown" so the UI doesn't
+        # display a misleading "high confidence" badge on a bound-pegged ride.
+        _bound_tol_cc = 0.005
+        _wind_at_bound = (
+            sol.cda <= bcfg.cda_lower + _bound_tol_cc
+            or sol.cda >= bcfg.cda_upper - _bound_tol_cc
+        )
+        _chung_at_bound = (
+            chung_cda <= bcfg.cda_lower + _bound_tol_cc
+            or chung_cda >= bcfg.cda_upper - _bound_tol_cc
+        )
+        # Also flag bound-pegged raw values — if the pass-0 MLE itself hits
+        # the bound, there's no "hors prior" signal to fall back on.
+        _wind_raw_at_bound = (
+            _wind_raw is not None
+            and not np.isnan(_wind_raw)
+            and (_wind_raw <= bcfg.cda_lower + _bound_tol_cc
+                 or _wind_raw >= bcfg.cda_upper - _bound_tol_cc)
+        )
+        _chung_raw_at_bound = (
+            _chung_raw is not None
+            and not np.isnan(_chung_raw)
+            and (_chung_raw <= bcfg.cda_lower + _bound_tol_cc
+                 or _chung_raw >= bcfg.cda_upper - _bound_tol_cc)
+        )
+        any_at_bound = (
+            _wind_at_bound or _chung_at_bound
+            or _wind_raw_at_bound or _chung_raw_at_bound
+        )
+
+        solver_cross_check_delta = float(abs(_cmp_chung - _cmp_main))
+        if any_at_bound:
+            solver_confidence = "unknown"
+        elif solver_cross_check_delta < 0.02:
             solver_confidence = "high"
         elif solver_cross_check_delta < 0.05:
             solver_confidence = "medium"
         else:
             solver_confidence = "low"
         logger.info(
-            "CROSSCHECK confidence=%s | main=%.3f chung=%.3f Δ=%.3f "
-            "(thresholds: <0.02 high, <0.05 medium, ≥0.05 low)",
-            solver_confidence, sol.cda, chung_cda, solver_cross_check_delta,
+            "CROSSCHECK confidence=%s | using %s values | main=%.3f chung=%.3f Δ=%.3f "
+            "| bound flags: wind_map=%s chung_map=%s wind_raw=%s chung_raw=%s "
+            "(thresholds: <0.02 high, <0.05 medium, ≥0.05 low; bound⇒unknown)",
+            solver_confidence, _cmp_label, _cmp_main, _cmp_chung, solver_cross_check_delta,
+            _wind_at_bound, _chung_at_bound, _wind_raw_at_bound, _chung_raw_at_bound,
         )
     else:
         logger.info("CROSSCHECK confidence=unknown (chung did not produce a CdA)")
@@ -1319,6 +1378,7 @@ async def analyze(
         power_bias_ratio=power_bias_ratio,
         power_bias_n_points=power_bias_n_points,
         chung_cda=chung_cda,
+        chung_cda_raw=chung_cda_raw,
         solver_cross_check_delta=solver_cross_check_delta,
         solver_confidence=solver_confidence,
         gear_id=gear_id,

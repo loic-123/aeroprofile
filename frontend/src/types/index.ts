@@ -63,6 +63,7 @@ export const SOFT_QUALITY_STATUSES = new Set<string>([
   "ok",
   "prior_dominated",
   "sensor_miscalib_warn",
+  "model_mismatch_warn",
   "insufficient_data",
 ]);
 
@@ -139,7 +140,7 @@ export interface AnalysisResult {
   crr_was_fixed: boolean;
   solver_method: string;
   solver_note: string;
-  quality_status?: "ok" | "bound_hit" | "non_identifiable" | "high_nrmse" | "prior_dominated" | "sensor_miscalib" | "sensor_miscalib_warn" | "insufficient_data" | "solvers_pegged";
+  quality_status?: "ok" | "bound_hit" | "non_identifiable" | "high_nrmse" | "prior_dominated" | "sensor_miscalib" | "sensor_miscalib_warn" | "model_mismatch" | "model_mismatch_warn" | "insufficient_data" | "solvers_pegged";
 
   quality_reason?: string;
   prior_adaptive_factor?: number;

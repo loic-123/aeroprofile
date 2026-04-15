@@ -125,7 +125,8 @@ npm run dev
 │   6. QUALITY GATE + SENSOR DIAGNOSTICS          │
 │                                                  │
 │   · bound_hit / non_identifiable / prior_dom.   │
-│   · sensor_miscalib (hard + warn tiers)         │
+│   · sensor_miscalib / model_mismatch            │
+│      (sensor-quality-aware bias gate)           │
 │   · solvers_pegged (both solvers at bound)      │
 │   · insufficient_data (<25% points kept)        │
 │   · Power-meter classification (sensor DB)      │
@@ -214,16 +215,16 @@ The UI displays `cda_raw` (the Pass 0 conditional MLE) alongside the posterior C
 **Solver cross-check (always on).** Chung VE runs on every ride as an independent control, in addition to its role as a fallback when wind_inverse has no usable result. Both solvers use the same R² on altitude reconstruction, so the cross-check delta `|CdA_wind − CdA_chung|` is a meaningful indicator of how much the result depends on the wind-treatment choice. The delta is classified into a confidence bucket (`high` < 0.02, `medium` 0.02–0.05, `low` ≥ 0.05) and surfaced as a badge on each ride chip. A filter in the Intervals page lets the user exclude rides below a chosen confidence level from the aggregate.
 
 **Quality gate (automatic exclusion + soft warnings).** Each ride falls into one of these statuses, checked in this order:
-1. **`solvers_pegged`** (hard, excluded) — **both** the main solver (wind_inverse or its pass-2 refinement) **and** the independent Chung VE cross-check have converged to a physical bound (wind within 0.010 m² AND chung within 0.010 m² of either `cda_lower` or `cda_upper`). Two independent solvers agreeing on "the best CdA is pile at the bound" means the ride is fundamentally non-identifiable by the physical model — the apparent "agreement" is an artefact of the bound. Common causes: Open-Meteo wind speed off on the rider's local conditions, position very far from the bike-type prior, or a combined sensor + wind error. No single gate can tease these apart.
-2. **`sensor_miscalib`** (hard, excluded) — power-meter bias > ±20% on flat pedaling, OR > ±15% combined with a CdA bound hit. The solver's estimate is unusable; the issue is likely the sensor.
-3. **`bound_hit`** (excluded) — the kept solver's CdA estimate sits pile on a physical bound after the safety checks (degenerate: the solver *wanted* to leave the plausible range), but the Chung cross-check disagrees enough that `solvers_pegged` didn't fire. A less severe single-solver dead-end.
+1. **`solvers_pegged`** (hard, excluded) — **both** the main solver (wind_inverse or its pass-2 refinement) **and** the independent Chung VE cross-check have converged to a physical bound (wind within 0.010 m² AND chung within 0.010 m² of either `cda_lower` or `cda_upper`). Two independent solvers agreeing on "the best CdA is pile at the bound" means the ride is fundamentally non-identifiable by the physical model — the apparent "agreement" is an artefact of the bound.
+2. **`sensor_miscalib`** / **`model_mismatch`** (hard, excluded) — bias ratio (measured ÷ theoretical power) > ±20% on flat pedaling, OR > ±15% combined with a CdA bound hit. The label depends on the sensor: with a **low/medium-quality** meter (single-side cranks like 4iiii Precision, Stages Left) we report `sensor_miscalib` because zero-offset drift is the most likely cause and the actionable fix is "check zero-offset". With a **high-quality** dual-pedal/dual-spider meter (Favero Assioma Duo, Garmin Rally dual, Quarq, SRM, etc.) we report `model_mismatch` because real sensor drift on these is rare (≤ ±5-10%) — the cause is much more likely to be Open-Meteo wind off on the local conditions, position very different from the bike-type prior, or another unmodelled physical effect.
+3. **`bound_hit`** (excluded) — the kept solver's CdA estimate sits pile on a physical bound after the safety checks, but the Chung cross-check disagrees enough that `solvers_pegged` didn't fire. A less severe single-solver dead-end.
 4. **`non_identifiable`** (excluded) — `σ_Hess(CdA) > 0.05` m² — the Hessian is too flat to separate CdA from the other parameters.
 5. **`prior_dominated`** (kept with warn) — the Pass 0 MLE and Pass 1 MAP disagree by > 0.05 m². The estimate is still informative but heavily influenced by the position prior.
-6. **`sensor_miscalib_warn`** (kept with warn) — power-meter bias ∈ [±10%, ±20%] on a ride where the solver still converged inside the bounds. The estimate is salvageable but carries a systematic bias proportional to the calibration offset. (Note: on rides in unusual conditions like strong wind or very straight terrain, this flag can fire as a *false positive* — the bias ratio is computed against the `CdA_prior` baseline, and a real CdA far from the prior looks the same as a biased sensor.)
+6. **`sensor_miscalib_warn`** / **`model_mismatch_warn`** (kept with warn) — bias ∈ [±10%, ±20%] on a ride where the solver converged inside the bounds. Same sensor-quality split as above: low/medium meter → "sensor calibration drift", high meter → "wind API or position mismatch with the prior".
 7. **`insufficient_data`** (kept with warn) — fewer than 25% of the total points survived the segment filters (cherry-picked subset, probably urban / stop-heavy).
 8. **`ok`** — no issue detected.
 
-Soft statuses (prior_dominated, sensor_miscalib_warn, insufficient_data) are **kept** in the aggregate so the user doesn't lose data on borderline rides, but show a badge in the UI so the user knows the estimate is less trustworthy.
+Soft statuses (prior_dominated, sensor_miscalib_warn, model_mismatch_warn, insufficient_data) are **kept** in the aggregate so the user doesn't lose data on borderline rides, but show a badge in the UI so the user knows the estimate is less trustworthy.
 
 Rides are **not** gated by nRMSE in the backend: a fuzzy fit with well-identified parameters is still informative. The user's "nRMSE threshold" slider in the UI is the only nRMSE filter — keeping the user in control of which rides count toward the aggregate. An additional "solver agreement" filter lets the user optionally exclude rides whose Chung cross-check delta is too large.
 
@@ -310,7 +311,7 @@ AeroProfile reports two independent aggregate CdA values when more than one ride
 
   Below 5 rides Method B is explicitly refused with a 422 — even with DL, Cochran's Q on 2-4 rides is too noisy to be useful, and the user is told to rely on Method A.
 
-Both methods share the same rule: rides marked `solvers_pegged`, `bound_hit`, `sensor_miscalib` or `non_identifiable` are excluded; rides marked `prior_dominated`, `sensor_miscalib_warn` or `insufficient_data` are kept but badged as lower-confidence.
+Both methods share the same rule: rides marked `solvers_pegged`, `bound_hit`, `sensor_miscalib`, `model_mismatch` or `non_identifiable` are excluded; rides marked `prior_dominated`, `sensor_miscalib_warn`, `model_mismatch_warn` or `insufficient_data` are kept but badged as lower-confidence.
 
 ### 12. Performance — Method B batches
 

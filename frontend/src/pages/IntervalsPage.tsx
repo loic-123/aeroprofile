@@ -1257,6 +1257,7 @@ export default function IntervalsPage() {
                       const _softStatuses = new Set([
                         "prior_dominated",
                         "sensor_miscalib_warn",
+                        "model_mismatch_warn",
                         "insufficient_data",
                       ]);
                       if (r.result.quality_status && _softStatuses.has(r.result.quality_status)) {
@@ -1264,7 +1265,9 @@ export default function IntervalsPage() {
                           ? "prior dominé"
                           : r.result.quality_status === "sensor_miscalib_warn"
                             ? "biais capteur modéré"
-                            : "trop de points filtrés";
+                            : r.result.quality_status === "model_mismatch_warn"
+                              ? "modèle physique imparfait (vent API ou position inhabituelle)"
+                              : "trop de points filtrés";
                         reason += `\nⓘ Signalement : ${label}`;
                       }
                       // Exhaustive exclusion explanation: enumerate every
@@ -1281,6 +1284,7 @@ export default function IntervalsPage() {
                           "ok",
                           "prior_dominated",
                           "sensor_miscalib_warn",
+                          "model_mismatch_warn",
                           "insufficient_data",
                         ]);
                         const isHardStatus = r.result.quality_status

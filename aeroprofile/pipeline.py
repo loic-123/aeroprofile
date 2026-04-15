@@ -1099,6 +1099,18 @@ async def analyze(
     except Exception as _e:
         logger.warning("Power bias ratio computation failed: %s", _e)
 
+    # Classify the power meter now (it's used below by the quality gate to
+    # decide whether a high "bias ratio" is a genuine sensor issue or a
+    # model mismatch). Was originally done just before the return, but we
+    # need the quality flag earlier.
+    from aeroprofile.power_meter_quality import classify_power_meter
+    _pmi = classify_power_meter(power_meter_name)
+    if power_meter_name:
+        logger.info(
+            "POWER_METER %s -> quality=%s category=%s",
+            power_meter_name, _pmi.quality, _pmi.category,
+        )
+
     # --- Quality gate ---
     # Mark the ride as unusable for aggregation if any of the following holds:
     #   1. CdA or Crr hit a bound (within 1% tolerance) → degenerate solution,
@@ -1168,40 +1180,75 @@ async def analyze(
             f"Ride exclue de l'agrégat."
         )
 
-    # P1 (B4 refined) — sensor_miscalib: two tiers.
-    #   - HARD: |bias - 1| > 0.20 OR (|bias - 1| > 0.15 AND CdA at bound).
-    #     The solver's estimate is unusable. Excluded from aggregates like
-    #     bound_hit. Actionable message → "check zero-offset".
-    #   - WARN: |bias - 1| > 0.10 but the solver still converged away from
-    #     the bounds. The estimate is salvageable but has a systematic bias
-    #     proportional to the sensor miscalibration. Kept in the aggregate
-    #     (like prior_dominated) with a warn badge.
+    # P1 (B4 refined) — bias anomaly in two tiers, split by sensor quality.
+    #
+    # The power_bias_ratio is (measured / theoretical) on flat pedaling,
+    # where "theoretical" uses the bike-type prior CdA and a reference Crr.
+    # A bias ratio far from 1.0 has TWO very different possible causes:
+    #
+    #   (a) Sensor miscalibration (zero-offset drift, single-leg meter
+    #       that doubled a biased measurement, temperature drift...). This
+    #       is common on LOW-quality meters (single-side crank like 4iiii
+    #       Precision, Stages Left) and plausible on MEDIUM meters. It is
+    #       effectively IMPOSSIBLE on HIGH-quality dual-pedal/dual-spider
+    #       meters (Favero Assioma Duo, Garmin Rally dual, Quarq, SRM)
+    #       which never drift more than ±5-10% in practice.
+    #
+    #   (b) Model mismatch: the physical model underlying the theoretical
+    #       power is wrong on THIS ride. Typical causes — Open-Meteo wind
+    #       speed is off (vent réel différent de l'API), the ride was in
+    #       an unusual position (very aero or very upright compared to
+    #       the bike-type prior), the drivetrain efficiency differed,
+    #       there were lots of unmodelled accelerations, etc. The power
+    #       meter is fine, the theoretical reference is just wrong.
+    #
+    # On high-quality meters we report (b) instead of (a). On the others
+    # we report (a) because it's statistically more likely and the user
+    # benefits from the actionable "check zero-offset" message.
     _bias_devi = abs(power_bias_ratio - 1.0) if power_bias_ratio is not None else 0.0
-    _bias_miscalib_hard = power_bias_ratio is not None and (
+    _bias_anomaly_hard = power_bias_ratio is not None and (
         _bias_devi > 0.20 or (_bias_devi > 0.15 and _cda_at_bound)
     )
-    _bias_miscalib_warn = power_bias_ratio is not None and (
-        _bias_devi > 0.10 and not _bias_miscalib_hard
+    _bias_anomaly_warn = power_bias_ratio is not None and (
+        _bias_devi > 0.10 and not _bias_anomaly_hard
     )
+    # Pick which class of status to use based on the sensor quality.
+    _trust_sensor = _pmi.quality == "high"
+    _hard_status = "model_mismatch" if _trust_sensor else "sensor_miscalib"
+    _warn_status = "model_mismatch_warn" if _trust_sensor else "sensor_miscalib_warn"
+
     # Each block below is guarded with `quality_status == "ok"` so that a
     # status assigned earlier (e.g. solvers_pegged) is preserved instead of
     # being overwritten. Before this guard, the bound_hit elif silently
     # overwrote solvers_pegged on rides where both solvers landed exactly
     # on the bound (observed on i94665638, i90787068).
-    if quality_status == "ok" and _bias_miscalib_hard:
-        quality_status = "sensor_miscalib"
+    if quality_status == "ok" and _bias_anomaly_hard:
+        quality_status = _hard_status
         _pct = (power_bias_ratio - 1.0) * 100.0
         _direction = "au-dessus" if power_bias_ratio > 1.0 else "en-dessous"
         _bound_note = (
             f" Le solveur a tapé la borne CdA ({sol.cda:.3f}) pour compenser."
             if _cda_at_bound else ""
         )
-        quality_reason = (
-            f"Capteur de puissance probablement décalibré ({_pct:+.0f}% "
-            f"{_direction} de la puissance théorique sur les portions plates)."
-            f"{_bound_note} "
-            "Vérifie le zero-offset au départ de la prochaine sortie."
-        )
+        if _trust_sensor:
+            quality_reason = (
+                f"Écart important entre la puissance mesurée et la puissance "
+                f"théorique attendue ({_pct:+.0f}% {_direction}). "
+                f"Le modèle physique (vent Open-Meteo, position de référence, "
+                f"rendement de transmission) ne parvient pas à expliquer la "
+                f"puissance observée sur cette sortie.{_bound_note} "
+                f"Causes probables : vent réel différent de l'API sur ta zone, "
+                f"position inhabituelle, ou conditions non modélisées "
+                f"(accélérations cumulées, route collante, etc.). Ride exclue "
+                f"de l'agrégat."
+            )
+        else:
+            quality_reason = (
+                f"Capteur de puissance probablement décalibré ({_pct:+.0f}% "
+                f"{_direction} de la puissance théorique sur les portions plates)."
+                f"{_bound_note} "
+                "Vérifie le zero-offset au départ de la prochaine sortie."
+            )
     if quality_status == "ok" and sol.cda <= bcfg.cda_lower + cda_bound_tol:
         quality_status = "bound_hit"
         quality_reason = f"Solveur bloqué à la borne inférieure CdA ({sol.cda:.3f} ≈ {bcfg.cda_lower:.2f}). Modèle non applicable sur cette sortie."
@@ -1281,20 +1328,33 @@ async def analyze(
                 "individuelle est moins fiable."
             )
 
-    # B4 — sensor_miscalib_warn: moderate power-meter bias (10-20%) on a
-    # ride where the solver converged away from the bounds. Kept in the
-    # aggregate like prior_dominated. Fires only if no stronger gate caught
-    # the ride first.
-    if quality_status == "ok" and _bias_miscalib_warn:
-        quality_status = "sensor_miscalib_warn"
+    # Moderate bias anomaly (10-20%) on a ride where the solver converged
+    # away from the bounds. Kept in the aggregate like prior_dominated.
+    # Fires only if no stronger gate caught the ride first. The status
+    # name (sensor_miscalib_warn vs model_mismatch_warn) and the reason
+    # text are picked based on the sensor quality, same logic as the
+    # hard tier above.
+    if quality_status == "ok" and _bias_anomaly_warn:
+        quality_status = _warn_status
         _pct = (power_bias_ratio - 1.0) * 100.0
         _direction = "au-dessus" if power_bias_ratio > 1.0 else "en-dessous"
-        quality_reason = (
-            f"Biais capteur modéré ({_pct:+.0f}% {_direction} du théorique). "
-            "Le solveur a pu absorber ce biais via le champ de vent ou le "
-            "roulement, mais le CdA individuel est probablement décalé "
-            f"dans le même sens. La ride reste comptée dans l'agrégat."
-        )
+        if _trust_sensor:
+            quality_reason = (
+                f"Écart modéré ({_pct:+.0f}% {_direction}) entre la puissance "
+                f"mesurée et la puissance théorique attendue — probablement "
+                f"dû à un vent réel différent de celui d'Open-Meteo, ou une "
+                f"position légèrement différente du prior ce jour-là. Le "
+                f"solveur a pu absorber l'écart via le champ de vent ou le "
+                f"roulement, mais le CdA individuel est probablement décalé "
+                f"dans le même sens. La ride reste comptée dans l'agrégat."
+            )
+        else:
+            quality_reason = (
+                f"Biais capteur modéré ({_pct:+.0f}% {_direction} du théorique). "
+                "Le solveur a pu absorber ce biais via le champ de vent ou le "
+                "roulement, mais le CdA individuel est probablement décalé "
+                f"dans le même sens. La ride reste comptée dans l'agrégat."
+            )
 
     # B10 — insufficient_data: too few valid points survived the segment
     # filters. A cherry-picked subset can make the CdA look artificially
@@ -1376,14 +1436,9 @@ async def analyze(
     elev_gain = float(np.sum(dalt[dalt > 0]))
     duration = float((df["timestamp"].iloc[-1] - df["timestamp"].iloc[0]).total_seconds())
 
-    # Power meter classification — logged for diagnostics
-    from aeroprofile.power_meter_quality import classify_power_meter
-    _pmi = classify_power_meter(power_meter_name)
-    if power_meter_name:
-        logger.info(
-            "POWER_METER %s -> quality=%s category=%s",
-            power_meter_name, _pmi.quality, _pmi.category,
-        )
+    # (Power meter classification was moved to just before the quality
+    # gate so the gate can distinguish sensor_miscalib from model_mismatch.
+    # _pmi is already in scope here.)
 
     return AnalysisResult(
         solver_method=solver_method,

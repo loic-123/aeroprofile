@@ -130,12 +130,12 @@ export default function PowerMeterQuality() {
           est biaisé. Dans les deux cas, le solveur va devoir compenser.
         </P>
         <Note>
-          <strong>Seuils utilisés par AeroProfile</strong> :
+          <strong>Seuils utilisés par AeroProfile</strong> (tiers hard/warn
+          basés sur |ratio − 1|) :
           <ul className="list-disc pl-5 mt-1 text-sm">
-            <li><span className="text-coral font-mono">ratio &gt; 1.35</span> → avertissement fort "capteur probablement mal calibré, recalibrer avant la prochaine sortie"</li>
-            <li><span className="text-warn font-mono">1.20 &lt; ratio ≤ 1.35</span> → avertissement doux</li>
-            <li><span className="text-teal font-mono">0.80 ≤ ratio ≤ 1.20</span> → tout va bien</li>
-            <li><span className="text-warn font-mono">ratio &lt; 0.80</span> → capteur sous-estimé, ou vent arrière majeur</li>
+            <li><span className="text-coral font-mono">|ratio − 1| &gt; 0.20</span> ou (<span className="text-coral font-mono">&gt; 0.15</span> + CdA à la borne) → exclusion hard</li>
+            <li><span className="text-warn font-mono">|ratio − 1| &gt; 0.10</span> → avertissement soft (ride gardée dans l'agrégat)</li>
+            <li><span className="text-teal font-mono">|ratio − 1| ≤ 0.10</span> → tout va bien</li>
           </ul>
         </Note>
         <P>
@@ -143,6 +143,56 @@ export default function PowerMeterQuality() {
           physique, pas le solveur. Un capteur biaisé qui passe toutes les
           vérifications du solveur (R² élevé, Hessienne non dégénérée) sera{" "}
           <em>quand même</em> détecté ici.
+        </P>
+      </Section>
+
+      <Section title="Interprétation : sensor_miscalib vs model_mismatch">
+        <P>
+          Un ratio loin de 1.0 a <strong>deux causes très différentes</strong>,
+          et AeroProfile choisit l'interprétation en fonction de la qualité
+          du capteur — sans laquelle on ne peut rien trancher :
+        </P>
+        <ul className="list-disc ml-6 space-y-2 text-text text-sm">
+          <li>
+            <strong>(a) Vrai biais capteur</strong> — zéro offset oublié,
+            drift température sur un capteur mono-jambe, décalage mécanique
+            interne. Courant sur les capteurs <em>low quality</em> (4iiii
+            Precision, Stages Left) et plausible sur <em>medium</em>. La
+            réponse est actionnable : faire un zero-offset au départ de la
+            prochaine sortie.
+          </li>
+          <li>
+            <strong>(b) Mauvais modèle physique</strong> — le capteur est
+            honnête mais la puissance <em>théorique</em> de référence est
+            fausse. Causes typiques : vent réel très différent d'Open-Meteo
+            sur la zone (vallée, rafales, effet de site), position
+            franchement différente du prior du type de vélo (tops vs drops),
+            rendement de transmission variable, accélérations cumulées
+            mal capturées par le lissage 5 s. <strong>Le capteur n'est pas
+            en cause, et aucun zero-offset ne réglera le problème</strong>.
+            Quasi-certain sur les capteurs <em>high quality</em>
+            (Assioma Duo, Garmin Rally dual, Quarq, SRM) qui ne dérivent
+            pas de plus de ±5–10% dans la vraie vie.
+          </li>
+        </ul>
+        <P>
+          Concrètement, quand la ride est analysée avec un capteur <em>high</em>,
+          AeroProfile passe le statut de{" "}
+          <code>sensor_miscalib</code>/<code>sensor_miscalib_warn</code> à{" "}
+          <code>model_mismatch</code>/<code>model_mismatch_warn</code>. Le
+          nom du statut change, le message change (pas de mention du
+          zero-offset), mais la logique d'exclusion reste identique : les
+          seuils hard/warn sont les mêmes, et les rides hard sont exclues
+          de l'agrégat dans les deux cas.
+        </P>
+        <P>
+          Cette distinction est importante parce qu'elle évite les messages
+          trompeurs. Quand l'utilisateur roule avec un Assioma Duo et voit
+          une ride flaggée <code>model_mismatch</code>, il sait que ce n'est
+          pas la peine de recalibrer — c'est le vent API ou la position
+          inhabituelle qui causent l'écart. À l'inverse, quand un 4iiii
+          remonte un <code>sensor_miscalib</code>, le zero-offset est la
+          première chose à vérifier.
         </P>
       </Section>
 

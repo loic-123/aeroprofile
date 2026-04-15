@@ -185,7 +185,19 @@ async def log_session(payload: SessionLogPayload):
     """Dump a session-start metadata block to the log. Called once by the
     frontend before launching an analysis loop so the log contains the
     full context (profile, filters, sensor selection, ...) alongside
-    the per-ride ANALYZE lines."""
+    the per-ride ANALYZE lines.
+
+    Side effect: rotates the backend log file so each user analysis run
+    lands in its own session_<timestamp>_<tag>.log — no more interleaved
+    runs in a single file. The tag uses the profile name (sanitised) so
+    the filename is human-searchable."""
+    try:
+        from aeroprofile.api.app import rotate_session_log
+        tag = (payload.profile_name or payload.profile_key or "").replace(" ", "_")
+        rotate_session_log(tag=tag)
+    except Exception as _e:
+        _log.warning("Session log rotation failed: %s", _e)
+
     _log.info(
         "SESSION_START profile='%s'(%s) mode=%s mass=%s bike=%s pos='%s' "
         "crr=%s prior=(%s,%s) maxNrmse=%s "

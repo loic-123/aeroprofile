@@ -1121,7 +1121,18 @@ export default function IntervalsPage() {
                     </div>
                   )}
                   {hierError && (
-                    <div className="text-coral text-sm">Échec : {hierError}</div>
+                    // The n<10 gate is a deliberate design choice (τ² too
+                    // noisy below that threshold), not an error. Render it
+                    // in muted tone with an info icon so the user doesn't
+                    // read it as a crash. Any other hierError stays coral.
+                    hierError.includes("au moins 10 sorties") ? (
+                      <div className="text-muted text-sm flex items-start gap-2">
+                        <span className="text-info mt-0.5">ⓘ</span>
+                        <span>{hierError}</span>
+                      </div>
+                    ) : (
+                      <div className="text-coral text-sm">Échec : {hierError}</div>
+                    )
                   )}
                   {hierResult && (
                     <div className="flex items-center gap-6 flex-wrap">

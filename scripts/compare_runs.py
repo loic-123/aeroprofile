@@ -1,5 +1,9 @@
 """Compare two AeroProfile session log files and print a side-by-side diff.
 
+Note: this script prints unicode (Δ, σ). On Windows terminals the default
+console encoding is cp1252; we reconfigure stdout to utf-8 at startup so
+the script works out-of-the-box from PowerShell or cmd.exe.
+
 Reads two `logs/session_*.log` files, extracts the per-ride ANALYZE lines and
 the METHOD_B aggregate, and prints a table of CdA / nRMSE / quality_status
 deltas. Intended for "did this fix change anything" runs where the same
@@ -22,6 +26,15 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+# Force UTF-8 on Windows terminals so the Δ / σ / ⚠ characters don't crash
+# the default cp1252 console encoder.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
 
 
 ANALYZE_RE = re.compile(

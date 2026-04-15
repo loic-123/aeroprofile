@@ -594,7 +594,14 @@ export default function App() {
                               </div>
                             )}
                             {hierError && (
-                              <div className="text-sm text-coral mt-1">Erreur : {hierError}</div>
+                              hierError.includes("au moins 10 sorties") ? (
+                                <div className="text-sm text-muted mt-1 flex items-start gap-2">
+                                  <span className="text-info mt-0.5">ⓘ</span>
+                                  <span>{hierError}</span>
+                                </div>
+                              ) : (
+                                <div className="text-sm text-coral mt-1">Erreur : {hierError}</div>
+                              )
                             )}
                             {hierResult && (
                               <div className="flex items-center gap-3 flex-wrap mt-1">

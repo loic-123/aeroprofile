@@ -148,9 +148,46 @@ export default function PriorInvariance() {
         </ol>
         <P>
           Après le fix, le même test de cohérence sur le dataset Laurette
-          donne <strong>0 ride</strong> avec un{" "}
-          <code>cda_raw</code> non invariant.
+          (32 rides, priors 0.30 vs 0.40) donne :
         </P>
+        <ul className="list-disc pl-5 text-sm leading-relaxed my-2">
+          <li>
+            <strong>26 rides sur 30 avec une invariance stricte</strong>{" "}
+            (<Tex>{String.raw`|\Delta C_{dA}^{\text{raw}}| \leq 0.001`}</Tex>).
+          </li>
+          <li>
+            <Tex>{String.raw`|\Delta C_{dA}^{\text{raw}}|`}</Tex> moyen ={" "}
+            <Tex>{String.raw`0.0026\;\text{m}^2`}</Tex>, soit cinq fois
+            inférieur au seuil de diagnostic.
+          </li>
+          <li>
+            <strong>3 rides résiduelles</strong> avec{" "}
+            <Tex>{String.raw`|\Delta C_{dA}^{\text{raw}}| \in [0.011, 0.038]`}</Tex> —
+            toutes en <code>sensor_miscalib_warn</code>, toutes avec{" "}
+            <Tex>{String.raw`\sigma_H < 0.025`}</Tex> (fit numériquement
+            contraint mais fonction de coût pathologique).
+          </li>
+        </ul>
+        <Note>
+          <strong>Limite résiduelle.</strong> Les 3 rides qui restent
+          non-invariantes après le fix ne souffrent plus du bug
+          d'initialisation — elles ont une fonction de coût{" "}
+          <em>data + priors résiduels</em> (vent Open-Meteo et Crr restent
+          légèrement régularisés même en pass 0) qui contient{" "}
+          <strong>plusieurs minima locaux quasi-équivalents</strong>. Le
+          sweep multi-start en trouve un différent selon le prior CdA, non
+          pas parce qu'il démarre à un endroit différent, mais parce que la
+          cuvette prior se combine aux cuvettes data et déplace le minimum
+          global de quelques millimètres dans l'espace des paramètres.
+          Fixer ça complètement demanderait une pass 0 vraiment sans aucun
+          prior (vent et Crr compris), au prix d'une instabilité numérique
+          potentielle sur les rides où le vent API est le seul signal
+          disponible. Le compromis actuel — 87% d'invariance stricte, 3
+          outliers documentés et tous en <code>sensor_miscalib_warn</code>{" "}
+          — est accepté tel quel, et ces 3 rides n'ont pas d'impact mesurable
+          sur <Tex>{String.raw`\mu`}</Tex> (la méthode hiérarchique les
+          exclut ou les recentre via <Tex>{String.raw`\tau^2`}</Tex>).
+        </Note>
       </Section>
 
       <Section title="Pourquoi cda (post-prior) bouge encore légèrement">

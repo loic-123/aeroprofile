@@ -128,6 +128,7 @@ export interface HierarchicalAnalysisResult {
   n_rides: number;
   n_points_total: number;
   n_eff?: number;
+  hksj_applied?: boolean;
   rides: HierarchicalRideSummary[];
 }
 
@@ -163,6 +164,10 @@ export interface AnalysisResult {
   chung_cda_raw?: number | null;
   solver_cross_check_delta?: number | null;
   solver_confidence?: "high" | "medium" | "low" | "unknown";
+  // Wind sensitivity: signed CdA delta when Open-Meteo wind is inflated
+  // by +5%. Surfaces in ResultsDashboard so the user sees whether the
+  // ride's CdA is fragile or robust to wind uncertainty.
+  cda_delta_wind_plus_5pct?: number | null;
   gear_id?: string | null;
   gear_name?: string | null;
   cda_climb: number | null;

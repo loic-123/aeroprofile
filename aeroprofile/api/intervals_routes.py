@@ -343,6 +343,7 @@ def _build_analysis_out(result):
         chung_cda_raw=_f(result.chung_cda_raw) if result.chung_cda_raw is not None else None,
         solver_cross_check_delta=_f(result.solver_cross_check_delta) if result.solver_cross_check_delta is not None else None,
         solver_confidence=result.solver_confidence,
+        cda_delta_wind_plus_5pct=_f(result.cda_delta_wind_plus_5pct) if result.cda_delta_wind_plus_5pct is not None else None,
         gear_id=result.gear_id,
         gear_name=result.gear_name,
         ride_date=result.ride_date,
@@ -452,27 +453,29 @@ async def analyze_batch_intervals(
                 ride_date="", excluded=True, exclusion_reason=reason,
             ))
 
-    if len(all_dfs) < 10:
-        # The DerSimonian–Laird random-effects estimator needs enough rides
-        # for τ² (inter-ride variance) to be statistically meaningful. Below
-        # n=10, the Q statistic has too few degrees of freedom and τ collapses
-        # to the floor on most realistic datasets. The inverse-variance
-        # aggregation (Method A, weighted mean) already handles small n
-        # correctly — refusing to run Method B below 10 prevents misleading
-        # the user with a "hierarchical" estimate that has no inter-ride
-        # signal to actually estimate.
-        _log.info(
-            "METHOD_B skipped: only %d valid rides, minimum required is 10 "
-            "(DL τ² is ill-defined below that threshold)",
-            len(all_dfs),
-        )
+    if len(all_dfs) < 2:
+        # Below n=2 there's simply nothing to aggregate. Keep this as a
+        # hard error because a "hierarchical mean over 0 or 1 ride" is
+        # meaningless.
+        _log.info("METHOD_B skipped: only %d valid rides (need ≥ 2)", len(all_dfs))
         raise HTTPException(
             status_code=422,
-            detail=f"Méthode hiérarchique nécessite au moins 10 sorties valides "
-                   f"(seulement {len(all_dfs)} disponibles après le preprocessing). "
-                   "En dessous de 10 rides, τ² (la variance inter-rides DerSimonian–Laird) "
-                   "ne peut pas être estimée de façon fiable — la moyenne pondérée "
-                   "(méthode A) reste plus honnête pour ce volume de données."
+            detail=f"Méthode hiérarchique nécessite au moins 2 sorties valides "
+                   f"(seulement {len(all_dfs)} disponible après le preprocessing).",
+        )
+    if len(all_dfs) < 10:
+        # Between 2 and 9 rides, the classical DL estimator + Gaussian IC95
+        # under-covers the true μ because (a) Cochran's Q has too few
+        # degrees of freedom for τ² to be well-estimated and (b) the
+        # normal-quantile 1.96 is too narrow when k is small. The
+        # Hartung–Knapp–Sidik–Jonkman (HKSJ) correction in solver/
+        # hierarchical.py widens the IC95 using a Student-t quantile and
+        # a q-factor that reinjects the data-driven scatter. IntHout et
+        # al. (BMC Med Res Methodol 2014) recommend HKSJ specifically for
+        # k < 10, which is the common case for recreational users.
+        _log.info(
+            "METHOD_B small-k: n=%d rides (<10) — HKSJ correction will widen the IC95.",
+            len(all_dfs),
         )
 
     # Fallback on bike-type default prior if the user didn't override.
@@ -541,5 +544,6 @@ async def analyze_batch_intervals(
         n_rides=h_result.n_rides,
         n_points_total=h_result.n_points_total,
         n_eff=_f(h_result.n_eff),
+        hksj_applied=bool(h_result.hksj_applied),
         rides=summaries,
     )

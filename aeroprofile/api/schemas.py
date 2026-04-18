@@ -70,6 +70,11 @@ class AnalysisResultOut(BaseModel):
     chung_cda_raw: Optional[float] = None
     solver_cross_check_delta: Optional[float] = None
     solver_confidence: str = "unknown"
+    # How much the CdA moves when the Open-Meteo wind speed is inflated
+    # by +5% (documented ERA5 bias on high winds). Null if the post-hoc
+    # Chung VE pass failed. Signed value: + means stronger wind → higher
+    # CdA, − means stronger wind → lower CdA.
+    cda_delta_wind_plus_5pct: Optional[float] = None
     gear_id: Optional[str] = None
     gear_name: Optional[str] = None
 
@@ -123,4 +128,7 @@ class HierarchicalAnalysisOut(BaseModel):
     # one or two rides dominate. Lets the UI flag a "Méthode hiérarchique"
     # estimate that's actually being driven by a small subset.
     n_eff: float = 0.0
+    # True when the Hartung–Knapp–Sidik–Jonkman small-k IC95 correction
+    # was applied (always for n_rides < 10, standard Gaussian otherwise).
+    hksj_applied: bool = False
     rides: list[HierarchicalRideSummary]

@@ -36,18 +36,32 @@ export default function FilterSummary({ result }: { result: AnalysisResult }) {
   const total = result.total_points;
   const valid = result.valid_points;
   const excluded = total - valid;
-  const pctValid = total > 0 ? ((valid / total) * 100).toFixed(1) : "0";
+  const retention = total > 0 ? valid / total : 0;
+  const pctValid = (retention * 100).toFixed(1);
+
+  // Retention tier aligned with the `insufficient_data` gate threshold
+  // (25%). Below 25% the backend marks the ride as `insufficient_data`;
+  // the 60% cutoff comes from empirical observation of clean rides.
+  const tier = retention >= 0.60 ? "good" : retention >= 0.25 ? "warn" : "bad";
+  const tierColor = tier === "good" ? "text-teal" : tier === "warn" ? "text-warn" : "text-coral";
+  const tierLabel = tier === "good" ? "bon" : tier === "warn" ? "modéré" : "insuffisant";
 
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
-      <h3 className="text-sm font-semibold mb-1 flex items-center">
+      <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
         Filtrage des données
-        <InfoTooltip text="Chaque filtre exclut les échantillons où le modèle physique ne s'applique pas (freinage, virages, puissance nulle, etc.). Le solveur ne travaille que sur les points 'valides'. Plus il y a de points valides, plus l'estimation est robuste." />
+        <InfoTooltip text="Chaque filtre exclut les échantillons où le modèle physique ne s'applique pas (freinage, virages, puissance nulle, etc.). Le solveur ne travaille que sur les points 'valides'. >60% = bon, 25-60% = modéré (interpréter avec prudence), <25% = ride probablement trop filtrée pour être représentative." />
+        <span
+          className={`ml-auto text-xs font-mono px-2 py-0.5 rounded border border-current/30 ${tierColor}`}
+          title="Rétention : >60% bon, 25-60% modéré, <25% insuffisant"
+        >
+          {pctValid}% ({tierLabel})
+        </span>
       </h3>
       <p className="text-xs text-muted mb-3">
         <span className="text-teal font-mono">{valid.toLocaleString()}</span> points
         utilisés sur{" "}
-        <span className="font-mono">{total.toLocaleString()}</span> ({pctValid}%)
+        <span className="font-mono">{total.toLocaleString()}</span>{" "}
         — <span className="font-mono">{excluded.toLocaleString()}</span> exclus
       </p>
 

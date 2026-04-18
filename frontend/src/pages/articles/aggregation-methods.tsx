@@ -149,14 +149,32 @@ export default function AggregationMethods() {
           <Tex>{String.raw`\tau`}</Tex>.
         </Warning>
         <P>
-          <strong>Gate n≥10.</strong> La méthode hiérarchique n'est pas
-          disponible sous dix rides valides : le endpoint{" "}
-          <code>/analyze-batch</code> renvoie une 422 avec un message invitant
-          l'utilisateur à utiliser la Méthode A. Même avec DerSimonian–Laird,
-          Cochran's Q sur 2-9 rides a trop peu de degrés de liberté pour donner
-          un <Tex>{String.raw`\hat{\tau}^2`}</Tex> informatif (le ratio Q/df
-          devient instable, et <Tex>{String.raw`\hat{\tau}^2`}</Tex> s'écroule
-          au plancher sur la plupart des datasets réels).
+          <strong>Correction HKSJ pour n&lt;10.</strong> Entre 2 et 9 rides,
+          l'IC95 asymptotique <Tex>{String.raw`\mu \pm 1.96 \cdot \text{SE}`}</Tex>{" "}
+          sous-couvre la vraie μ parce que (a) Cochran's Q n'a pas assez de
+          degrés de liberté pour que <Tex>{String.raw`\hat{\tau}^2`}</Tex>{" "}
+          soit bien estimé et (b) le quantile normal 1.96 est trop étroit
+          pour un petit échantillon. AeroProfile applique automatiquement
+          l'ajustement <strong>Hartung–Knapp–Sidik–Jonkman</strong> :
+        </P>
+        <Formula>{String.raw`q = \frac{1}{k-1}\;\frac{\sum_i w_i^{RE}\,(C_{dA,i} - \hat{\mu})^2}{\sum_i w_i^{RE}}`}</Formula>
+        <Formula>{String.raw`\text{SE}_{\text{HKSJ}} = \text{SE}_{\text{DL}} \cdot \sqrt{\max(q, 1)},\quad \text{IC95} = \hat{\mu} \pm t_{0.975, k-1} \cdot \text{SE}_{\text{HKSJ}}`}</Formula>
+        <P>
+          Le quantile de Student {" "}<Tex>{String.raw`t_{0.975, k-1}`}</Tex>{" "}
+          remplace 1.96 (≈ 3.18 pour k=4, ≈ 2.26 pour k=10, puis converge
+          vers 1.96). Le facteur <Tex>{String.raw`q`}</Tex> réinjecte la
+          dispersion empirique des CdA_i. Réf. IntHout, Ioannidis & Borm,
+          <em> BMC Med Res Methodol</em> 14:25 (2014). L'UI affiche un
+          badge <code>HKSJ small-k</code> à côté du titre du bloc quand la
+          correction est active, pour que l'utilisateur sache que l'IC95
+          exposé est élargi.
+        </P>
+        <P>
+          <strong>Gate minimal n≥2.</strong> Sous 2 rides, il n'y a tout
+          simplement rien à agréger et l'endpoint{" "}
+          <code>/analyze-batch</code> renvoie une 422. Au-delà de 2, HKSJ
+          s'occupe du small-k jusqu'à n=9, puis la correction désactive
+          d'elle-même pour n≥10 (le t-quantile converge vers le normal).
         </P>
         <P>
           <strong>Floor σ_i ≥ 0.010.</strong> Le σ_i de chaque ride (extrait

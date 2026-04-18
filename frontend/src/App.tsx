@@ -13,6 +13,7 @@ import type { AnalysisResult, HierarchicalAnalysisResult } from "./types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, isHardFailure, type BikeType } from "./types";
 import { Wind, Users, User, FileText, Loader2, BookOpen, Link2, Clock } from "lucide-react";
 import { saveToHistory, type HistoryEntry } from "./api/history";
+import { weightedAggregate, type AggregationInput } from "./lib/aggregate";
 import { getActiveProfile, type ProfileSettings } from "./api/profiles";
 import HistoryPage from "./pages/HistoryPage";
 import InfoTooltip from "./components/InfoTooltip";
@@ -177,28 +178,30 @@ export default function App() {
     // Save to history
     const goodForHistory = results.filter((r) => !r.excluded && r.result);
     if (goodForHistory.length > 0) {
-      const nrmses = goodForHistory.map((r) => Math.max((r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1), 0.01));
-      const bestN = Math.min(...nrmses), worstN = Math.max(...nrmses), span = worstN - bestN;
-      const weights: number[] = [];
-      let tw = 0, sc = 0, sr = 0, sp = 0, sRho = 0, sRmse = 0;
-      for (let j = 0; j < goodForHistory.length; j++) {
-        const res = goodForHistory[j].result!;
-        const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
-        const w = Math.max(res.valid_points, 1) * qw;
-        weights.push(w);
-        tw += w; sc += res.cda * w; sr += res.crr * w; sp += res.avg_power_w * w; sRho += res.avg_rho * w; sRmse += (res.rmse_w || 0) * w;
-      }
-      const hCda = sc / tw, hCrr = sr / tw;
-      let hLow: number | null = null, hHigh: number | null = null;
-      if (goodForHistory.length >= 2) {
-        // B5 — weighted variance to match the weighted mean above.
-        const cdas = goodForHistory.map((r) => r.result!.cda);
-        let wVar = 0;
-        for (let j = 0; j < cdas.length; j++) wVar += weights[j] * (cdas[j] - hCda) ** 2;
-        wVar /= tw;
-        const se = Math.sqrt(wVar / cdas.length);
-        hLow = hCda - 1.96 * se; hHigh = hCda + 1.96 * se;
-      }
+      // Use the unified weightedAggregate helper — guarantees the CdA
+      // saved to history matches what the user sees on screen (same
+      // formula used below for `aggCda`). Previously the save path used
+      // w = valid_points × quality while the display path used w =
+      // (1/σ²) × quality, so the two CdAs differed by up to 0.01 m².
+      const hAggInput: AggregationInput[] = goodForHistory.map((r) => ({
+        cda: r.result!.cda,
+        crr: r.result!.crr,
+        cdaCiLow: r.result!.cda_ci_low,
+        cdaCiHigh: r.result!.cda_ci_high,
+        avgPowerW: r.result!.avg_power_w,
+        avgRho: r.result!.avg_rho,
+        avgSpeedKmh: r.result!.avg_speed_kmh,
+        rmseW: r.result!.rmse_w || 0,
+        validPoints: r.result!.valid_points,
+      }));
+      const hAgg = weightedAggregate(hAggInput);
+      const hCda = hAgg?.cda ?? 0;
+      const hCrr = hAgg?.crr ?? 0;
+      const hLow: number | null = goodForHistory.length >= 2 && hAgg ? hAgg.cdaLow : null;
+      const hHigh: number | null = goodForHistory.length >= 2 && hAgg ? hAgg.cdaHigh : null;
+      const sRmseAvg = hAgg?.rmseW ?? 0;
+      const sPowerAvg = hAgg?.avgPowerW ?? 0;
+      const sRhoAvg = hAgg?.avgRho ?? 0;
       const fileNames = files.map((f) => f.name);
       const label = files.length === 1 ? fileNames[0] : `${goodForHistory.length} sortie${goodForHistory.length > 1 ? "s" : ""} (${fileNames[0]}${files.length > 1 ? "…" : ""})`;
       const hier = await hierPromise;
@@ -212,7 +215,7 @@ export default function App() {
         mode: "single",
         label,
         cda: hCda, cdaLow: hLow, cdaHigh: hHigh, crr: hCrr,
-        rmseW: sRmse / tw, avgPowerW: sp / tw, avgRho: sRho / tw,
+        rmseW: sRmseAvg, avgPowerW: sPowerAvg, avgRho: sRhoAvg,
         bikeType: bt,
         positionLabel: posPreset?.label || BIKE_TYPE_CONFIG[bt].label,
         massKg: mass_kg,
@@ -238,6 +241,9 @@ export default function App() {
           solverCrossCheckDelta: r.result!.solver_cross_check_delta ?? undefined,
           solverConfidence: r.result!.solver_confidence,
           qualityStatus: r.result!.quality_status,
+          cdaRaw: r.result!.cda_raw ?? undefined,
+          qualityReason: r.result!.quality_reason ?? undefined,
+          solverMethod: r.result!.solver_method ?? undefined,
         })),
         athleteKey: activeProfile.key,
         athleteName: activeProfile.name,
@@ -251,7 +257,9 @@ export default function App() {
   const hasResults = rides.some((r) => r.result);
   const isMulti = rides.length > 1;
 
-  // Weighted average across good rides (same logic as CompareMode)
+  // Weighted aggregation across good rides — single source of truth in
+  // lib/aggregate.ts. Same formula as the save-to-history path above, so
+  // what the user sees is literally what we persist.
   let aggCda: number | null = null;
   let aggCrr: number | null = null;
   let aggCdaLow: number | null = null;
@@ -260,49 +268,29 @@ export default function App() {
   let aggRho: number | null = null;
   let aggRmse: number | null = null;
   if (goodRides.length >= 1) {
-    const nrmses = goodRides.map((r) =>
-      Math.max((r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1), 0.01)
+    const agg = weightedAggregate(
+      goodRides.map((r) => ({
+        cda: r.result!.cda,
+        crr: r.result!.crr,
+        cdaCiLow: r.result!.cda_ci_low,
+        cdaCiHigh: r.result!.cda_ci_high,
+        avgPowerW: r.result!.avg_power_w,
+        avgRho: r.result!.avg_rho,
+        avgSpeedKmh: r.result!.avg_speed_kmh,
+        rmseW: r.result!.rmse_w || 0,
+        validPoints: r.result!.valid_points,
+      })),
     );
-    const bestN = Math.min(...nrmses);
-    const worstN = Math.max(...nrmses);
-    const span = worstN - bestN;
-    // Inverse-variance weighted aggregation (DerSimonian-Laird, fixed effects).
-    // Each ride contributes w_i = (1/σ_i²) × quality_i where σ_i comes from the
-    // solver's confidence interval (Hessian at MAP estimate). Rides with tighter
-    // CI naturally weigh more. The quality factor (nRMSE-based) is kept as a
-    // multiplicative reliability discount on top of the statistical variance.
-    const dispWeights: number[] = [];
-    let totalW = 0, sumCda = 0, sumCrr = 0, sumPow = 0, sumRho = 0, sumRmse = 0;
-    for (let j = 0; j < goodRides.length; j++) {
-      const res = goodRides[j].result!;
-      const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
-      // Per-ride sigma from CI95: sigma = (high - low) / (2 * 1.96)
-      const ciWidth = (res.cda_ci_high || 0) - (res.cda_ci_low || 0);
-      const sigma = ciWidth > 0 ? Math.max(ciWidth / 3.92, 0.001) : 0.05;
-      const invVar = 1 / (sigma * sigma);
-      const w = invVar * qw;
-      dispWeights.push(w);
-      totalW += w;
-      sumCda += res.cda * w;
-      sumCrr += res.crr * w;
-      sumPow += res.avg_power_w * w;
-      sumRho += res.avg_rho * w;
-      sumRmse += (res.rmse_w || 0) * w;
-    }
-    aggCda = sumCda / totalW;
-    aggCrr = sumCrr / totalW;
-    aggRmse = sumRmse / totalW;
-    aggPower = sumPow / totalW;
-    aggRho = sumRho / totalW;
-    if (goodRides.length >= 2) {
-      // B5 — weighted variance to match the inverse-variance weighted mean.
-      const cdas = goodRides.map((r) => r.result!.cda);
-      let wVar = 0;
-      for (let j = 0; j < cdas.length; j++) wVar += dispWeights[j] * (cdas[j] - aggCda!) ** 2;
-      wVar /= totalW;
-      const se = Math.sqrt(wVar / cdas.length);
-      aggCdaLow = aggCda - 1.96 * se;
-      aggCdaHigh = aggCda + 1.96 * se;
+    if (agg) {
+      aggCda = agg.cda;
+      aggCrr = agg.crr;
+      aggRmse = agg.rmseW;
+      aggPower = agg.avgPowerW;
+      aggRho = agg.avgRho;
+      if (goodRides.length >= 2) {
+        aggCdaLow = agg.cdaLow;
+        aggCdaHigh = agg.cdaHigh;
+      }
     }
   }
 

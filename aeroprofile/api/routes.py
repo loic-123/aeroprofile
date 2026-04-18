@@ -188,6 +188,7 @@ async def analyze_endpoint(
         chung_cda_raw=_f(result.chung_cda_raw) if result.chung_cda_raw is not None else None,
         solver_cross_check_delta=_f(result.solver_cross_check_delta) if result.solver_cross_check_delta is not None else None,
         solver_confidence=result.solver_confidence,
+        cda_delta_wind_plus_5pct=_f(result.cda_delta_wind_plus_5pct) if result.cda_delta_wind_plus_5pct is not None else None,
         gear_id=result.gear_id,
         gear_name=result.gear_name,
         ride_date=result.ride_date,
@@ -315,5 +316,6 @@ async def analyze_batch_endpoint(
         n_rides=h_result.n_rides,
         n_points_total=h_result.n_points_total,
         n_eff=_f(h_result.n_eff),
+        hksj_applied=bool(h_result.hksj_applied),
         rides=summaries,
     )

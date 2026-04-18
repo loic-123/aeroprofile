@@ -533,6 +533,18 @@ export default function ResultsDashboard({ result, massKg }: Props) {
           tooltip="Vent moyen sur la sortie, récupéré depuis l'API Open-Meteo pour les coordonnées et la date du fichier. La direction est la provenance (0°=Nord, 90°=Est, 180°=Sud, 270°=Ouest) suivant la convention météo. Le vent est corrigé à hauteur du cycliste (facteur 0.7)."
         />
       </div>
+      {result.cda_delta_wind_plus_5pct != null && (
+        <div className="bg-panel border border-border/50 rounded-lg px-4 py-2 text-xs text-muted flex items-center gap-3">
+          <span className="font-semibold text-muted/80">Sensibilité au vent</span>
+          <span className="font-mono">
+            +5% sur la vitesse du vent API →{" "}
+            <span className={Math.abs(result.cda_delta_wind_plus_5pct) < 0.005 ? "text-teal" : Math.abs(result.cda_delta_wind_plus_5pct) < 0.015 ? "text-warn" : "text-coral"}>
+              Δ CdA = {result.cda_delta_wind_plus_5pct >= 0 ? "+" : ""}{result.cda_delta_wind_plus_5pct.toFixed(3)} m²
+            </span>
+          </span>
+          <InfoTooltip text="Post-hoc: Chung VE est relancé avec wind_speed × 1.05. Le Δ exposé montre si le CdA de cette sortie est robuste (|Δ|<0.005, vert), modéré (<0.015, ambre) ou fragile (rouge) au biais vent Open-Meteo. ERA5 a un biais documenté de ~−0.7% sur la moyenne et sous-estime les vents forts (Jourdier 2020, Copernicus ASR 2025). Cette métrique remplace une correction aveugle par un diagnostic transparent." />
+        </div>
+      )}
 
       {!unreliable && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -100,6 +100,19 @@ export interface HistoryEntry {
     // Quality gate verdict from the backend (ok, bound_hit, sensor_miscalib,
     // sensor_miscalib_warn, prior_dominated, insufficient_data, ...).
     qualityStatus?: string;
+    // CdA estimated without the position prior (pass 0 MLE). Persisted so
+    // the user can retro-actively run the prior-invariance test from any
+    // history entry (see scripts/compare_runs.py). Should be equal across
+    // two runs that differ only in the position prior.
+    cdaRaw?: number;
+    // Human-readable explanation of the quality gate verdict. Lets
+    // HistoryPage reconstruct the colour-coded exclusion reason without
+    // re-running the analysis.
+    qualityReason?: string;
+    // Which backend solver produced the per-ride CdA (wind_inverse,
+    // chung_ve, martin_ls). Useful to investigate why a small subset of
+    // rides behaves differently from the majority.
+    solverMethod?: string;
   }[];
 }
 

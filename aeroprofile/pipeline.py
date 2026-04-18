@@ -113,6 +113,12 @@ class AnalysisResult:
     chung_cda_raw: Optional[float] = None
     solver_cross_check_delta: Optional[float] = None
     solver_confidence: str = "unknown"
+    # Wind sensitivity: how much the CdA moves when the Open-Meteo wind
+    # speed is inflated by +5% (a reasonable order-of-magnitude for the
+    # documented ERA5/Open-Meteo bias on high winds). Null if the
+    # post-hoc Chung run failed. Lets the UI show "ride robust" vs
+    # "ride wind-fragile" without blindly correcting the wind.
+    cda_delta_wind_plus_5pct: Optional[float] = None
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -1070,6 +1076,16 @@ async def analyze(
             _pedal_mask = _v["power"].to_numpy() > 50.0
             _m = _flat_mask & _pedal_mask
             if _m.sum() >= 60:
+                # Reference CdA for the bias computation. We use the
+                # BIKE-TYPE default (bcfg.cda_prior_mean, e.g. 0.34 for
+                # road) — NOT the user-chosen position prior — so the
+                # bias ratio stays invariant when the user re-runs the
+                # same ride with a different position preset. This is
+                # critical: sensor_miscalib gates the sensor, not the
+                # position. If we used the user's prior, two runs with
+                # different position presets would assign the same ride
+                # to different quality_status buckets, which is a
+                # methodological category error.
                 _cda_prior = (
                     bcfg.cda_prior_mean
                     if (bcfg.cda_prior_mean is not None and bcfg.cda_prior_mean > 0)
@@ -1441,6 +1457,41 @@ async def analyze(
         f" — {quality_reason}" if quality_reason else "",
     )
 
+    # --- Wind sensitivity (gap #7) ---
+    # Rerun Chung VE with wind_speed × 1.05 to expose how sensitive the
+    # solved CdA is to the Open-Meteo wind magnitude. ERA5 (the backbone
+    # of Open-Meteo's archive) has a documented −0.7% mean bias on wind
+    # speed and under-predicts high winds (Jourdier 2020; Copernicus ASR
+    # 2025). We don't apply a blind correction — the sensitivity value
+    # lets the user see whether THIS ride's CdA is fragile or robust to
+    # wind uncertainty.
+    cda_delta_wind_plus_5pct: Optional[float] = None
+    try:
+        df_ws = df.copy()
+        df_ws["wind_speed_ms"] = df_ws["wind_speed_ms"] * 1.05
+        # Recompute v_air with the inflated wind
+        from aeroprofile.physics.wind import compute_v_air as _cva
+        df_ws["v_air"] = _cva(
+            df_ws["v_ground"].to_numpy(),
+            df_ws["bearing"].to_numpy(),
+            df_ws["wind_speed_ms"].to_numpy(),
+            df_ws["wind_dir_deg"].to_numpy(),
+        )
+        chung_ws = solve_chung_ve(
+            df_ws, mass=mass_kg, eta=eta,
+            crr_fixed=effective_crr_fixed,
+            cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
+            cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
+        )
+        if chung_ws is not None and chung_cda is not None:
+            cda_delta_wind_plus_5pct = float(chung_ws.cda - chung_cda)
+            logger.info(
+                "WIND_SENSITIVITY: CdA(wind×1.05) = %.3f vs baseline Chung %.3f → Δ=%+0.3f m²",
+                chung_ws.cda, chung_cda, cda_delta_wind_plus_5pct,
+            )
+    except Exception as _e:
+        logger.warning("Wind sensitivity computation failed: %s", _e)
+
     # Summary stats
     filter_summary = {name: int(df[name].sum()) for name in FILTER_NAMES}
     if ve_excluded_count > 0:
@@ -1506,6 +1557,7 @@ async def analyze(
         chung_cda_raw=chung_cda_raw,
         solver_cross_check_delta=solver_cross_check_delta,
         solver_confidence=solver_confidence,
+        cda_delta_wind_plus_5pct=cda_delta_wind_plus_5pct,
         gear_id=gear_id,
         gear_name=gear_name,
     )

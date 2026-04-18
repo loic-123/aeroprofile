@@ -3,6 +3,7 @@ import { Upload, Trash2, Loader2, Trophy, Wind, Activity, User, AlertTriangle, X
 import { analyze, analyzeBatch } from "../api/client";
 import { getCached, setCache, type CacheOpts } from "../api/cache";
 import { saveToHistory } from "../api/history";
+import { weightedAggregate } from "../lib/aggregate";
 import type { AnalysisResult, HierarchicalAnalysisResult } from "../types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, isHardFailure, type BikeType } from "../types";
 import PositionSchematic from "./PositionSchematic";
@@ -96,70 +97,27 @@ function aggregate(r: RiderEntry, bikeType: BikeType = "road"): RiderAgg | null 
   // If all rides excluded, fall back to all (user sees bad R² as warning)
   if (good.length === 0) good = done;
 
-  // Quality-weighted average: rides with lower nRMSE count more.
-  // The quality multiplier is linearly mapped so the best ride (lowest
-  // nRMSE) gets weight 3× and the worst retained ride gets weight 1×.
-  // This avoids the extreme ratios of 1/nRMSE² while still rewarding
-  // clean data.
-  const nrmses = good.map((rd) => {
-    const avgP = Math.max(rd.result!.avg_power_w, 1);
-    return Math.max((rd.result!.rmse_w || 0) / avgP, 0.01);
-  });
-  const bestNrmse = Math.min(...nrmses);
-  const worstNrmse = Math.max(...nrmses);
-  const nrmseSpan = worstNrmse - bestNrmse;
-
-  // Inverse-variance weighted aggregation: w = (1/sigma²) × quality
-  let totalW = 0;
-  let sumCda = 0, sumCrr = 0, sumRmse = 0, sumSpeed = 0, sumPower = 0;
-  for (let j = 0; j < good.length; j++) {
-    const res = good[j].result!;
-    const qualityW = nrmseSpan > 0.001
-      ? 3.0 - 2.0 * (nrmses[j] - bestNrmse) / nrmseSpan
-      : 2.0;
-    const ciWidth = (res.cda_ci_high || 0) - (res.cda_ci_low || 0);
-    const sigma = ciWidth > 0 ? Math.max(ciWidth / 3.92, 0.001) : 0.05;
-    const invVar = 1 / (sigma * sigma);
-    const w = invVar * qualityW;
-    totalW += w;
-    sumCda += res.cda * w;
-    sumCrr += res.crr * w;
-    sumRmse += (res.rmse_w || 0) * w;
-    sumSpeed += res.avg_speed_kmh * w;
-    sumPower += res.avg_power_w * w;
-  }
-  const meanCda = sumCda / totalW;
-  const meanCrr = sumCrr / totalW;
-
-  // IC95 from inter-ride variance: treat each ride's CdA as an independent
-  // estimate, compute the standard error of the weighted mean, then ±1.96·SE.
-  // With only 1 ride, fall back to the per-ride CI if available.
-  let cdaLow = meanCda;
-  let cdaHigh = meanCda;
-  if (good.length >= 2) {
-    const cdas = good.map((rd) => rd.result!.cda);
-    const weights = good.map((rd) => Math.max(rd.result!.valid_points, 1));
-    const wSum = weights.reduce((a, b) => a + b, 0);
-    // Weighted variance
-    let wVar = 0;
-    for (let i = 0; i < cdas.length; i++) {
-      wVar += weights[i] * (cdas[i] - meanCda) ** 2;
-    }
-    wVar /= wSum;
-    const se = Math.sqrt(wVar / good.length);
-    cdaLow = meanCda - 1.96 * se;
-    cdaHigh = meanCda + 1.96 * se;
-  } else if (good.length === 1) {
-    const res = good[0].result!;
-    if (res.cda_ci_low && res.cda_ci_high && res.cda_ci_low > 0) {
-      cdaLow = res.cda_ci_low;
-      cdaHigh = res.cda_ci_high;
-    }
-  }
-
-  const meanRmse = sumRmse / totalW;
-  const meanPower = sumPower / totalW;
-  const nrmse = meanPower > 0 ? meanRmse / meanPower : 0;
+  // Unified weighted aggregation (lib/aggregate.ts) — same formula as
+  // App.tsx and IntervalsPage so the CdA displayed in Compare matches
+  // everywhere else in the app.
+  const agg = weightedAggregate(good.map((rd) => ({
+    cda: rd.result!.cda,
+    crr: rd.result!.crr,
+    cdaCiLow: rd.result!.cda_ci_low,
+    cdaCiHigh: rd.result!.cda_ci_high,
+    avgPowerW: rd.result!.avg_power_w,
+    avgRho: rd.result!.avg_rho,
+    avgSpeedKmh: rd.result!.avg_speed_kmh,
+    rmseW: rd.result!.rmse_w || 0,
+    validPoints: rd.result!.valid_points,
+  })))!;
+  const meanCda = agg.cda;
+  const meanCrr = agg.crr;
+  const cdaLow = agg.cdaLow;
+  const cdaHigh = agg.cdaHigh;
+  const meanPower = agg.avgPowerW;
+  const nrmse = meanPower > 0 ? agg.rmseW / meanPower : 0;
+  const meanSpeed = agg.avgSpeedKmh;
 
   return {
     rider: r,
@@ -168,11 +126,11 @@ function aggregate(r: RiderEntry, bikeType: BikeType = "road"): RiderAgg | null 
     cdaLow,
     cdaHigh,
     nrmse,
-    rmse: meanRmse,
-    avgSpeed: sumSpeed / totalW,
+    rmse: agg.rmseW,
+    avgSpeed: meanSpeed,
     avgPower: meanPower,
     nRides: good.length,
-    nPoints: totalW,
+    nPoints: agg.weights.reduce((a, b) => a + b, 0),
     nExcluded,
   };
 }
@@ -331,28 +289,22 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
         return n <= MAX_NRMSE && res.cda >= minCda && res.cda <= maxCda;
       });
       if (good.length > 0) {
-        const nrmses = good.map((rd) => Math.max((rd.result!.rmse_w || 0) / Math.max(rd.result!.avg_power_w, 1), 0.01));
-        const bestN = Math.min(...nrmses), worstN = Math.max(...nrmses), span = worstN - bestN;
-        const weights: number[] = [];
-        let tw = 0, sc = 0, sr = 0, sp = 0, sRho = 0, sRmse = 0;
-        for (let j = 0; j < good.length; j++) {
-          const res = good[j].result!;
-          const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
-          const w = Math.max(res.valid_points, 1) * qw;
-          weights.push(w);
-          tw += w; sc += res.cda * w; sr += res.crr * w; sp += res.avg_power_w * w; sRho += res.avg_rho * w; sRmse += (res.rmse_w || 0) * w;
-        }
-        const hCda = sc / tw, hCrr = sr / tw;
-        let hLow: number | null = null, hHigh: number | null = null;
-        if (good.length >= 2) {
-          // B5 — weighted variance to match the weighted mean.
-          const cdas = good.map((r) => r.result!.cda);
-          let wVar = 0;
-          for (let j = 0; j < cdas.length; j++) wVar += weights[j] * (cdas[j] - hCda) ** 2;
-          wVar /= tw;
-          const se = Math.sqrt(wVar / cdas.length);
-          hLow = hCda - 1.96 * se; hHigh = hCda + 1.96 * se;
-        }
+        // Unified aggregation — same formula as the display block above.
+        const aggRider = weightedAggregate(good.map((rd) => ({
+          cda: rd.result!.cda,
+          crr: rd.result!.crr,
+          cdaCiLow: rd.result!.cda_ci_low,
+          cdaCiHigh: rd.result!.cda_ci_high,
+          avgPowerW: rd.result!.avg_power_w,
+          avgRho: rd.result!.avg_rho,
+          avgSpeedKmh: rd.result!.avg_speed_kmh,
+          rmseW: rd.result!.rmse_w || 0,
+          validPoints: rd.result!.valid_points,
+        })))!;
+        const hCda = aggRider.cda;
+        const hCrr = aggRider.crr;
+        const hLow: number | null = good.length >= 2 ? aggRider.cdaLow : null;
+        const hHigh: number | null = good.length >= 2 ? aggRider.cdaHigh : null;
         const posP = POSITION_PRESETS_BY_BIKE[bikeType][rider.positionIdx];
         const crrVal = rider.crrFixed ? parseFloat(rider.crrFixed) : null;
         saveToHistory({
@@ -361,7 +313,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           mode: "compare",
           label: `${rider.name} (${good.length} sortie${good.length > 1 ? "s" : ""})`,
           cda: hCda, cdaLow: hLow, cdaHigh: hHigh, crr: hCrr,
-          rmseW: sRmse / tw, avgPowerW: sp / tw, avgRho: sRho / tw,
+          rmseW: aggRider.rmseW, avgPowerW: aggRider.avgPowerW, avgRho: aggRider.avgRho,
           bikeType,
           positionLabel: posP?.label || bikeType,
           massKg: rider.mass,
@@ -386,6 +338,9 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
             solverCrossCheckDelta: r.result!.solver_cross_check_delta ?? undefined,
             solverConfidence: r.result!.solver_confidence,
             qualityStatus: r.result!.quality_status,
+            cdaRaw: r.result!.cda_raw ?? undefined,
+            qualityReason: r.result!.quality_reason ?? undefined,
+            solverMethod: r.result!.solver_method ?? undefined,
           })),
           athleteKey: `compare:${rider.name.toLowerCase().replace(/\s+/g, "_") || rider.id}`,
           athleteName: rider.name || `Rider ${rider.id}`,

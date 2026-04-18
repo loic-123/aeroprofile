@@ -55,6 +55,7 @@ class HierarchicalResult:
     n_rides: int
     n_points_total: int
     n_eff: float                      # effective n from RE weights, ≤ n_rides
+    hksj_applied: bool = False        # True if HKSJ small-k IC95 used
 
 
 def solve_hierarchical(
@@ -252,9 +253,40 @@ def solve_hierarchical(
         w_sum = float(np.sum(w_re))
 
     mu = mu_re
-    # SE of the random-effects mean — closed form from DL
+    # SE of the random-effects mean — closed form from DL.
     se_mu = float(1.0 / np.sqrt(w_sum)) if w_sum > 0 else float("nan")
-    mu_ci = (float(mu - 1.96 * se_mu), float(mu + 1.96 * se_mu))
+
+    # Hartung–Knapp–Sidik–Jonkman (HKSJ) small-sample correction for
+    # n < 10. The plain DL SE assumes the per-ride CdA uncertainties are
+    # known exactly and uses the Gaussian 1.96 quantile — both are poor
+    # approximations when k is small (IntHout et al., BMC Med Res
+    # Methodol 2014). HKSJ widens the IC95 with:
+    #   q   = (1 / (k − 1)) · Σ w'_i · (CdA_i − μ)² / Σ w'_i
+    #   SE  = SE_DL · √q
+    #   CI  = μ ± t_{0.975, k−1} · SE
+    # For k ≥ 10 we stay on the asymptotic (Gaussian) interval since the
+    # t-distribution is already very close to the normal there.
+    hksj_applied = False
+    if 2 <= n_rides < 10 and w_sum > 0:
+        from scipy.stats import t as _student_t
+        hksj_applied = True
+        q_num = float(np.sum(w_re * (cdas_arr - mu) ** 2))
+        q_den = float(np.sum(w_re))
+        q = q_num / q_den / (n_rides - 1)
+        # Guard against q < 1 collapsing the CI: IntHout et al.
+        # recommend max(q, 1) to preserve the DL interval as a floor.
+        q = max(q, 1.0)
+        se_mu_hksj = se_mu * np.sqrt(q)
+        t_crit = float(_student_t.ppf(0.975, df=n_rides - 1))
+        mu_ci = (float(mu - t_crit * se_mu_hksj), float(mu + t_crit * se_mu_hksj))
+        logger.info(
+            "HIERARCHICAL HKSJ small-k correction applied: k=%d q=%.3f "
+            "t_crit=%.3f → SE %.4f → %.4f",
+            n_rides, q, t_crit, se_mu, se_mu_hksj,
+        )
+        se_mu = se_mu_hksj
+    else:
+        mu_ci = (float(mu - 1.96 * se_mu), float(mu + 1.96 * se_mu))
 
     # Crr: shared and fixed (matches pipeline.effective_crr_fixed). We
     # don't re-estimate it because per-ride Chung solves already used
@@ -305,4 +337,5 @@ def solve_hierarchical(
         n_rides=n_rides,
         n_points_total=n_points_total,
         n_eff=float(n_eff),
+        hksj_applied=hksj_applied,
     )

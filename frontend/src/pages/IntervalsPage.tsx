@@ -13,6 +13,7 @@ import {
 } from "../api/intervals";
 import { getCachedInterval, setCacheInterval, type CacheOpts } from "../api/cache";
 import { saveToHistory } from "../api/history";
+import { weightedAggregate } from "../lib/aggregate";
 import { getActiveProfile, type ProfileSettings } from "../api/profiles";
 import ProfilePicker from "../components/ProfilePicker";
 import type { AnalysisResult, HierarchicalAnalysisResult } from "../types";
@@ -367,31 +368,23 @@ export default function IntervalsPage() {
 
     // Save to history
     if (good.length > 0) {
-      const nrmses = good.map((r) => Math.max((r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1), 0.01));
-      const bestN = Math.min(...nrmses), worstN = Math.max(...nrmses), span = worstN - bestN;
-      const weights: number[] = [];
-      let tw = 0, sc = 0, sr = 0, sp = 0, sRho = 0, sRmse = 0;
-      for (let j = 0; j < good.length; j++) {
-        const res = good[j].result!;
-        const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
-        const w = Math.max(res.valid_points, 1) * qw;
-        weights.push(w);
-        tw += w; sc += res.cda * w; sr += res.crr * w; sp += res.avg_power_w * w; sRho += res.avg_rho * w; sRmse += (res.rmse_w || 0) * w;
-      }
-      const hCda = sc / tw, hCrr = sr / tw;
-      let hLow: number | null = null, hHigh: number | null = null;
-      if (good.length >= 2) {
-        // B5 — weighted variance so the IC95 is consistent with the weighted
-        // mean. The old code used an unweighted sum and divided by cdas.length,
-        // which gave a short ride the same weight as a long ride in the IC
-        // width even though it had 100× less contribution to the mean.
-        const cdas = good.map((r) => r.result!.cda);
-        let wVar = 0;
-        for (let j = 0; j < cdas.length; j++) wVar += weights[j] * (cdas[j] - hCda) ** 2;
-        wVar /= tw;
-        const se = Math.sqrt(wVar / cdas.length);
-        hLow = hCda - 1.96 * se; hHigh = hCda + 1.96 * se;
-      }
+      // Unified aggregation via lib/aggregate.ts — same formula used for
+      // the display below and in App.tsx / CompareMode.
+      const aggIP = weightedAggregate(good.map((r) => ({
+        cda: r.result!.cda,
+        crr: r.result!.crr,
+        cdaCiLow: r.result!.cda_ci_low,
+        cdaCiHigh: r.result!.cda_ci_high,
+        avgPowerW: r.result!.avg_power_w,
+        avgRho: r.result!.avg_rho,
+        avgSpeedKmh: r.result!.avg_speed_kmh,
+        rmseW: r.result!.rmse_w || 0,
+        validPoints: r.result!.valid_points,
+      })))!;
+      const hCda = aggIP.cda;
+      const hCrr = aggIP.crr;
+      const hLow: number | null = good.length >= 2 ? aggIP.cdaLow : null;
+      const hHigh: number | null = good.length >= 2 ? aggIP.cdaHigh : null;
       const posP = POSITION_PRESETS_BY_BIKE[bikeType][positionIdx];
       const hier = await hierPromise;
 
@@ -448,7 +441,7 @@ export default function IntervalsPage() {
         mode: "intervals",
         label: `${good.length} sortie${good.length > 1 ? "s" : ""} via Intervals.icu (${profile?.name || athleteId})`,
         cda: hCda, cdaLow: hLow, cdaHigh: hHigh, crr: hCrr,
-        rmseW: sRmse / tw, avgPowerW: sp / tw, avgRho: sRho / tw,
+        rmseW: aggIP.rmseW, avgPowerW: aggIP.avgPowerW, avgRho: aggIP.avgRho,
         bikeType,
         positionLabel: posP?.label || BIKE_TYPE_CONFIG[bikeType].label,
         massKg: mass,
@@ -490,6 +483,9 @@ export default function IntervalsPage() {
           solverCrossCheckDelta: r.result!.solver_cross_check_delta ?? undefined,
           solverConfidence: r.result!.solver_confidence,
           qualityStatus: r.result!.quality_status,
+          cdaRaw: r.result!.cda_raw ?? undefined,
+          qualityReason: r.result!.quality_reason ?? undefined,
+          solverMethod: r.result!.solver_method ?? undefined,
         })),
       });
     }
@@ -499,7 +495,9 @@ export default function IntervalsPage() {
 
   const goodRides = rides.filter((r) => !r.excluded && r.result);
 
-  // Full aggregate computation (matching App.tsx)
+  // Unified aggregation via lib/aggregate.ts — same formula as the
+  // save-to-history path. Guarantees the displayed CdA equals the
+  // persisted one.
   let aggCda: number | null = null;
   let aggCrr: number | null = null;
   let aggCdaLow: number | null = null;
@@ -508,41 +506,29 @@ export default function IntervalsPage() {
   let aggRho: number | null = null;
   let aggRmse: number | null = null;
   if (goodRides.length >= 1) {
-    const nrmses = goodRides.map((r) =>
-      Math.max((r.result!.rmse_w || 0) / Math.max(r.result!.avg_power_w, 1), 0.01),
+    const agg = weightedAggregate(
+      goodRides.map((r) => ({
+        cda: r.result!.cda,
+        crr: r.result!.crr,
+        cdaCiLow: r.result!.cda_ci_low,
+        cdaCiHigh: r.result!.cda_ci_high,
+        avgPowerW: r.result!.avg_power_w,
+        avgRho: r.result!.avg_rho,
+        avgSpeedKmh: r.result!.avg_speed_kmh,
+        rmseW: r.result!.rmse_w || 0,
+        validPoints: r.result!.valid_points,
+      })),
     );
-    const bestN = Math.min(...nrmses);
-    const worstN = Math.max(...nrmses);
-    const span = worstN - bestN;
-    // Inverse-variance weighted aggregation
-    let totalW = 0, sumCda = 0, sumCrr = 0, sumPow = 0, sumRho = 0, sumRmse = 0;
-    for (let j = 0; j < goodRides.length; j++) {
-      const res = goodRides[j].result!;
-      const qw = span > 0.001 ? 3.0 - 2.0 * (nrmses[j] - bestN) / span : 2.0;
-      const ciWidth = (res.cda_ci_high || 0) - (res.cda_ci_low || 0);
-      const sigma = ciWidth > 0 ? Math.max(ciWidth / 3.92, 0.001) : 0.05;
-      const invVar = 1 / (sigma * sigma);
-      const w = invVar * qw;
-      totalW += w;
-      sumCda += res.cda * w;
-      sumCrr += res.crr * w;
-      sumPow += res.avg_power_w * w;
-      sumRho += res.avg_rho * w;
-      sumRmse += (res.rmse_w || 0) * w;
-    }
-    aggCda = sumCda / totalW;
-    aggCrr = sumCrr / totalW;
-    aggPower = sumPow / totalW;
-    aggRho = sumRho / totalW;
-    aggRmse = sumRmse / totalW;
-    if (goodRides.length >= 2) {
-      const cdas = goodRides.map((r) => r.result!.cda);
-      let wVar = 0;
-      for (const c of cdas) wVar += (c - aggCda!) ** 2;
-      wVar /= cdas.length;
-      const se = Math.sqrt(wVar / cdas.length);
-      aggCdaLow = aggCda - 1.96 * se;
-      aggCdaHigh = aggCda + 1.96 * se;
+    if (agg) {
+      aggCda = agg.cda;
+      aggCrr = agg.crr;
+      aggPower = agg.avgPowerW;
+      aggRho = agg.avgRho;
+      aggRmse = agg.rmseW;
+      if (goodRides.length >= 2) {
+        aggCdaLow = agg.cdaLow;
+        aggCdaHigh = agg.cdaHigh;
+      }
     }
   }
 
@@ -1113,6 +1099,14 @@ export default function IntervalsPage() {
                   <div className="text-xs text-muted uppercase tracking-wide flex items-center mb-2">
                     Méthode hiérarchique (DerSimonian–Laird)
                     <InfoTooltip text="Méta-analyse à effets aléatoires : chaque ride contribue son CdA_i avec son incertitude σ_i (Hessienne du fit Chung VE), puis l'estimateur DerSimonian–Laird combine ces estimations en agrégeant la variance inter-rides τ². Réf. DerSimonian & Laird (Controlled Clinical Trials, 1986), Higgins & Thompson (Stat. Med. 2002)." />
+                    {hierResult?.hksj_applied && (
+                      <span
+                        className="ml-2 text-[10px] font-mono bg-info/10 text-info/80 px-1.5 py-0.5 rounded border border-info/20"
+                        title="HKSJ (Hartung–Knapp–Sidik–Jonkman) : correction small-k appliquée car n<10. L'IC95 est élargi avec un t-quantile au lieu de 1.96 et un facteur q qui réinjecte la dispersion empirique. Réf. IntHout et al., BMC Med Res Methodol 2014."
+                      >
+                        HKSJ small-k
+                      </span>
+                    )}
                   </div>
                   {hierLoading && (
                     <div className="flex items-center gap-2 text-muted text-sm">
@@ -1121,11 +1115,12 @@ export default function IntervalsPage() {
                     </div>
                   )}
                   {hierError && (
-                    // The n<10 gate is a deliberate design choice (τ² too
-                    // noisy below that threshold), not an error. Render it
-                    // in muted tone with an info icon so the user doesn't
-                    // read it as a crash. Any other hierError stays coral.
-                    hierError.includes("au moins 10 sorties") ? (
+                    // Two cases:
+                    // - n<2 gate (hard error): still rendered in coral
+                    // - n<10: no longer errors — the backend now runs DL with
+                    //   HKSJ small-k correction and returns a valid result.
+                    // Any other hierError stays coral.
+                    hierError.includes("au moins 2 sorties") ? (
                       <div className="text-muted text-sm flex items-start gap-2">
                         <span className="text-info mt-0.5">ⓘ</span>
                         <span>{hierError}</span>

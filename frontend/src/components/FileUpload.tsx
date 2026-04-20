@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useId } from "react";
 import { Upload, Loader2, ChevronDown, ChevronRight, FileText, X } from "lucide-react";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
+import { Button } from "./ui";
 
 interface Props {
   onAnalyze: (
@@ -52,15 +53,12 @@ export default function FileUpload({
 
   const handleBikeType = (bt: BikeType) => {
     setBikeType(bt);
-    // Reset position to "Je ne sais pas" if current index exceeds new presets
     const presets = POSITION_PRESETS_BY_BIKE[bt];
     if (positionIdx >= presets.length) setPositionIdx(0);
   };
   const [windFactor, setWindFactor] = useState(0.7);
   const [maxNrmse, setMaxNrmse] = useState(initialMaxNrmse ?? 45);
 
-  // Notify parent whenever the profile-relevant state changes so the
-  // "Save to profile" button can read an up-to-date snapshot.
   useEffect(() => {
     if (!onSettingsChange) return;
     onSettingsChange({
@@ -74,6 +72,16 @@ export default function FileUpload({
   const [useCache, setUseCache] = useState(true);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Generated ids for <label htmlFor> bindings. useId() gives stable,
+  // SSR-safe ids that don't clash across multiple FileUpload instances.
+  const massId = useId();
+  const crrId = useId();
+  const positionId = useId();
+  const etaId = useId();
+  const windId = useId();
+  const nrmseId = useId();
+  const cacheId = useId();
 
   const addFiles = (newFiles: File[]) => {
     const accepted = newFiles.filter((f) => /\.(fit|gpx|tcx)$/i.test(f.name));
@@ -95,6 +103,17 @@ export default function FileUpload({
     e.target.value = "";
   };
 
+  const openFileDialog = () => inputRef.current?.click();
+
+  const onDropzoneKey = (e: React.KeyboardEvent) => {
+    // Space / Enter on the drop zone opens the file dialog — matches
+    // the behaviour a native <button> would have.
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      openFileDialog();
+    }
+  };
+
   const submit = () => {
     if (files.length === 0 || !mass) return;
     const crrVal = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : 0;
@@ -104,19 +123,26 @@ export default function FileUpload({
 
   return (
     <div className="max-w-2xl mx-auto">
+      {/* Drop zone: focusable, activates with click OR Space/Enter for
+          keyboard users. role="button" gives AT users the right mental
+          model. aria-label describes the action. */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Déposer ou sélectionner des fichiers .FIT / .GPX / .TCX"
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        onClick={() => inputRef.current?.click()}
-        className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition ${
-          dragging ? "border-teal bg-panel" : "border-border hover:border-muted"
+        onClick={openFileDialog}
+        onKeyDown={onDropzoneKey}
+        className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition-colors duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg ${
+          dragging ? "border-primary bg-panel" : "border-border hover:border-muted"
         }`}
       >
-        <Upload className="mx-auto mb-3 text-muted" size={32} />
+        <Upload className="mx-auto mb-3 text-muted" size={32} aria-hidden />
         <p className="text-muted">
           Déposez un ou <strong>plusieurs</strong> fichiers .FIT / .GPX / .TCX
         </p>
@@ -131,30 +157,33 @@ export default function FileUpload({
           multiple
           className="hidden"
           onChange={onSelect}
+          aria-label="Sélecteur de fichiers d'activité"
         />
       </div>
 
       {files.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-3">
+        <ul className="flex flex-wrap gap-1.5 mt-3" aria-label="Fichiers sélectionnés">
           {files.map((f, i) => (
-            <span
+            <li
               key={i}
               className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-mono bg-panel border border-border text-text"
             >
-              <FileText size={11} />
-              {f.name.length > 30 ? f.name.slice(0, 27) + "…" : f.name}
+              <FileText size={11} aria-hidden />
+              <span className="truncate max-w-[180px]">{f.name.length > 30 ? f.name.slice(0, 27) + "…" : f.name}</span>
               <button
+                type="button"
+                aria-label={`Retirer ${f.name}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   removeFile(i);
                 }}
-                className="text-muted hover:text-coral ml-1"
+                className="text-muted hover:text-danger ml-1 transition-colors"
               >
-                <X size={11} />
+                <X size={11} aria-hidden />
               </button>
-            </span>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       <div className="mt-6 bg-panel border border-border rounded-lg p-5 space-y-5">
@@ -163,51 +192,62 @@ export default function FileUpload({
         {/* Row 1: Mass + Bike type */}
         <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4">
           <div>
-            <label className="block text-xs text-muted mb-1">Masse totale (cycliste + vélo)</label>
+            <label htmlFor={massId} className="block text-xs text-muted mb-1">
+              Masse totale (cycliste + vélo)
+            </label>
             <div className="flex items-center gap-2">
               <input
+                id={massId}
                 type="number"
                 value={mass}
                 onChange={(e) => setMass(parseFloat(e.target.value))}
-                className="w-full bg-bg border border-border rounded px-3 py-2 font-mono focus:outline-none focus:border-teal"
+                className="w-full bg-bg border border-border rounded px-3 py-2 font-mono focus:outline-none focus:border-primary"
                 min={30}
                 max={200}
                 step={0.1}
+                aria-describedby={`${massId}-unit`}
               />
-              <span className="text-muted text-sm">kg</span>
+              <span id={`${massId}-unit`} className="text-muted text-sm">kg</span>
             </div>
           </div>
           <div>
-            <label className="block text-xs text-muted mb-1">Type de vélo</label>
-            <div className="flex gap-1">
-              {(Object.entries(BIKE_TYPE_CONFIG) as [BikeType, typeof BIKE_TYPE_CONFIG[BikeType]][]).map(([key, cfg]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => handleBikeType(key)}
-                  title={cfg.description}
-                  className={`flex-1 px-3 py-2 text-sm rounded transition ${
-                    bikeType === key
-                      ? "bg-teal text-white font-semibold"
-                      : "bg-bg border border-border text-muted hover:text-text"
-                  }`}
-                >
-                  {cfg.label}
-                </button>
-              ))}
-            </div>
+            <fieldset>
+              <legend className="block text-xs text-muted mb-1">Type de vélo</legend>
+              <div className="flex gap-1" role="radiogroup" aria-label="Type de vélo">
+                {(Object.entries(BIKE_TYPE_CONFIG) as [BikeType, typeof BIKE_TYPE_CONFIG[BikeType]][]).map(([key, cfg]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="radio"
+                    aria-checked={bikeType === key}
+                    onClick={() => handleBikeType(key)}
+                    title={cfg.description}
+                    className={`flex-1 px-3 py-2 text-sm rounded transition-colors duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-panel ${
+                      bikeType === key
+                        ? "bg-primary text-primary-fg font-semibold"
+                        : "bg-bg border border-border text-muted hover:text-text"
+                    }`}
+                  >
+                    {cfg.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
           </div>
         </div>
 
         {/* Row 2: Crr preset + Position slider */}
         <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4">
           <div>
-            <label className="block text-xs text-muted mb-1">Pneus (Crr)</label>
+            <label htmlFor={crrId} className="block text-xs text-muted mb-1">
+              Pneus (Crr)
+            </label>
             <select
+              id={crrId}
               value={crrFixed}
               onChange={(e) => setCrrFixed(e.target.value)}
               className={`w-full bg-bg border rounded px-2 py-2 font-mono text-sm ${
-                !crrFixed ? "border-orange-500/50" : "border-border"
+                !crrFixed ? "border-warn/50" : "border-border"
               }`}
             >
               {CRR_PRESETS.map((p) => (
@@ -217,15 +257,15 @@ export default function FileUpload({
               ))}
             </select>
             {!crrFixed && (
-              <p className="text-[10px] text-orange-400 mt-1">
+              <p className="text-[10px] text-warn mt-1">
                 Fixer le Crr donne un CdA plus stable. Sélectionnez vos pneus si vous les connaissez.
               </p>
             )}
           </div>
           <div>
-            <label className="block text-xs text-muted mb-1">
+            <label htmlFor={positionId} className="block text-xs text-muted mb-1">
               Position sur le vélo :
-              <span className="text-teal font-semibold ml-1">{POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].label}</span>
+              <span className="text-primary font-semibold ml-1">{POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].label}</span>
               {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior > 0 ? (
                 <span className="ml-1">(prior CdA ≈ {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior})</span>
               ) : (
@@ -233,23 +273,28 @@ export default function FileUpload({
               )}
             </label>
             <input
+              id={positionId}
               type="range"
               min={0}
               max={POSITION_PRESETS_BY_BIKE[bikeType].length - 1}
               step={1}
               value={positionIdx}
               onChange={(e) => setPositionIdx(parseInt(e.target.value))}
-              className="w-full accent-teal"
+              className="w-full accent-primary"
+              aria-valuetext={POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].label}
             />
             <div className="flex justify-between text-[10px] text-muted mt-0.5">
               {POSITION_PRESETS_BY_BIKE[bikeType].map((p, i) => (
-                <span
+                <button
+                  type="button"
                   key={i}
-                  className={`cursor-pointer ${i === positionIdx ? "text-teal font-semibold" : ""}`}
                   onClick={() => setPositionIdx(i)}
+                  className={`cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded px-0.5 ${
+                    i === positionIdx ? "text-primary font-semibold" : ""
+                  }`}
                 >
                   {p.label}
-                </span>
+                </button>
               ))}
             </div>
           </div>
@@ -258,19 +303,24 @@ export default function FileUpload({
         {/* Cache toggle — visible */}
         <div className="flex items-center gap-2">
           <button
+            id={cacheId}
             type="button"
+            role="switch"
+            aria-checked={useCache}
+            aria-label="Cache local des analyses"
             onClick={() => setUseCache(!useCache)}
-            className={`relative w-9 h-5 rounded-full transition-colors ${
-              useCache ? "bg-teal" : "bg-border"
+            className={`relative w-9 h-5 rounded-full transition-colors duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-panel ${
+              useCache ? "bg-primary" : "bg-border"
             }`}
           >
             <span
-              className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+              className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-base ${
                 useCache ? "translate-x-4" : ""
               }`}
+              aria-hidden
             />
           </button>
-          <label className="text-xs text-muted">
+          <label htmlFor={cacheId} className="text-xs text-muted select-none">
             Cache local {useCache ? "(activé)" : "(désactivé — re-analyse tout)"}
           </label>
         </div>
@@ -278,24 +328,28 @@ export default function FileUpload({
         <button
           type="button"
           onClick={() => setAdvanced(!advanced)}
-          className="flex items-center text-sm text-muted hover:text-text"
+          aria-expanded={advanced}
+          aria-controls="advanced-options"
+          className="flex items-center text-sm text-muted hover:text-text transition-colors"
         >
-          {advanced ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          {advanced ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
           Options avancées
         </button>
 
         {advanced && (
-          <div className="mt-3 space-y-3 text-sm">
+          <div id="advanced-options" className="mt-3 space-y-3 text-sm">
             <div>
-              <label className="block text-xs text-muted mb-1">
-                Seuil nRMSE max : <span className="text-teal font-mono font-semibold">{maxNrmse > 95 ? "désactivé (toutes)" : `${maxNrmse}%`}</span>
+              <label htmlFor={nrmseId} className="block text-xs text-muted mb-1">
+                Seuil nRMSE max : <span className="text-primary font-mono font-semibold">{maxNrmse > 95 ? "désactivé (toutes)" : `${maxNrmse}%`}</span>
                 <span className="ml-2 text-muted">
                   ({maxNrmse > 95 ? "aucun filtre qualité" : maxNrmse < 30 ? "très strict" : maxNrmse < 45 ? "strict" : maxNrmse < 60 ? "modéré" : "permissif"})
                 </span>
               </label>
-              <input type="range" min={20} max={100} step={5} value={maxNrmse}
+              <input id={nrmseId} type="range" min={20} max={100} step={5} value={maxNrmse}
                 onChange={(e) => setMaxNrmse(parseInt(e.target.value))}
-                className="w-full accent-teal" />
+                className="w-full accent-primary"
+                aria-valuetext={maxNrmse > 95 ? "désactivé" : `${maxNrmse}%`}
+              />
               <div className="flex justify-between text-[10px] text-muted">
                 <span>20% (strict)</span>
                 <span>Toutes</span>
@@ -303,8 +357,9 @@ export default function FileUpload({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-muted mb-1">η transmission</label>
+                <label htmlFor={etaId} className="block text-xs text-muted mb-1">η transmission</label>
                 <input
+                  id={etaId}
                   type="number"
                   value={eta}
                   onChange={(e) => setEta(parseFloat(e.target.value))}
@@ -315,8 +370,9 @@ export default function FileUpload({
                 />
               </div>
               <div>
-                <label className="block text-xs text-muted mb-1">Facteur vent 10m→1m</label>
+                <label htmlFor={windId} className="block text-xs text-muted mb-1">Facteur vent 10m→1m</label>
                 <input
+                  id={windId}
                   type="number"
                   value={windFactor}
                   onChange={(e) => setWindFactor(parseFloat(e.target.value))}
@@ -332,28 +388,31 @@ export default function FileUpload({
       </div>
 
       {error && (
-        <div className="mt-4 p-3 border border-coral bg-coral/10 rounded text-coral text-sm">
+        <div
+          role="alert"
+          className="mt-4 p-3 border border-danger bg-danger-subtle rounded text-danger text-sm"
+        >
           {error}
         </div>
       )}
 
-      <button
+      <Button
+        type="button"
         onClick={submit}
-        disabled={files.length === 0 || loading}
-        className="mt-6 w-full bg-teal hover:bg-teal/90 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2"
+        disabled={files.length === 0}
+        loading={loading}
+        variant="primary"
+        size="lg"
+        className="mt-6 w-full"
       >
-        {loading ? (
-          <>
-            <Loader2 className="animate-spin" size={18} />
-            Analyse en cours…{" "}
-            {files.length > 1 && `(${files.length} fichiers)`}
-          </>
-        ) : files.length > 1 ? (
-          `Analyser ${files.length} sorties`
-        ) : (
-          "Analyser"
-        )}
-      </button>
+        {loading
+          ? files.length > 1
+            ? `Analyse en cours… (${files.length} fichiers)`
+            : "Analyse en cours…"
+          : files.length > 1
+            ? `Analyser ${files.length} sorties`
+            : "Analyser"}
+      </Button>
     </div>
   );
 }

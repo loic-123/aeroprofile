@@ -5,4 +5,6 @@ export { PageHeader } from "./PageHeader";
 export { EmptyState } from "./EmptyState";
 export { Metric } from "./Metric";
 export { Section } from "./Section";
+export { NavTabs } from "./NavTabs";
+export type { NavTabItem } from "./NavTabs";
 export { cn } from "./cn";

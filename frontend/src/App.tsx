@@ -17,6 +17,8 @@ import { weightedAggregate, type AggregationInput } from "./lib/aggregate";
 import { getActiveProfile, type ProfileSettings } from "./api/profiles";
 import HistoryPage from "./pages/HistoryPage";
 import InfoTooltip from "./components/InfoTooltip";
+import { NavTabs } from "./components/ui";
+import { AnimatePresence, motion } from "framer-motion";
 import CdAEvolutionChart from "./components/CdAEvolutionChart";
 import CdARunningAvgChart from "./components/CdARunningAvgChart";
 import CdATotem from "./components/CdATotem";
@@ -308,62 +310,37 @@ export default function App() {
           CdA / Crr depuis votre fichier d'activité
         </span>
         <div className="flex-1" />
-        <div className="flex bg-panel border border-border rounded">
-          <button
-            onClick={() => {
-              setMode("single");
+        <NavTabs<Mode>
+          ariaLabel="Mode principal"
+          layoutId="app-nav"
+          value={mode}
+          onChange={(v) => {
+            setMode(v);
+            if (v === "single" || v === "compare") {
               setRides([]);
               setError(null);
-            }}
-            className={`px-3 py-1.5 text-sm flex items-center gap-2 ${
-              mode === "single" ? "bg-teal text-white" : "text-muted"
-            }`}
-          >
-            <User size={14} /> Analyse
-          </button>
-          <button
-            onClick={() => {
-              setMode("compare");
-              setRides([]);
-              setError(null);
-            }}
-            className={`px-3 py-1.5 text-sm flex items-center gap-2 ${
-              mode === "compare" ? "bg-teal text-white" : "text-muted"
-            }`}
-          >
-            <Users size={14} /> Comparer
-          </button>
-          <button
-            onClick={() => setMode("intervals")}
-            className={`px-3 py-1.5 text-sm flex items-center gap-2 ${
-              mode === "intervals" ? "bg-teal text-white" : "text-muted"
-            }`}
-          >
-            <Link2 size={14} /> Intervals
-          </button>
-          <button
-            onClick={() => setMode("history")}
-            className={`px-3 py-1.5 text-sm flex items-center gap-2 ${
-              mode === "history" ? "bg-teal text-white" : "text-muted"
-            }`}
-          >
-            <Clock size={14} /> Historique
-          </button>
-          <button
-            onClick={() => {
-              setMode("blog");
-              setBlogSlug(null);
-            }}
-            className={`px-3 py-1.5 text-sm flex items-center gap-2 ${
-              mode === "blog" ? "bg-teal text-white" : "text-muted"
-            }`}
-          >
-            <BookOpen size={14} /> Méthodo
-          </button>
-        </div>
+            }
+            if (v === "blog") setBlogSlug(null);
+          }}
+          items={[
+            { value: "single", label: "Analyse", icon: <User size={14} /> },
+            { value: "compare", label: "Comparer", icon: <Users size={14} /> },
+            { value: "intervals", label: "Intervals", icon: <Link2 size={14} /> },
+            { value: "history", label: "Historique", icon: <Clock size={14} /> },
+            { value: "blog", label: "Méthodo", icon: <BookOpen size={14} /> },
+          ]}
+        />
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-6">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={mode}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+          >
         {mode === "history" ? (
           <HistoryPage />
         ) : mode === "intervals" ? (
@@ -799,6 +776,8 @@ export default function App() {
             )}
           </>
         )}
+          </motion.div>
+        </AnimatePresence>
       </main>
     </div>
   );

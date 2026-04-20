@@ -1,4 +1,4 @@
-"""Test adaptive prior on Laurette rides.
+"""Test adaptive prior on rider-C rides.
 
 Measures:
  - Number of rides hitting bounds (quality_status == "bound_hit")
@@ -28,7 +28,7 @@ if not os.path.isdir(RIDES_DIR):
 files = sorted(
     [os.path.join(RIDES_DIR, f) for f in os.listdir(RIDES_DIR) if f.endswith(".fit")]
 )[:30]
-print(f"Testing adaptive prior on {len(files)} Laurette rides\n")
+print(f"Testing adaptive prior on {len(files)} rider-C rides\n")
 
 
 async def run_config(label, prior_mean, prior_sigma):

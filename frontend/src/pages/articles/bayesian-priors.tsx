@@ -304,7 +304,7 @@ export default function BayesianPriors() {
           </li>
         </ol>
         <P>
-          Résultat mesuré sur le dataset Laurette (30 rides bruitées) : l'écart
+          Résultat mesuré sur un dataset test 4iiii (30 rides bruitées) : l'écart
           entre prior &quot;Aéro drops&quot; et prior &quot;Relâchée
           tops&quot; tombe de{" "}
           <Tex>{String.raw`\Delta C_dA = 0.044\;\text{m}^2`}</Tex> à{" "}

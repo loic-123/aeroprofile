@@ -82,7 +82,7 @@ const ARTICLES = [
   {
     slug: "prior-invariance",
     title: "L'invariance au prior : pourquoi votre choix de position ne devrait pas bouger le CdA agrégé",
-    desc: "Le test de cohérence le plus puissant en méta-analyse : relancer la même analyse avec deux priors différents. Quand l'invariance casse, c'est presque toujours un bug de convergence — et l'histoire d'un fix sur le dataset Laurette.",
+    desc: "Le test de cohérence le plus puissant en méta-analyse : relancer la même analyse avec deux priors différents. Quand l'invariance casse, c'est presque toujours un bug de convergence — et l'histoire d'un fix sur un dataset 4iiii mono-jambe bruité.",
     tags: ["statistiques", "diagnostic", "avancé"],
   },
 ];

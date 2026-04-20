@@ -194,7 +194,7 @@ export default function AggregationMethods() {
         </P>
       </Section>
 
-      <Section title="Comparaison sur dataset bruité (Laurette, 30 rides)">
+      <Section title="Comparaison sur dataset bruité (4iiii mono-jambe, 30 rides)">
         <P>
           Sur 30 rides du même cycliste avec capteur bruité (nRMSE 35–46%),
           on compare l'écart de <Tex>{String.raw`C_dA`}</Tex> agrégé selon le

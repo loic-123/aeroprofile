@@ -134,7 +134,7 @@ function _migrateEntry(e: HistoryEntry): HistoryEntry {
   if (parsed) {
     // Use the parsed name as a stable-ish key (lower, no spaces). Not
     // technically unique across users with the same name, but it's good
-    // enough for separating "Loïc" and "Laurette" in a local history.
+    // enough for separating two riders in a local history.
     const key = `legacy:${parsed.toLowerCase().replace(/\s+/g, "_")}`;
     return { ...e, athleteKey: key, athleteName: parsed };
   }

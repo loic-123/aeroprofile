@@ -1,4 +1,4 @@
-"""Test robustness of CdA estimation to prior choice on Laurette's rides.
+"""Test robustness of CdA estimation to prior choice on rider-C's rides.
 
 Compares two methods:
  1. Old (with prior, original formula): expect large Δ between priors
@@ -19,13 +19,13 @@ from aeroprofile.pipeline import analyze
 RIDES_DIR = "tests/fixtures/laurette"
 
 if not os.path.isdir(RIDES_DIR):
-    print(f"ERROR: {RIDES_DIR} not found. The Laurette dataset is gitignored.")
+    print(f"ERROR: {RIDES_DIR} not found. The rider-C dataset is gitignored.")
     sys.exit(1)
 
 files = sorted(
     [os.path.join(RIDES_DIR, f) for f in os.listdir(RIDES_DIR) if f.endswith(".fit")]
 )[:30]
-print(f"Testing on {len(files)} Laurette rides\n")
+print(f"Testing on {len(files)} rider-C rides\n")
 
 
 def inverse_variance_mean(cdas, sigmas):

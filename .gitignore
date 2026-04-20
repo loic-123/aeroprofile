@@ -23,3 +23,6 @@ logs/
 
 # Bulk downloaded activity files (too large for git)
 tests/fixtures/laurette/
+
+# Marketing drafts (posts, emails, launch kit) — local only
+marketing/

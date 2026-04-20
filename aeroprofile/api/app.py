@@ -62,8 +62,8 @@ def rotate_session_log(tag: str = "") -> Path:
     no two analyses end up interleaved in a shared log.
 
     The optional ``tag`` is appended to the filename (sanitised) for easier
-    spotting — e.g. 'laurette' or 'moi' or 'fileupload'. If empty, the file
-    is simply timestamped.
+    spotting — e.g. the athlete or profile name, or a run label. If empty,
+    the file is simply timestamped.
 
     Returns the path of the new file.
     """

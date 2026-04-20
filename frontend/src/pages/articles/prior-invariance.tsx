@@ -105,7 +105,7 @@ export default function PriorInvariance() {
 
       <Section title="Quand l'invariance casse, et ce que ça signifie">
         <P>
-          Sur le dataset Laurette (4iiii mono-jambe, 30 rides bruitées),
+          Sur un dataset test (4iiii mono-jambe, 30 rides bruitées),
           le premier run de cohérence en avril 2026 a montré{" "}
           <strong>4 rides sur 30 avec un <code>cda_raw</code> non
           invariant</strong> — alors que par construction il aurait dû
@@ -147,7 +147,7 @@ export default function PriorInvariance() {
           </li>
         </ol>
         <P>
-          Après le fix, le même test de cohérence sur le dataset Laurette
+          Après le fix, le même test de cohérence sur ce dataset 4iiii
           (32 rides, priors 0.30 vs 0.40) donne :
         </P>
         <ul className="list-disc pl-5 text-sm leading-relaxed my-2">
@@ -207,7 +207,7 @@ export default function PriorInvariance() {
           <Tex>{String.raw`0.005\;\text{m}^2`}</Tex> entre deux centres
           espacés de <Tex>{String.raw`0.10`}</Tex> est cohérent avec
           l'attendu. Plus ne l'est pas, et signale un problème dans le
-          solveur (cas observé sur Laurette) ou dans le scaling adaptatif
+          solveur (cas observé sur ce dataset 4iiii) ou dans le scaling adaptatif
           du prior (un facteur <Tex>{String.raw`\lambda > 3`}</Tex>{" "}
           écrasait l'information de la ride avant le fix de plafonnement).
         </P>

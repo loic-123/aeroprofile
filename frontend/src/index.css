@@ -9,11 +9,36 @@ body,
 }
 
 body {
-  background: #0a0a0f;
-  color: #e4e4ed;
+  background: #0b0a08;
+  color: #ede7db;
   color-scheme: dark;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* The base body is not where the paper grain lives — we draw it in
+     a ::before pseudo so it can sit above the background colour but
+     below every child. */
+  position: relative;
+}
+
+/* Warm paper grain — imperceptible on photos / charts but catches the
+   eye on flat surfaces and stops the dark bg from feeling plastic.
+   SVG is inlined (zero extra HTTP request) and filtered to ~2%
+   opacity. Fixed positioning + pointer-events:none so it never
+   interferes with clicks or scroll. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.03;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 0.87  0 0 0 0 0.7  0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+#root {
+  position: relative;
+  z-index: 1;
 }
 
 .num {
@@ -21,23 +46,31 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Global focus-visible ring: any focusable element keyboard-navigated
-   gets a consistent ring on the brand primary colour. Mouse focus is
-   suppressed via :focus-visible so it doesn't flash on click. */
+/* Instrument Serif is only ever used italic. Defining a utility that
+   locks the italic + a slightly tightened tracking on serif headings
+   keeps every call site consistent. Apply via `font-serif italic`
+   Tailwind classes; this rule just enforces the tracking. */
+@layer utilities {
+  .font-serif {
+    letter-spacing: -0.01em;
+  }
+}
+
+/* Focus-visible ring on the copper brand. Mouse focus is suppressed via
+   :focus-visible so it only flashes on keyboard nav. */
 @layer base {
   *:focus {
     outline: none;
   }
   *:focus-visible {
-    outline: 2px solid #1D9E75;
+    outline: 2px solid #C77A4A;
     outline-offset: 2px;
     border-radius: 4px;
   }
 }
 
-/* Respect user motion preference. Any component that uses transitions
-   or framer-motion should gate its animations on this; tailwind's
-   motion-reduce:* variants already apply automatically. */
+/* Respect user motion preference. Applied globally so framer-motion
+   and CSS transitions both collapse instantly. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

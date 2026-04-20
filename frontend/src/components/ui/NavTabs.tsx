@@ -19,6 +19,10 @@ interface NavTabsProps<V extends string> {
   layoutId?: string;
   /** aria-label for the wrapping <nav> element. */
   ariaLabel?: string;
+  /** When true, labels are hidden below sm breakpoint and only the
+   *  icon is shown. The label still exists in the DOM (for a11y) via
+   *  a sr-only span. */
+  iconOnlyOnMobile?: boolean;
 }
 
 /**
@@ -38,6 +42,7 @@ export function NavTabs<V extends string>({
   className,
   layoutId = "nav-tabs-highlight",
   ariaLabel = "Navigation",
+  iconOnlyOnMobile = false,
 }: NavTabsProps<V>) {
   return (
     <nav
@@ -73,7 +78,10 @@ export function NavTabs<V extends string>({
               )}
               <span className="relative z-10 flex items-center gap-2">
                 {item.icon}
-                {item.label}
+                <span className={iconOnlyOnMobile ? "hidden sm:inline" : undefined}>
+                  {item.label}
+                </span>
+                {iconOnlyOnMobile && <span className="sr-only sm:hidden">{item.label}</span>}
               </span>
             </button>
           );

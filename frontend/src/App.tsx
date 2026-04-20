@@ -300,19 +300,20 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-border px-6 py-4 flex items-center gap-3 flex-wrap">
-        <Wind className="text-teal" size={24} />
-        <h1 className="text-xl font-bold tracking-tight">AeroProfile</h1>
-        <span className="text-[10px] font-mono text-muted opacity-60" title="Build ID — increment to verify hot-reload">
-          v2026.04.14-diagnostics
+      <header className="border-b border-border px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 flex-wrap">
+        <Wind className="text-primary" size={24} aria-hidden />
+        <h1 className="text-lg sm:text-xl font-bold tracking-tight">AeroProfile</h1>
+        <span className="text-[10px] font-mono text-muted opacity-60 hidden sm:inline" title="Build ID">
+          v2026.04.14
         </span>
-        <span className="text-muted text-sm ml-2 hidden md:inline">
+        <span className="text-muted text-sm ml-2 hidden lg:inline">
           CdA / Crr depuis votre fichier d'activité
         </span>
         <div className="flex-1" />
         <NavTabs<Mode>
           ariaLabel="Mode principal"
           layoutId="app-nav"
+          iconOnlyOnMobile
           value={mode}
           onChange={(v) => {
             setMode(v);
@@ -323,16 +324,16 @@ export default function App() {
             if (v === "blog") setBlogSlug(null);
           }}
           items={[
-            { value: "single", label: "Analyse", icon: <User size={14} /> },
-            { value: "compare", label: "Comparer", icon: <Users size={14} /> },
-            { value: "intervals", label: "Intervals", icon: <Link2 size={14} /> },
-            { value: "history", label: "Historique", icon: <Clock size={14} /> },
-            { value: "blog", label: "Méthodo", icon: <BookOpen size={14} /> },
+            { value: "single", label: "Analyse", icon: <User size={14} aria-hidden /> },
+            { value: "compare", label: "Comparer", icon: <Users size={14} aria-hidden /> },
+            { value: "intervals", label: "Intervals", icon: <Link2 size={14} aria-hidden /> },
+            { value: "history", label: "Historique", icon: <Clock size={14} aria-hidden /> },
+            { value: "blog", label: "Méthodo", icon: <BookOpen size={14} aria-hidden /> },
           ]}
         />
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-6">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         <AnimatePresence mode="wait">
           <motion.div
             key={mode}

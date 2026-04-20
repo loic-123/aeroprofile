@@ -21,12 +21,9 @@ const base =
   "disabled:opacity-50 disabled:pointer-events-none " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 
-// Primary = deep-indigo fill with copper text — the editorial / brand
-// combination. Distinctive, legible, and instantly recognisable vs the
-// boring "green button on dark" template.
 const variants: Record<Variant, string> = {
   primary:
-    "bg-accent text-primary hover:bg-accent-hover focus-visible:ring-primary",
+    "bg-primary text-primary-fg hover:bg-primary-hover focus-visible:ring-primary",
   secondary:
     "bg-panel border border-border text-text hover:border-border-strong hover:bg-panel-2 focus-visible:ring-primary",
   ghost:

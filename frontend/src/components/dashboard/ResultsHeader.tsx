@@ -7,11 +7,10 @@ interface Props {
 }
 
 /**
- * Editorial masthead: an italic-serif date eyebrow above a row of
- * mono-formatted key stats. The serif date is what a magazine
- * byline feels like; the stats row is Bloomberg-terminal compact.
- * Together they frame every analysis with a consistent "issue
- * header".
+ * Compact metadata row at the top of the dashboard: source format,
+ * ride date, distance, elevation gain, duration, average power, and
+ * the solver method used. Replaces the unstructured text block that
+ * was the first thing users saw.
  */
 export function ResultsHeader({ result }: Props) {
   const hours = Math.floor(result.ride_duration_s / 3600);
@@ -22,50 +21,35 @@ export function ResultsHeader({ result }: Props) {
     martin_ls: "Martin LS",
   };
 
-  // Format the date in a more editorial way: "15 Avril 2026"
-  // instead of "2026-04-15".
-  const dateLabel = (() => {
-    try {
-      const d = new Date(result.ride_date);
-      return d.toLocaleDateString("fr-FR", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      });
-    } catch {
-      return result.ride_date;
-    }
-  })();
-
   return (
-    <header className="space-y-3">
-      <div className="flex items-baseline gap-3 flex-wrap">
-        <time className="font-serif italic text-2xl md:text-3xl text-primary/90 leading-none">
-          {dateLabel}
-        </time>
-        <span className="text-[10px] font-mono uppercase tracking-[0.22em] text-muted">
-          analyse {result.source_format.toUpperCase()}
+    <header className="space-y-2">
+      <div className="flex items-center gap-2 text-xs text-muted">
+        <span className="font-mono uppercase tracking-wide">
+          {result.source_format.toUpperCase()}
         </span>
-        <Badge tone="neutral" size="sm" className="ml-auto">
+        <span aria-hidden>•</span>
+        <time className="font-mono">{result.ride_date}</time>
+        <span aria-hidden>•</span>
+        <Badge tone="neutral" size="sm">
           Solveur : {solverLabel[result.solver_method] ?? result.solver_method}
         </Badge>
       </div>
-      <div className="flex items-center gap-x-6 gap-y-1.5 flex-wrap text-sm font-mono text-muted">
-        <span className="inline-flex items-center gap-1.5 text-text">
+      <div className="flex items-center gap-x-6 gap-y-1 flex-wrap text-sm font-mono">
+        <span className="inline-flex items-center gap-1.5">
           <Route size={14} className="text-muted" aria-hidden />
-          {result.ride_distance_km.toFixed(1)} <span className="text-muted">km</span>
+          {result.ride_distance_km.toFixed(1)} km
         </span>
-        <span className="inline-flex items-center gap-1.5 text-text">
+        <span className="inline-flex items-center gap-1.5">
           <Mountain size={14} className="text-muted" aria-hidden />
-          {Math.round(result.ride_elevation_gain_m)} <span className="text-muted">m D+</span>
+          D+ {Math.round(result.ride_elevation_gain_m)} m
         </span>
-        <span className="inline-flex items-center gap-1.5 text-text">
+        <span className="inline-flex items-center gap-1.5">
           <Clock size={14} className="text-muted" aria-hidden />
-          {hours}<span className="text-muted">h</span>{mins.toString().padStart(2, "0")}
+          {hours}h{mins.toString().padStart(2, "0")}
         </span>
-        <span className="inline-flex items-center gap-1.5 text-text">
+        <span className="inline-flex items-center gap-1.5">
           <Zap size={14} className="text-muted" aria-hidden />
-          {result.avg_power_w.toFixed(0)} <span className="text-muted">W moy.</span>
+          {result.avg_power_w.toFixed(0)} W moy.
         </span>
       </div>
     </header>

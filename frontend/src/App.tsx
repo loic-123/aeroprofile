@@ -300,17 +300,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-border/70 px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 flex-wrap">
-        <Wind className="text-primary" size={22} aria-hidden />
-        <h1 className="text-lg sm:text-xl tracking-tight leading-none flex items-baseline">
-          <span className="font-serif italic text-primary mr-0.5 text-2xl sm:text-3xl leading-none">A</span>
-          <span className="font-semibold">eroProfile</span>
-        </h1>
-        <span className="text-[10px] font-mono text-muted/60 hidden sm:inline" title="Build ID">
+      <header className="border-b border-border px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 flex-wrap">
+        <Wind className="text-primary" size={24} aria-hidden />
+        <h1 className="text-lg sm:text-xl font-bold tracking-tight">AeroProfile</h1>
+        <span className="text-[10px] font-mono text-muted opacity-60 hidden sm:inline" title="Build ID">
           v2026.04.14
         </span>
-        <span className="font-serif italic text-muted text-sm ml-2 hidden lg:inline">
-          CdA / Crr depuis n'importe quelle sortie
+        <span className="text-muted text-sm ml-2 hidden lg:inline">
+          CdA / Crr depuis votre fichier d'activité
         </span>
         <div className="flex-1" />
         <NavTabs<Mode>

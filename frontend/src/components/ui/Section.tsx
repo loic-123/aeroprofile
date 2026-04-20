@@ -6,25 +6,20 @@ interface SectionProps extends Omit<HTMLAttributes<HTMLElement>, "title"> {
   title?: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
-  /** Render the section title as a serif italic eyebrow instead of a
-   *  plain sans-serif semibold. Use for "editorial" sections that
-   *  deserve to feel like chapter headings. */
-  titleStyle?: "plain" | "serif";
-  /** Disables the fade-in-up animation on mount (use for above-the-fold). */
+  /** Disables the fade-in-on-mount animation (use for above-the-fold). */
   noAnimate?: boolean;
   children?: ReactNode;
 }
 
 /**
  * Top-level page section with an optional title + description row and
- * a fade-in-up animation on mount. The title can optionally render as
- * the editorial serif-italic eyebrow.
+ * a fade-in-up animation on mount. The animation respects
+ * prefers-reduced-motion (disabled globally in index.css).
  */
 export function Section({
   title,
   description,
   action,
-  titleStyle = "plain",
   noAnimate,
   className,
   children,
@@ -35,19 +30,9 @@ export function Section({
       {(title || action) && (
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="min-w-0">
-            {title && (
-              <h3
-                className={cn(
-                  titleStyle === "serif"
-                    ? "font-serif italic text-2xl text-primary/90 leading-tight"
-                    : "text-sm font-semibold",
-                )}
-              >
-                {title}
-              </h3>
-            )}
+            {title && <h3 className="text-sm font-semibold">{title}</h3>}
             {description && (
-              <p className="text-xs text-muted mt-1 leading-relaxed">{description}</p>
+              <p className="text-xs text-muted mt-0.5 leading-relaxed">{description}</p>
             )}
           </div>
           {action && <div className="shrink-0">{action}</div>}

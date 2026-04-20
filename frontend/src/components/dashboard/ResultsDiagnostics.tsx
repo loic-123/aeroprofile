@@ -224,12 +224,12 @@ function WindSensitivityBanner({ delta }: { delta: number }) {
     tone === "primary" ? "robuste" : tone === "warn" ? "modérément sensible" : "fragile";
 
   return (
-    <div className="bg-panel border border-border/60 rounded px-4 py-3 text-xs flex items-center gap-3 flex-wrap">
-      <span className="font-serif italic text-primary/90 text-lg leading-none">
+    <div className="bg-panel border border-border/60 rounded-lg px-4 py-2.5 text-xs flex items-center gap-3 flex-wrap">
+      <span className="font-semibold text-muted uppercase tracking-wide">
         Sensibilité au vent
       </span>
       <span className="font-mono flex items-center gap-2">
-        <span className="text-muted">+5 % →</span>
+        <span className="text-muted">+5% wind →</span>
         <span className={toneText}>
           Δ CdA = {delta >= 0 ? "+" : ""}
           {delta.toFixed(3)} m²

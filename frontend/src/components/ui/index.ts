@@ -7,5 +7,4 @@ export { Metric } from "./Metric";
 export { Section } from "./Section";
 export { NavTabs } from "./NavTabs";
 export type { NavTabItem } from "./NavTabs";
-export { HairlineUnderline } from "./HairlineUnderline";
 export { cn } from "./cn";

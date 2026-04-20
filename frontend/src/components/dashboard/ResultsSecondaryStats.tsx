@@ -8,16 +8,19 @@ interface Props {
 }
 
 /**
- * Row of 4 secondary metrics: Crr, RMSE, ρ, wind. Each sits in a
- * quiet 2-px-radius editorial card; the label is uppercase muted
- * (not serif — serif is reserved for the hero and page-level
- * eyebrows). Tones indicate out-of-range / bad fit.
+ * A row of 4 secondary metrics: Crr, RMSE (fit quality), ρ (air
+ * density) and wind. All visually smaller than the hero CdA so the
+ * eye reads the hero first, then optionally drills into these.
+ *
+ * Each metric sits in its own minimal card so the grid breathes on
+ * wide viewports; on mobile the grid collapses to 2×2.
  */
 export function ResultsSecondaryStats({ result, unreliable }: Props) {
   const crrOutOfRange = result.crr < 0.0025 || result.crr > 0.008;
   const badFit = result.r_squared < 0.3;
-  const crrTone = unreliable || crrOutOfRange ? "danger" : "neutral";
-  const rmseTone = badFit ? "danger" : "neutral";
+
+  const crrTone = unreliable || crrOutOfRange ? "danger" : "primary";
+  const rmseTone = badFit ? "danger" : "info";
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -26,7 +29,7 @@ export function ResultsSecondaryStats({ result, unreliable }: Props) {
           label={
             <span className="flex items-center">
               Crr
-              <InfoTooltip text="Crr = coefficient de résistance au roulement (sans unité). Typiquement 0.003–0.004 sur pneu route bien gonflé, 0.005–0.007 sur route dégradée, 0.007–0.010 en gravel." />
+              <InfoTooltip text="Crr = coefficient de résistance au roulement (sans unité). Dépend des pneus, de la pression, et du revêtement. Typiquement 0.003–0.004 sur pneu route bien gonflé et asphalte lisse, 0.005–0.007 sur route dégradée, 0.007–0.010 en gravel." />
             </span>
           }
           value={unreliable ? "—" : result.crr.toFixed(4)}
@@ -46,15 +49,15 @@ export function ResultsSecondaryStats({ result, unreliable }: Props) {
         <Metric
           label={
             <span className="flex items-center">
-              RMSE
-              <InfoTooltip text="Erreur RMSE (root-mean-square) entre la puissance modélisée et la puissance mesurée. Sur une sortie réelle, 15-25 W est typique ; sous 15 W excellent ; au-dessus de 30 W il y a un biais." />
+              Erreur moyenne
+              <InfoTooltip text="Erreur RMSE (root-mean-square) entre la puissance modélisée et la puissance mesurée. Sur une sortie réelle, 15-25 W est typique ; sous 15 W excellent ; au-dessus de 30 W il y a un biais. Le R² complémentaire dépend de la variance de la sortie." />
             </span>
           }
           value={`±${result.rmse_w.toFixed(0)}`}
           unit="W"
           tone={rmseTone}
           size="md"
-          sub={`R² ${result.r_squared.toFixed(2)} · MAE ${result.mae_w.toFixed(0)} W`}
+          sub={`R² ${result.r_squared.toFixed(2)} • MAE ${result.mae_w.toFixed(0)} W`}
         />
       </Card>
 

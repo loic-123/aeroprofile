@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Favicons. SVG serves every modern browser at any resolution; the
+         ICO is the legacy fallback and the apple-touch-icon covers iOS
+         add-to-home-screen + Android Chrome add-to-desktop. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -26,16 +35,16 @@
     <meta property="og:site_name" content="AeroProfile" />
     <meta property="og:locale" content="fr_FR" />
     <meta property="og:locale:alternate" content="en_US" />
-    <meta property="og:image" content="https://aeroprofile.cc/og-image.png" />
+    <meta property="og:image" content="https://aeroprofile.cc/og-image.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="AeroProfile dashboard showing CdA = 0.28 m², Crr = 0.0032, IC95 [0.26–0.30]" />
+    <meta property="og:image:alt" content="AeroProfile hero card: CdA = 0.284 m² with IC95 [0.271–0.297], stability timeline showing CdA trend over 10 rides, wind-inverse + hierarchical DL + open-source badges" />
 
     <!-- Twitter / X card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="AeroProfile — Estimate your cycling CdA from any ride" />
     <meta name="twitter:description" content="Open-source CdA estimator with wind-inverse solver, hierarchical meta-analysis, and calibrated uncertainty. Free. No account needed." />
-    <meta name="twitter:image" content="https://aeroprofile.cc/og-image.png" />
+    <meta name="twitter:image" content="https://aeroprofile.cc/og-image.jpg" />
     <meta name="twitter:image:alt" content="AeroProfile dashboard screenshot" />
 
     <!-- Canonical + theme -->

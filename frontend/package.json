@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "framer-motion": "^12.38.0",
     "katex": "^0.16.45",
     "lucide-react": "^0.400.0",
     "maplibre-gl": "^4.5.0",

@@ -11,8 +11,40 @@ body,
 body {
   background: #0a0a0f;
   color: #e4e4ed;
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .num {
   font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Global focus-visible ring: any focusable element keyboard-navigated
+   gets a consistent ring on the brand primary colour. Mouse focus is
+   suppressed via :focus-visible so it doesn't flash on click. */
+@layer base {
+  *:focus {
+    outline: none;
+  }
+  *:focus-visible {
+    outline: 2px solid #1D9E75;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/* Respect user motion preference. Any component that uses transitions
+   or framer-motion should gate its animations on this; tailwind's
+   motion-reduce:* variants already apply automatically. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

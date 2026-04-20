@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from "react";
-import { Clock, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, Download, Upload, Info } from "lucide-react";
+import { Clock, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, Download, Upload, Info, History } from "lucide-react";
 import {
   getHistory,
   deleteFromHistory,
@@ -10,6 +10,7 @@ import {
   importHistoryFromText,
   type HistoryEntry,
 } from "../api/history";
+import { PageHeader, Button, Card, EmptyState } from "../components/ui";
 
 /** Rolling standard deviation over a window of N consecutive values. */
 function rollingStd(values: number[], window: number): (number | null)[] {
@@ -402,80 +403,87 @@ export default function HistoryPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <Clock className="text-teal" size={20} />
-            Historique des analyses
-          </h2>
-          <p className="text-sm text-muted mt-1">
-            {entries.length} analyse{entries.length > 1 ? "s" : ""} sauvegardée{entries.length > 1 ? "s" : ""}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={handleImportClick}
-            className="text-xs text-muted hover:text-info flex items-center gap-1 px-2 py-1 rounded border border-border hover:border-info/50 transition"
-            title="Importer un historique JSON (fusion avec l'existant)"
-          >
-            <Upload size={12} /> Importer
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={entries.length === 0}
-            className="text-xs text-muted hover:text-info flex items-center gap-1 px-2 py-1 rounded border border-border hover:border-info/50 transition disabled:opacity-40 disabled:pointer-events-none"
-            title="Télécharger toutes les analyses au format JSON"
-          >
-            <Download size={12} /> Exporter
-          </button>
-          {entries.length > 0 && (
-            <button
-              onClick={handleClear}
-              className="text-xs text-muted hover:text-coral flex items-center gap-1 px-2 py-1 rounded border border-border hover:border-coral/50 transition"
+      <PageHeader
+        icon={<Clock size={20} />}
+        title="Historique des analyses"
+        subtitle={`${entries.length} analyse${entries.length > 1 ? "s" : ""} sauvegardée${entries.length > 1 ? "s" : ""}`}
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleImportClick}
+              leftIcon={<Upload size={14} />}
+              title="Importer un historique JSON (fusion avec l'existant)"
             >
-              <Trash2 size={12} /> Tout effacer
-            </button>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            className="hidden"
-            onChange={handleImportFile}
-          />
-        </div>
-      </div>
+              Importer
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleExport}
+              disabled={entries.length === 0}
+              leftIcon={<Download size={14} />}
+              title="Télécharger toutes les analyses au format JSON"
+            >
+              Exporter
+            </Button>
+            {entries.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClear}
+                leftIcon={<Trash2 size={14} />}
+                className="hover:text-danger"
+              >
+                Tout effacer
+              </Button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={handleImportFile}
+              aria-label="Importer un fichier JSON d'historique"
+            />
+          </>
+        }
+      />
 
       {/* Local-storage disclaimer: users need to know their data doesn't
-          live on a server. Once they've read this once, they can dismiss
-          it via localStorage (the banner respects the preference). */}
-      <div className="bg-info/5 border border-info/30 rounded-lg px-4 py-2.5 text-xs text-muted flex items-start gap-2.5">
-        <Info size={14} className="text-info mt-0.5 shrink-0" />
+          live on a server. */}
+      <Card tone="info" elevation={0} className="px-4 py-2.5 text-xs text-muted flex items-start gap-2.5">
+        <Info size={14} className="text-info mt-0.5 shrink-0" aria-hidden />
         <div className="leading-relaxed">
           Vos analyses sont stockées <strong>uniquement dans votre navigateur</strong>{" "}
           (localStorage), jamais sur un serveur. Elles peuvent être perdues
           si vous videz le cache ou changez d'appareil — <strong>exportez
           régulièrement</strong> pour conserver une sauvegarde.
         </div>
-      </div>
+      </Card>
 
       {importMessage && (
-        <div
-          className={`text-xs rounded-lg px-3 py-2 border ${
-            importMessage.kind === "ok"
-              ? "bg-teal/10 border-teal/40 text-teal"
-              : "bg-coral/10 border-coral/40 text-coral"
-          }`}
+        <Card
+          tone={importMessage.kind === "ok" ? "success" : "danger"}
+          elevation={0}
+          role="status"
+          aria-live="polite"
+          className="text-xs px-3 py-2"
         >
-          {importMessage.kind === "ok" ? "✓ " : "✗ "}
-          {importMessage.text}
-        </div>
+          <span className={importMessage.kind === "ok" ? "text-success" : "text-danger"}>
+            {importMessage.kind === "ok" ? "✓ " : "✗ "}
+            {importMessage.text}
+          </span>
+        </Card>
       )}
 
       {entries.length === 0 && (
-        <div className="bg-panel border border-border rounded-lg p-8 text-center text-muted">
-          Aucune analyse dans l'historique. Lancez une analyse pour la voir apparaître ici.
-        </div>
+        <EmptyState
+          icon={<History size={40} strokeWidth={1.5} />}
+          title="Aucune analyse dans l'historique"
+          description="Lancez une analyse pour la voir apparaître ici."
+        />
       )}
 
       {/* Rolling std timeline — helps spot when a sensor change or position

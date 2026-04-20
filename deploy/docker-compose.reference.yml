@@ -1,0 +1,42 @@
+# REFERENCE ONLY — not executed from this path.
+#
+# The live compose file on the VPS is at /docker/aeroprofile/docker-compose.yml.
+# This copy is kept in the repo for audit / onboarding and is NOT wired into
+# any CI step. Changes here do NOT propagate to the VPS automatically.
+#
+# To apply a change:
+#   1. Edit /docker/aeroprofile/docker-compose.yml on the VPS.
+#   2. Apply it:   cd /docker/aeroprofile && docker compose -p aeroprofile up -d
+#   3. Sync this reference copy by committing the same edits.
+#
+# Paths are absolute and VPS-specific; don't try to `docker compose up` this
+# file from your laptop — it references /opt/aeroprofile as the build context.
+
+services:
+  aeroprofile:
+    build:
+      context: /opt/aeroprofile
+      dockerfile: Dockerfile
+    image: aeroprofile:latest
+    container_name: aeroprofile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - /opt/aeroprofile/logs:/app/logs
+    networks:
+      - n8n_default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=n8n_default"
+      # Domain: temporary (Hostinger auto-FQDN, wildcard DNS).
+      # Swap to Host(`aeroprofile.cc`) once DNS propagates.
+      - "traefik.http.routers.aeroprofile.rule=Host(`aero.srv1216048.hstgr.cloud`)"
+      - "traefik.http.routers.aeroprofile.entrypoints=web,websecure"
+      - "traefik.http.routers.aeroprofile.tls=true"
+      - "traefik.http.routers.aeroprofile.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.aeroprofile.loadbalancer.server.port=8001"
+
+networks:
+  n8n_default:
+    external: true

@@ -1,11 +1,13 @@
-import { useState, useMemo } from "react";
-import { Clock, Trash2, ChevronDown, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
+import { Clock, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, Download, Upload, Info } from "lucide-react";
 import {
   getHistory,
   deleteFromHistory,
   clearHistory,
   getIgnoredEntryIds,
   setIgnoredEntryIds,
+  exportHistoryBlob,
+  importHistoryFromText,
   type HistoryEntry,
 } from "../api/history";
 
@@ -59,6 +61,61 @@ export default function HistoryPage() {
     if (confirm("Supprimer tout l'historique ?")) {
       clearHistory();
       setEntries([]);
+    }
+  };
+
+  // Export / import of the full local history. Since AeroProfile doesn't
+  // have server-side storage, this JSON dump is the user's only backup
+  // against a browser cache wipe or a device change.
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [importMessage, setImportMessage] = useState<
+    { kind: "ok" | "err"; text: string } | null
+  >(null);
+
+  const handleExport = () => {
+    const blob = exportHistoryBlob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `aeroprofile-history-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    setImportMessage(null);
+    fileInputRef.current?.click();
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset the input so selecting the same file twice still triggers onChange.
+    e.target.value = "";
+    try {
+      const text = await file.text();
+      const res = importHistoryFromText(text);
+      if (!res.ok) {
+        setImportMessage({ kind: "err", text: res.error || "Import échoué." });
+        return;
+      }
+      setImportMessage({
+        kind: "ok",
+        text:
+          `${res.added} analyse${res.added > 1 ? "s" : ""} ajoutée${res.added > 1 ? "s" : ""}` +
+          (res.skipped > 0
+            ? `, ${res.skipped} ignorée${res.skipped > 1 ? "s" : ""} (déjà présente${res.skipped > 1 ? "s" : ""} ou plus récente${res.skipped > 1 ? "s" : ""})`
+            : "") +
+          ".",
+      });
+      setEntries(getHistory());
+    } catch (err) {
+      setImportMessage({
+        kind: "err",
+        text: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
@@ -345,7 +402,7 @@ export default function HistoryPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
             <Clock className="text-teal" size={20} />
@@ -355,15 +412,65 @@ export default function HistoryPage() {
             {entries.length} analyse{entries.length > 1 ? "s" : ""} sauvegardée{entries.length > 1 ? "s" : ""}
           </p>
         </div>
-        {entries.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={handleClear}
-            className="text-xs text-muted hover:text-coral flex items-center gap-1"
+            onClick={handleImportClick}
+            className="text-xs text-muted hover:text-info flex items-center gap-1 px-2 py-1 rounded border border-border hover:border-info/50 transition"
+            title="Importer un historique JSON (fusion avec l'existant)"
           >
-            <Trash2 size={12} /> Tout effacer
+            <Upload size={12} /> Importer
           </button>
-        )}
+          <button
+            onClick={handleExport}
+            disabled={entries.length === 0}
+            className="text-xs text-muted hover:text-info flex items-center gap-1 px-2 py-1 rounded border border-border hover:border-info/50 transition disabled:opacity-40 disabled:pointer-events-none"
+            title="Télécharger toutes les analyses au format JSON"
+          >
+            <Download size={12} /> Exporter
+          </button>
+          {entries.length > 0 && (
+            <button
+              onClick={handleClear}
+              className="text-xs text-muted hover:text-coral flex items-center gap-1 px-2 py-1 rounded border border-border hover:border-coral/50 transition"
+            >
+              <Trash2 size={12} /> Tout effacer
+            </button>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+        </div>
       </div>
+
+      {/* Local-storage disclaimer: users need to know their data doesn't
+          live on a server. Once they've read this once, they can dismiss
+          it via localStorage (the banner respects the preference). */}
+      <div className="bg-info/5 border border-info/30 rounded-lg px-4 py-2.5 text-xs text-muted flex items-start gap-2.5">
+        <Info size={14} className="text-info mt-0.5 shrink-0" />
+        <div className="leading-relaxed">
+          Vos analyses sont stockées <strong>uniquement dans votre navigateur</strong>{" "}
+          (localStorage), jamais sur un serveur. Elles peuvent être perdues
+          si vous videz le cache ou changez d'appareil — <strong>exportez
+          régulièrement</strong> pour conserver une sauvegarde.
+        </div>
+      </div>
+
+      {importMessage && (
+        <div
+          className={`text-xs rounded-lg px-3 py-2 border ${
+            importMessage.kind === "ok"
+              ? "bg-teal/10 border-teal/40 text-teal"
+              : "bg-coral/10 border-coral/40 text-coral"
+          }`}
+        >
+          {importMessage.kind === "ok" ? "✓ " : "✗ "}
+          {importMessage.text}
+        </div>
+      )}
 
       {entries.length === 0 && (
         <div className="bg-panel border border-border rounded-lg p-8 text-center text-muted">

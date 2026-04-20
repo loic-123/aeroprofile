@@ -179,6 +179,131 @@ export function clearHistory(): void {
   } catch {}
 }
 
+/** Serialise the whole local history to a JSON Blob so the user can
+ *  download a backup. The format is a small envelope with a version
+ *  field + the raw entries so a future import path can detect older
+ *  dumps and migrate them if needed. */
+export function exportHistoryBlob(): Blob {
+  const payload = {
+    kind: "aeroprofile-history-export",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    entries: getHistory(),
+    ignoredEntryIds: [...getIgnoredEntryIds()],
+  };
+  return new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json",
+  });
+}
+
+export interface ImportResult {
+  ok: boolean;
+  added: number;
+  skipped: number;
+  total: number;
+  error?: string;
+}
+
+/** Merge entries from a JSON dump into the local history. Entries are
+ *  deduplicated by `id`; if the same id exists locally the newer one
+ *  (by timestamp) wins so re-importing a backup after creating new
+ *  analyses doesn't lose anything. Ignored-entry ids are unioned. */
+export function importHistoryFromText(text: string): ImportResult {
+  try {
+    const data = JSON.parse(text);
+    let importedEntries: HistoryEntry[] = [];
+    let importedIgnored: string[] = [];
+    // Accept either the versioned envelope or a bare array (defensive,
+    // in case a user hand-edits the file and removes the wrapper).
+    if (Array.isArray(data)) {
+      importedEntries = data as HistoryEntry[];
+    } else if (data && typeof data === "object") {
+      if (data.kind && data.kind !== "aeroprofile-history-export") {
+        return {
+          ok: false,
+          added: 0,
+          skipped: 0,
+          total: 0,
+          error: `Fichier non reconnu (kind="${data.kind}").`,
+        };
+      }
+      if (!Array.isArray(data.entries)) {
+        return {
+          ok: false,
+          added: 0,
+          skipped: 0,
+          total: 0,
+          error: "Le champ `entries` est manquant ou invalide.",
+        };
+      }
+      importedEntries = data.entries as HistoryEntry[];
+      if (Array.isArray(data.ignoredEntryIds)) {
+        importedIgnored = data.ignoredEntryIds.filter(
+          (x: unknown): x is string => typeof x === "string",
+        );
+      }
+    } else {
+      return {
+        ok: false,
+        added: 0,
+        skipped: 0,
+        total: 0,
+        error: "Format JSON non reconnu.",
+      };
+    }
+
+    const existing = getHistory();
+    const byId = new Map(existing.map((e) => [e.id, e]));
+    let added = 0;
+    let skipped = 0;
+    for (const incoming of importedEntries) {
+      if (!incoming || typeof incoming.id !== "string") {
+        skipped++;
+        continue;
+      }
+      const current = byId.get(incoming.id);
+      if (!current) {
+        byId.set(incoming.id, incoming);
+        added++;
+      } else {
+        // Keep the newer one (defensive against re-importing a stale dump).
+        const currentTs = Date.parse(current.timestamp || "") || 0;
+        const incomingTs = Date.parse(incoming.timestamp || "") || 0;
+        if (incomingTs > currentTs) {
+          byId.set(incoming.id, incoming);
+          added++;
+        } else {
+          skipped++;
+        }
+      }
+    }
+    const merged = [...byId.values()].sort((a, b) =>
+      (b.timestamp || "").localeCompare(a.timestamp || ""),
+    );
+    // Respect the MAX_ENTRIES cap so a huge import can't fill localStorage.
+    if (merged.length > MAX_ENTRIES) merged.length = MAX_ENTRIES;
+    localStorage.setItem(LS_KEY, JSON.stringify(merged));
+
+    if (importedIgnored.length > 0) {
+      const ignoredMerged = new Set([
+        ...getIgnoredEntryIds(),
+        ...importedIgnored,
+      ]);
+      setIgnoredEntryIds(ignoredMerged);
+    }
+
+    return { ok: true, added, skipped, total: importedEntries.length };
+  } catch (e) {
+    return {
+      ok: false,
+      added: 0,
+      skipped: 0,
+      total: 0,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
 // --- Per-entry "ignore on charts" toggle ---
 // A separate localStorage key tracks which history entries the user has
 // muted for the stability chart and bias histogram. Default = none ignored.

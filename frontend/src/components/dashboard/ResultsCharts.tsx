@@ -37,13 +37,13 @@ function ChartCard({
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1], delay: Math.min(index * 0.04, 0.2) }}
     >
-      <Card elevation={1} className="p-4">
-        <div className="mb-3">
-          <h3 className="text-sm font-semibold flex items-center">
-            {title}
+      <Card elevation={1} className="p-5">
+        <div className="mb-4">
+          <h3 className="font-serif italic text-xl md:text-2xl text-primary/90 leading-tight flex items-start gap-2">
+            <span>{title}</span>
             <InfoTooltip text={description} />
           </h3>
-          <p className="text-xs text-muted mt-0.5 leading-snug">{description}</p>
+          <p className="text-xs text-muted mt-1.5 leading-relaxed">{description}</p>
         </div>
         {children}
       </Card>

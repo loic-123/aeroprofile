@@ -34,14 +34,14 @@ export function ResultsDerivedMetrics({ result, massKg }: Props) {
   const aeroShare = (100 * pAero40) / (pAero40 + pRoll40);
 
   return (
-    <Card elevation={1} className="p-4">
+    <Card elevation={1} className="p-5">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <h3 className="text-sm font-semibold flex items-center">
-            Puissance pour rouler sur le plat
+          <h3 className="font-serif italic text-2xl text-primary/90 leading-none mb-2 flex items-center gap-2">
+            Watts sur le plat
             <InfoTooltip text={`Watts nécessaires pour maintenir une vitesse donnée sur le plat, sans vent, pour ${mass} kg avec votre CdA et Crr. Air à densité de votre sortie.`} />
           </h3>
-          <p className="text-xs text-muted mt-0.5">
+          <p className="text-xs text-muted leading-relaxed">
             {mass} kg · ρ = {rho.toFixed(3)} · pas de vent
           </p>
         </div>
@@ -54,8 +54,8 @@ export function ResultsDerivedMetrics({ result, massKg }: Props) {
               className="border-b border-border/40 last:border-0 hover:bg-panel-2/50 transition-colors"
             >
               <td className="py-1.5 text-muted">{s} km/h</td>
-              <td className="py-1.5 text-right text-primary font-semibold">
-                {powerAt(s).toFixed(0)} W
+              <td className="py-1.5 text-right text-text font-semibold">
+                {powerAt(s).toFixed(0)} <span className="text-muted font-normal">W</span>
               </td>
             </tr>
           ))}

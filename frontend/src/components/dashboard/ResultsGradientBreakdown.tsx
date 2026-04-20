@@ -50,14 +50,14 @@ export function ResultsGradientBreakdown({ result }: Props) {
   ];
 
   return (
-    <Card elevation={1} className="p-4">
+    <Card elevation={1} className="p-5">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h3 className="text-sm font-semibold flex items-center">
-            CdA par régime de pente
+          <h3 className="font-serif italic text-2xl text-primary/90 leading-none mb-2 flex items-center gap-2">
+            CdA par régime
             <InfoTooltip text="CdA recalculé séparément sur les portions montantes (>+2%), descendantes (<−2%) et plates (±2%). Un écart > 0.08 m² entre les trois suggère un biais : vent asymétrique mal capturé, dérive du capteur à haute puissance, ou changement de position entre montée et descente. Ce n'est pas forcément une erreur — les cyclistes se redressent VRAIMENT en montée lente." />
           </h3>
-          <p className="text-xs text-muted mt-0.5">
+          <p className="text-xs text-muted leading-relaxed">
             Grosse asymétrie = signal de biais OU changement de position réel
           </p>
         </div>

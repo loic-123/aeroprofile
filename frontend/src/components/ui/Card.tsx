@@ -31,11 +31,11 @@ const elevations: Record<Elevation, string> = {
 /**
  * Primitive card with 6 semantic tones and 4 elevation levels.
  *
- * Tones apply matching tinted background + border so the card visually
- * conveys status (success/warn/danger/info) without needing extra chrome.
- *
- * Elevation adds a subtle shadow + inner light ring for dimensional
- * layering on dark surfaces (see tailwind.config.js boxShadow tokens).
+ * Editorial rebrand: default cards use a 2px radius (quiet, paper-
+ * like) while interactive or tinted cards keep the softer 6px lg
+ * radius. Tones apply tinted background + border to convey status
+ * without extra chrome. Elevation adds a subtle shadow + inner warm
+ * light ring for dimensional layering on the warm near-black bg.
  */
 export function Card({
   tone = "default",
@@ -45,10 +45,14 @@ export function Card({
   children,
   ...rest
 }: CardProps) {
+  // Default tone gets the editorial 2-pixel radius (the "newspaper
+  // sidebar" feel); any status tone keeps the softer 6-pixel radius
+  // so the tinted fill doesn't look like a hard banner.
+  const radius = tone === "default" ? "rounded" : "rounded-lg";
   return (
     <div
       className={cn(
-        "rounded-lg",
+        radius,
         tones[tone],
         elevations[elevation],
         interactive && "transition-shadow duration-base hover:shadow-e2",

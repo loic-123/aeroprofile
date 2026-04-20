@@ -1,0 +1,36 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Trigger deploy on VPS
+        run: |
+          # The SSH key is pinned via forced-command in authorized_keys to
+          # /usr/local/bin/deploy-aeroprofile.sh — the command we pass here
+          # is ignored by sshd, so any string works. We send ":" for clarity.
+          # The deploy script pulls origin/main, rebuilds the image, recreates
+          # the container, and validates /api/health before returning.
+          ssh -i ~/.ssh/id_ed25519 \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -o StrictHostKeyChecking=yes \
+              -o ConnectTimeout=15 \
+              ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} ":"

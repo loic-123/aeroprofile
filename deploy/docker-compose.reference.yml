@@ -29,9 +29,11 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=n8n_default"
-      # Domain: temporary (Hostinger auto-FQDN, wildcard DNS).
-      # Swap to Host(`aeroprofile.cc`) once DNS propagates.
-      - "traefik.http.routers.aeroprofile.rule=Host(`aero.srv1216048.hstgr.cloud`)"
+      # Dual-host: aeroprofile.cc (+ www) is the canonical domain; the
+      # temporary Hostinger auto-FQDN stays live for a few days so any
+      # external link pointing at the old sub-domain still resolves.
+      # Drop the last two Host(...) clauses once the migration has settled.
+      - "traefik.http.routers.aeroprofile.rule=Host(`aeroprofile.cc`) || Host(`www.aeroprofile.cc`) || Host(`aero.srv1216048.hstgr.cloud`)"
       - "traefik.http.routers.aeroprofile.entrypoints=web,websecure"
       - "traefik.http.routers.aeroprofile.tls=true"
       - "traefik.http.routers.aeroprofile.tls.certresolver=mytlschallenge"

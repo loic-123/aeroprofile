@@ -4,7 +4,7 @@
 
 **Estimate your cycling CdA from any ride. No velodrome. No protocol. Just upload a FIT file.**
 
-[🚀 Try the live demo](https://aeroprofile.onrender.com) · [📖 Methodology articles](https://aeroprofile.onrender.com/#blog) · [🐛 Report an issue](https://github.com/loic-123/aeroprofile/issues)
+[🚀 Try the live demo](https://aeroprofile.cc) · [📖 Methodology articles](https://aeroprofile.cc/#blog) · [🐛 Report an issue](https://github.com/loic-123/aeroprofile/issues)
 
 [![tests](https://img.shields.io/badge/tests-32%20passing-brightgreen)](tests/) [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml) [![stack](https://img.shields.io/badge/stack-FastAPI%20%2B%20React-orange)](#stack)
 
@@ -47,7 +47,7 @@ AeroProfile is the **only open-source tool** that combines inverse-problem wind 
 
 ### Use the web app (easiest)
 
-[**aeroprofile.onrender.com**](https://aeroprofile.onrender.com) — drag-and-drop a FIT file, see your CdA in ~10 seconds. No account needed.
+[**aeroprofile.cc**](https://aeroprofile.cc) — drag-and-drop a FIT file, see your CdA in ~10 seconds. No account needed.
 
 ### Run it locally
 

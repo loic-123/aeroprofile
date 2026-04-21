@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Link2, Loader2, Filter, Play, ChevronDown, ChevronRight, FileText } from "lucide-react";
 import {
   connect,
@@ -40,6 +41,7 @@ interface RideResult {
 }
 
 export default function IntervalsPage() {
+  const { t } = useTranslation();
   // Profile-driven initial state. We read the active profile ONCE at mount
   // to seed every form field; the ProfilePicker below can reload it on
   // demand or save the current form state back into the profile.
@@ -601,7 +603,7 @@ export default function IntervalsPage() {
 
       {/* Connection */}
       <div className="bg-panel border border-border rounded-lg p-5">
-        <h3 className="text-sm font-semibold mb-3">Connexion</h3>
+        <h3 className="text-sm font-semibold mb-3">{t("intervals.connection")}</h3>
         <div className="grid grid-cols-1 md:grid-cols-[1fr_150px_auto] gap-3 items-end">
           <div>
             <label className="block text-xs text-muted mb-1">
@@ -612,7 +614,7 @@ export default function IntervalsPage() {
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Votre clé API Intervals.icu"
+              placeholder={t("intervals.apiKeyPlaceholder")}
               className="w-full bg-bg border border-border rounded px-3 py-2 font-mono text-sm focus:outline-none focus:border-teal"
             />
           </div>
@@ -649,17 +651,17 @@ export default function IntervalsPage() {
       {/* Filters + date range */}
       {profile && (
         <div className="bg-panel border border-border rounded-lg p-5">
-          <h3 className="text-sm font-semibold mb-3">Paramètres</h3>
+          <h3 className="text-sm font-semibold mb-3">{t("intervals.params")}</h3>
 
           {/* Row 1: Dates */}
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
-              <label className="block text-xs text-muted mb-1">Date début</label>
+              <label className="block text-xs text-muted mb-1">{t("intervals.dateFrom")}</label>
               <input type="date" value={oldest} onChange={(e) => setOldest(e.target.value)}
                 className="w-full bg-bg border border-border rounded px-2 py-1.5 font-mono" />
             </div>
             <div>
-              <label className="block text-xs text-muted mb-1">Date fin</label>
+              <label className="block text-xs text-muted mb-1">{t("intervals.dateTo")}</label>
               <input type="date" value={newest} onChange={(e) => setNewest(e.target.value)}
                 className="w-full bg-bg border border-border rounded px-2 py-1.5 font-mono" />
             </div>
@@ -668,12 +670,12 @@ export default function IntervalsPage() {
           {/* Row 2: Mass + Bike type */}
           <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-3 mt-3 text-sm">
             <div>
-              <label className="block text-xs text-muted mb-1">Masse totale (kg)</label>
+              <label className="block text-xs text-muted mb-1">{t("intervals.totalMass")}</label>
               <input type="number" value={mass} onChange={(e) => setMass(parseFloat(e.target.value) || 75)}
                 className="w-full bg-bg border border-border rounded px-2 py-1.5 font-mono" min={30} max={200} step={0.1} />
             </div>
             <div>
-              <label className="block text-xs text-muted mb-1">Type de vélo</label>
+              <label className="block text-xs text-muted mb-1">{t("intervals.bikeType")}</label>
               <div className="flex gap-1">
                 {(Object.entries(BIKE_TYPE_CONFIG) as [BikeType, typeof BIKE_TYPE_CONFIG[BikeType]][]).map(([key, cfg]) => (
                   <button key={key} type="button" onClick={() => handleBikeType(key)} title={cfg.description}
@@ -690,14 +692,14 @@ export default function IntervalsPage() {
           {/* Row 3: Crr + Position */}
           <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-3 mt-3 text-sm">
             <div>
-              <label className="block text-xs text-muted mb-1">Pneus (Crr)</label>
+              <label className="block text-xs text-muted mb-1">{t("intervals.crrLabel")}</label>
               <select value={crrFixed} onChange={(e) => setCrrFixed(e.target.value)}
                 className={`w-full bg-bg border rounded px-2 py-1.5 font-mono text-xs ${
                   !crrFixed ? "border-orange-500/50" : "border-border"
                 }`}>
                 {CRR_PRESETS.map((p) => (
                   <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
-                    {p.crr === 0 ? "Auto (estimé)" : `${p.crr.toFixed(4)} — ${p.label}`}
+                    {p.crr === 0 ? t("fileUpload.crrAuto") : `${p.crr.toFixed(4)} — ${p.label}`}
                   </option>
                 ))}
               </select>
@@ -761,7 +763,7 @@ export default function IntervalsPage() {
               className="w-full accent-teal max-w-sm" />
             <div className="flex justify-between text-[10px] text-muted max-w-sm">
               <span>20% (strict)</span>
-              <span>Toutes</span>
+              <span>{t("intervals.all")}</span>
             </div>
           </div>
 
@@ -786,7 +788,7 @@ export default function IntervalsPage() {
                   }`}
                   title={
                     v === "off"
-                      ? "Garder toutes les sorties, ne pas filtrer sur l'accord solveur"
+                      ? t("intervals.keepUnfiltered")
                       : v === "medium"
                         ? "Exclure les sorties où |ΔCdA wind−chung| ≥ 0.05 (désaccord fort) ET les sorties où un solveur a touché une borne physique (cross-check non fiable)"
                         : "Garder uniquement les sorties où |ΔCdA wind−chung| < 0.02 (solveurs en accord) et aucun solveur à la borne"
@@ -910,10 +912,10 @@ export default function IntervalsPage() {
               {listed && (availableSensors.list.length > 0 || availableSensors.unknown > 0) && (
                 <div className="mt-2 bg-bg border border-border rounded p-2">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] text-muted font-semibold">Filtrer par capteur de puissance :</span>
+                    <span className="text-[11px] text-muted font-semibold">{t("intervals.filterSensor")}</span>
                     <div className="flex items-center gap-1 text-[9px]">
-                      <button onClick={selectAllSensors} className="px-1.5 py-0.5 rounded border border-border hover:border-teal text-muted hover:text-teal">Tous</button>
-                      <button onClick={selectNoSensors} className="px-1.5 py-0.5 rounded border border-border hover:border-coral text-muted hover:text-coral">Aucun</button>
+                      <button onClick={selectAllSensors} className="px-1.5 py-0.5 rounded border border-border hover:border-teal text-muted hover:text-teal">{t("intervals.filterAll")}</button>
+                      <button onClick={selectNoSensors} className="px-1.5 py-0.5 rounded border border-border hover:border-coral text-muted hover:text-coral">{t("intervals.filterNone")}</button>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -934,7 +936,7 @@ export default function IntervalsPage() {
                         sensorFilter.has("__unknown__") ? "bg-muted/20 border-muted text-text" : "bg-panel border-border text-muted"
                       }`}>
                         <input type="checkbox" checked={sensorFilter.has("__unknown__")} onChange={() => toggleSensor("__unknown__")} className="accent-teal scale-75" />
-                        <span>Capteur inconnu</span>
+                        <span>{t("intervals.sensorUnknown")}</span>
                         <span className="opacity-60">({availableSensors.unknown})</span>
                       </label>
                     )}
@@ -1028,8 +1030,8 @@ export default function IntervalsPage() {
         <>
           <TabSwitcher
             tabs={[
-              { id: "overview", label: "Vue d'ensemble" },
-              { id: "detail", label: "Détail d'une sortie" },
+              { id: "overview", label: t("intervals.overview") },
+              { id: "detail", label: t("intervals.rideDetail") },
             ]}
             active={viewTab}
             onChange={(id) => setViewTab(id as "overview" | "detail")}
@@ -1074,7 +1076,7 @@ export default function IntervalsPage() {
                       <div>
                         <div className="text-xs text-muted flex items-center justify-end">
                           W/CdA
-                          <InfoTooltip text="Puissance moyenne / CdA = capacité à aller vite sur le plat." />
+                          <InfoTooltip text={t("intervals.flatSpeedTooltip")} />
                         </div>
                         <div className="text-xl font-mono text-info">
                           {(aggPower / aggCda).toFixed(0)}
@@ -1126,7 +1128,7 @@ export default function IntervalsPage() {
                         <span>{hierError}</span>
                       </div>
                     ) : (
-                      <div className="text-coral text-sm">Échec : {hierError}</div>
+                      <div className="text-coral text-sm">{t("intervals.hierarchicalFail", { err: hierError })}</div>
                     )
                   )}
                   {hierResult && (
@@ -1175,10 +1177,10 @@ export default function IntervalsPage() {
               {/* Position + Derived metrics */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-panel border border-border rounded-lg p-4 flex justify-center">
-                  <PositionSchematic cda={aggCda} label="Position moyenne" size={240} />
+                  <PositionSchematic cda={aggCda} label={t("intervals.avgPosition")} size={240} />
                 </div>
                 <div className="bg-panel border border-border rounded-lg p-4 md:col-span-2">
-                  <h3 className="text-sm font-semibold mb-2">Métriques dérivées (moyenne)</h3>
+                  <h3 className="text-sm font-semibold mb-2">{t("intervals.derivedAvg")}</h3>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm font-mono">
                     {[30, 35, 40, 45].map((s) => {
                       const v = s / 3.6;
@@ -1229,7 +1231,7 @@ export default function IntervalsPage() {
 
               {/* Ride chips */}
               <div className="bg-panel border border-border rounded-lg p-4">
-                <h3 className="text-sm font-semibold mb-3">Sorties analysées</h3>
+                <h3 className="text-sm font-semibold mb-3">{t("intervals.analyzedRides")}</h3>
                 <div className="flex flex-wrap gap-1.5">
                   {rides.map((r, i) => {
                     const isBad = r.excluded;
@@ -1439,13 +1441,13 @@ export default function IntervalsPage() {
                   <span className="flex items-center gap-1" title="nRMSE trop élevé : le modèle physique ne reproduit pas la puissance mesurée">
                     <span className="inline-block w-2 h-2 rounded-full bg-red-500" /> Fit raté (nRMSE)
                   </span>
-                  <span className="flex items-center gap-1" title="CdA estimé hors des bornes physiques pour ce type de vélo">
+                  <span className="flex items-center gap-1" title={t("intervals.errBounds")}>
                     <span className="inline-block w-2 h-2 rounded-full bg-orange-500" /> Hors plage physique
                   </span>
-                  <span className="flex items-center gap-1" title="Solveur en désaccord, borne touchée, ou Hessienne mal conditionnée">
+                  <span className="flex items-center gap-1" title={t("intervals.errSolver")}>
                     <span className="inline-block w-2 h-2 rounded-full bg-yellow-500" /> Solveur peu fiable
                   </span>
-                  <span className="flex items-center gap-1" title="Erreur d'analyse — fichier corrompu ou pré-traitement échoué">
+                  <span className="flex items-center gap-1" title={t("intervals.errAnalysis")}>
                     <span className="inline-block w-2 h-2 rounded-full bg-slate-500" /> Erreur
                   </span>
                 </div>
@@ -1463,7 +1465,7 @@ export default function IntervalsPage() {
             <div>
               <div className="bg-panel border border-border rounded-lg px-4 py-2 mb-4 flex items-center gap-2 text-sm flex-wrap">
                 <FileText size={14} className="text-muted" />
-                <span className="text-muted">Détail :</span>
+                <span className="text-muted">{t("intervals.detail")}</span>
                 <span className="font-mono text-teal">{rides[selectedIdx]?.activity?.name}</span>
                 <span className="text-muted text-xs">({rides[selectedIdx]?.activity?.start_date})</span>
                 <div className="flex gap-1 ml-auto">

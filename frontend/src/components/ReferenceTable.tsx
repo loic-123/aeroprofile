@@ -3,6 +3,7 @@
  * in the matching row.
  */
 
+import { useTranslation } from "react-i18next";
 import InfoTooltip from "./InfoTooltip";
 
 const CDA_RANGES: { label: string; low: number; high: number; desc: string }[] = [
@@ -33,6 +34,7 @@ function RowHighlight({
   unit: string;
   fmt: (v: number) => string;
 }) {
+  const { t } = useTranslation();
   // Find matching range. Use [low, high) for all except last which uses [low, high]
   let match = ranges.findIndex((r, i) =>
     i === ranges.length - 1
@@ -52,9 +54,9 @@ function RowHighlight({
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-border text-left text-xs text-muted uppercase tracking-wide">
-          <th className="py-2 pr-2">Position / type</th>
+          <th className="py-2 pr-2">{t("refTable.colPosition")}</th>
           <th className="py-2 text-right">{unit}</th>
-          <th className="py-2 text-right pl-2">Δ vs vous</th>
+          <th className="py-2 text-right pl-2">{t("refTable.colDelta")}</th>
         </tr>
       </thead>
       <tbody>
@@ -76,7 +78,7 @@ function RowHighlight({
                 </span>
                 {active && (
                   <span className="ml-2 text-xs bg-teal/20 text-teal px-1.5 py-0.5 rounded font-mono">
-                    ← vous : {fmt(value)}
+                    {t("refTable.colYou", { value: fmt(value) })}
                   </span>
                 )}
                 <div className="text-xs text-muted">{r.desc}</div>
@@ -106,15 +108,16 @@ export default function ReferenceTable({
   cda: number;
   crr: number;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div className="bg-panel border border-border rounded-lg p-4">
         <h3 className="text-sm font-semibold mb-1 flex items-center">
-          Référence CdA (m²)
+          {t("refTable.cdaTitle")}
           <InfoTooltip text="Plages typiques de CdA issues de Debraux et al. 2011 et des mesures en soufflerie. Votre valeur est mise en évidence dans la plage correspondante. Le CdA dépend de la position sur le vélo, de la morphologie, et de l'équipement (casque, tenue)." />
         </h3>
         <p className="text-xs text-muted mb-3">
-          Où se situe votre CdA par rapport aux positions de référence ?
+          {t("refTable.cdaLead")}
         </p>
         <RowHighlight
           ranges={CDA_RANGES}
@@ -126,11 +129,11 @@ export default function ReferenceTable({
 
       <div className="bg-panel border border-border rounded-lg p-4">
         <h3 className="text-sm font-semibold mb-1 flex items-center">
-          Référence Crr
+          {t("refTable.crrTitle")}
           <InfoTooltip text="Plages typiques de coefficient de résistance au roulement. Dépend du pneu (modèle, pression, largeur), du revêtement, et de la température. Un Crr bas = pneu qui roule bien sur surface lisse." />
         </h3>
         <p className="text-xs text-muted mb-3">
-          Où se situe votre Crr par rapport aux pneus/surfaces de référence ?
+          {t("refTable.crrLead")}
         </p>
         <RowHighlight
           ranges={CRR_RANGES}

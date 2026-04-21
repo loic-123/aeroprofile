@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import type { AnalysisResult, BikeType } from "../../types";
 import { getHistory } from "../../api/history";
 import { getActiveProfile } from "../../api/profiles";
@@ -29,6 +30,7 @@ interface Props {
  * visually stands out from the rest of the dashboard.
  */
 export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props) {
+  const { t } = useTranslation();
   const factor = result.prior_adaptive_factor ?? 1.0;
   const showFactor = factor > 1.05;
   const raw = result.cda_raw;
@@ -121,7 +123,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
             <dl className="space-y-1.5 text-xs font-mono max-w-md pt-2">
               <div className="flex items-baseline gap-3">
                 <dt className="text-muted w-32 text-[10px] uppercase tracking-wider shrink-0">
-                  IC Hessian 95%
+                  {t("dashboard.icHessian")}
                 </dt>
                 <dd className="text-text">
                   [{result.cda_ci_low.toFixed(3)} – {result.cda_ci_high.toFixed(3)}]
@@ -130,7 +132,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
               {conformal && (
                 <div className="flex items-baseline gap-3">
                   <dt className="text-muted w-32 text-[10px] uppercase tracking-wider shrink-0">
-                    IC Conformal 95%
+                    {t("dashboard.icConformal")}
                   </dt>
                   <dd className="text-accent">
                     [{conformal.low.toFixed(3)} – {conformal.high.toFixed(3)}]
@@ -154,7 +156,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
             </dl>
           ) : (
             <div className="text-sm text-danger font-medium">
-              non fiable (R² &lt; 0)
+              {t("dashboard.unreliable")}
             </div>
           )}
 
@@ -162,12 +164,12 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
             <div className="flex items-center gap-2 flex-wrap pt-1">
               {showFactor && (
                 <Badge tone="warn" size="sm">
-                  prior renforcé ×{factor.toFixed(1)}
+                  {t("dashboard.priorReinforced", { factor: factor.toFixed(1) })}
                 </Badge>
               )}
               {showRaw && (
                 <span className="text-xs text-muted font-mono flex items-center gap-1">
-                  hors prior CdA :{" "}
+                  {t("dashboard.priorOff")}
                   <span className="text-text">{raw!.toFixed(3)}</span>
                   <InfoTooltip text="Estimation obtenue en désactivant le prior sur CdA. Les priors vent et Crr restent actifs pour garder le problème bien posé. Un écart > 0.05 avec la valeur principale déclenche le statut 'prior_dominated'." />
                 </span>
@@ -186,7 +188,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
             <div className="relative">
               <PositionSchematic cda={result.cda} size={200} />
               <div className="text-center mt-2 text-[10px] uppercase tracking-widest text-muted font-semibold">
-                Position
+                {t("dashboard.position")}
               </div>
             </div>
           </motion.div>

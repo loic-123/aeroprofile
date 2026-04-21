@@ -943,6 +943,7 @@ function RollingStdTimeline({
     sensorQuality: string | null;
   }>;
 }) {
+  const { t } = useTranslation();
   const valid = timeline.filter((p) => p.std != null) as Array<
     typeof timeline[number] & { std: number }
   >;
@@ -1037,19 +1038,22 @@ function RollingStdTimeline({
     <div className="bg-panel border border-border rounded-lg p-4">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-semibold">
-          Stabilité du CdA (écart-type glissant sur {rollingWindowN} sorties)
+          {t("history.stabilityTitle", { n: rollingWindowN })}
         </h3>
         <span className="text-[10px] text-muted font-mono">
-          {valid.length} fenêtres · <span className="text-teal">σ&lt;{GOOD_STD.toFixed(2)}</span> bon · <span className="text-warn">&lt;{WARN_STD.toFixed(2)}</span> moyen · <span className="text-coral">&gt;{WARN_STD.toFixed(2)}</span> peu fiable
+          <Trans
+            i18nKey="history.stabilityLegend"
+            values={{ count: valid.length, good: GOOD_STD.toFixed(2), warn: WARN_STD.toFixed(2) }}
+            components={{
+              good: <span className="text-teal" />,
+              warn: <span className="text-warn" />,
+              bad: <span className="text-coral" />,
+            }}
+          />
         </span>
       </div>
       <p className="text-[11px] text-muted mb-2 leading-tight">
-        Écart-type (σ) de votre CdA sur les {rollingWindowN} dernières sorties à chaque date.
-        Plus c'est bas, plus vos estimations sont reproductibles. Une baisse
-        brutale = changement de capteur ou meilleure calibration. Les zones
-        horizontales indiquent le niveau de fiabilité (vert = bon, jaune =
-        moyen, rouge = peu fiable). La taille de la fenêtre est adaptée
-        au volume de votre historique (cible 10, plancher 4).
+        {t("history.stabilityDesc", { n: rollingWindowN })}
       </p>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
         {/* Horizontal σ interpretation bands: green = good, yellow = moderate,
@@ -1347,6 +1351,7 @@ function RollingStdTimeline({
  *  theoretical value on each ride".
  */
 function BiasHistogram({ entries, selectedSensors }: { entries: HistoryEntry[]; selectedSensors: Set<string> }) {
+  const { t } = useTranslation();
   // Gather (sensor, biasRatio) per ride, deduplicated by (athleteKey, date):
   // the same ride re-analysed twice would otherwise double-count into the
   // histogram. We keep the version from the most recent entry per athlete.
@@ -1506,27 +1511,25 @@ function BiasHistogram({ entries, selectedSensors }: { entries: HistoryEntry[]; 
     <div className="bg-panel border border-border rounded-lg p-4">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-semibold">
-          Distribution du biais de calibration par capteur
+          {t("history.biasDistTitle")}
         </h3>
         <span
           className="text-[10px] text-muted font-mono"
           title={
-            (missingBias > 0 ? `${missingBias} ride${missingBias > 1 ? "s" : ""} sans biais enregistré (entrées historiques anciennes ou régression échouée). ` : "") +
-            (filteredOutOfRange > 0 ? `${filteredOutOfRange} ride${filteredOutOfRange > 1 ? "s" : ""} hors fenêtre [0.6, 1.6] non affichés (capteurs très décalibrés ou bug capteur).` : "")
+            (missingBias > 0 ? t("history.missingBiasTooltip", { count: missingBias }) : "") +
+            (filteredOutOfRange > 0 ? t("history.outOfRangeTooltip", { count: filteredOutOfRange }) : "")
           }
         >
           {samples.length} rides
           {(missingBias > 0 || filteredOutOfRange > 0) && (
             <span className="text-amber-500/90">
-              {" "}(+{missingBias + filteredOutOfRange} masqués)
+              {" "}{t("history.ridesMasked", { count: missingBias + filteredOutOfRange })}
             </span>
           )}
         </span>
       </div>
       <p className="text-[11px] text-muted mb-2 leading-tight">
-        Biais = puissance mesurée / puissance théorique (CdA prior, Crr=0.005)
-        sur les portions plates. Un capteur bien calibré centre à 1.0 avec une
-        distribution serrée. Un capteur qui dérive montre une distribution large ou décentrée.
+        {t("history.biasDistDesc")}
       </p>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
         {/* Reference line at 1.0 */}
@@ -1567,7 +1570,7 @@ function BiasHistogram({ entries, selectedSensors }: { entries: HistoryEntry[]; 
           textAnchor="middle"
           fontFamily="monospace"
         >
-          biais (mesuré / théorique)
+          {t("history.biasAxis")}
         </text>
         {/* Smooth KDE curves per sensor — one bell curve per power meter,
             filled semi-transparent so overlap is visible. */}

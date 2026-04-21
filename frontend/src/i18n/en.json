@@ -220,7 +220,18 @@
     "yes": "yes",
     "no": "no",
     "flatSpeed": "Flat speed",
-    "wCda": "W/CdA"
+    "wCda": "W/CdA",
+    "stabilityTitle": "CdA stability (rolling std. dev. over {{n}} rides)",
+    "stabilityLegend": "{{count}} windows · <good>σ&lt;{{good}}</good> good · <warn>&lt;{{warn}}</warn> moderate · <bad>&gt;{{warn}}</bad> unreliable",
+    "stabilityDesc": "Standard deviation (σ) of your CdA over the last {{n}} rides at each date. Lower is better - your estimates are reproducible. A sharp drop = sensor change or better calibration. Grey zones indicate windows below the good-quality threshold.",
+    "biasDistTitle": "Calibration bias distribution per sensor",
+    "biasDistDesc": "Bias = measured power / theoretical power (CdA prior, Crr=0.005) on flat sections. A well-calibrated sensor peaks at 1.0 with a tight distribution. A drifting sensor shows a wide or off-centre distribution.",
+    "biasAxis": "bias (measured / theoretical)",
+    "missingBiasTooltip": "{{count}} rides without recorded bias (old entries or failed regression). ",
+    "outOfRangeTooltip": "{{count}} rides outside [0.6, 1.6] not shown (very miscalibrated sensors or sensor bug).",
+    "ridesMasked": "(+{{count}} masked)",
+    "noStabilityData": "Not enough data for stability chart.",
+    "noBiasData": "Not enough data for bias distribution."
   },
   "compare": {
     "back": "Single-analysis mode",

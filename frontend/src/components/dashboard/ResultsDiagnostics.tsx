@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertCircle, AlertTriangle, CheckCircle2, Wind } from "lucide-react";
 import type { AnalysisResult } from "../../types";
 import { Button, Card } from "../ui";
@@ -262,6 +263,7 @@ function WindFragilityBanner({
   result: AnalysisResult;
   onReanalyzeWithWind?: (ms: number, dir: number) => void;
 }) {
+  const { t } = useTranslation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const frag = result.wind_fragility ?? "unknown";
   const dPlus = result.cda_delta_wind_plus_30pct ?? 0;
@@ -277,17 +279,17 @@ function WindFragilityBanner({
     frag === "fragile" ? "text-danger" : frag === "moderate" ? "text-warn" : "text-success";
   const title =
     frag === "robust"
-      ? "Vent Open-Meteo cohérent avec les données (robuste)"
+      ? t("diag.windRobust")
       : frag === "moderate"
-        ? "Vent API peut-être imprécis (CdA modérément sensible)"
-        : "Vent API probablement incorrect — CdA fragile";
+        ? t("diag.windModerate")
+        : t("diag.windFragile");
 
   const body =
     frag === "fragile"
-      ? "Sur cette sortie, faire varier le vent API de ±30% déplace le CdA estimé de plus de 0,05 m². C'est le signe d'une zone où Open-Meteo capture mal le vent réel (côte, relief, grille grossière). Saisis le vent mesuré pour fiabiliser l'analyse."
+      ? t("diag.windBodyFragile")
       : frag === "moderate"
-        ? "Faire varier le vent API de ±30% déplace le CdA de 0,02 à 0,05 m². Sensibilité modérée — un vent mesuré améliorerait la précision."
-        : "Faire varier le vent API de ±30% laisse le CdA quasi inchangé. Estimation robuste au vent.";
+        ? t("diag.windBodyModerate")
+        : t("diag.windBodyRobust");
 
   return (
     <>
@@ -308,7 +310,7 @@ function WindFragilityBanner({
               {dMinus.toFixed(3)} m² &nbsp;(max |Δ| = {maxDelta.toFixed(3)})
             </div>
             <div>
-              Vent API utilisé : {apiWs.toFixed(1)} m/s ({(apiWs * 3.6).toFixed(0)} km/h) depuis {Math.round(apiDir)}°
+              {t("diag.windApiSummary", { ms: apiWs.toFixed(1), kmh: (apiWs * 3.6).toFixed(0), dir: Math.round(apiDir) })}
             </div>
           </div>
           {onReanalyzeWithWind && frag !== "robust" && (
@@ -317,10 +319,10 @@ function WindFragilityBanner({
                 type="button"
                 variant="secondary"
                 size="sm"
+                leftIcon={<Wind size={14} aria-hidden />}
                 onClick={() => setDialogOpen(true)}
               >
-                <Wind size={14} className="mr-1.5" aria-hidden />
-                Corriger le vent
+                {t("diag.windCorrect")}
               </Button>
             </div>
           )}
@@ -352,6 +354,7 @@ function ManualWindDialog({
   onCancel: () => void;
   onSubmit: (ms: number, dirDeg: number) => void;
 }) {
+  const { t } = useTranslation();
   const [kmh, setKmh] = useState<string>((apiWindMs * 3.6).toFixed(0));
   const [dir, setDir] = useState<string>(Math.round(apiWindDirDeg).toString());
 
@@ -365,7 +368,7 @@ function ManualWindDialog({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Corriger le vent"
+      aria-label={t("diag.windCorrect")}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={onCancel}
     >
@@ -373,14 +376,14 @@ function ManualWindDialog({
         className="bg-panel border border-border rounded-lg p-6 max-w-md w-full shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-semibold mb-1">Corriger le vent mesuré</h2>
-        <p className="text-xs text-muted mb-4">
-          Vent API : <span className="font-mono">{apiWindMs.toFixed(1)} m/s ({(apiWindMs * 3.6).toFixed(0)} km/h) depuis {Math.round(apiWindDirDeg)}°</span>
+        <h2 className="text-base font-semibold mb-1">{t("diag.windCorrectDialogTitle")}</h2>
+        <p className="text-xs text-muted mb-4 font-mono">
+          {t("diag.windApiSummary", { ms: apiWindMs.toFixed(1), kmh: (apiWindMs * 3.6).toFixed(0), dir: Math.round(apiWindDirDeg) })}
         </p>
         <div className="space-y-3">
           <div>
             <label className="block text-xs text-muted mb-1" htmlFor="manual-wind-kmh">
-              Vitesse au sol (km/h)
+              {t("diag.manualWindKmh")}
             </label>
             <input
               id="manual-wind-kmh"
@@ -397,7 +400,7 @@ function ManualWindDialog({
           </div>
           <div>
             <label className="block text-xs text-muted mb-1" htmlFor="manual-wind-dir">
-              Direction d'où il vient (°, 0=N, 90=E, 180=S, 270=O)
+              {t("diag.manualWindDir")}
             </label>
             <input
               id="manual-wind-dir"
@@ -413,11 +416,11 @@ function ManualWindDialog({
           </div>
         </div>
         <p className="mt-3 text-[11px] text-muted leading-snug">
-          Renseigne le vent réel au niveau du cycliste (pas à 10 m). Exemples : stations Météo-France, Windy, Weatherflow Tempest, ou une estimation basée sur la sensation à vélo.
+          {t("diag.manualWindHelp")}
         </p>
         <div className="mt-5 flex justify-end gap-2">
           <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
-            Annuler
+            {t("diag.cancel")}
           </Button>
           <Button
             type="button"
@@ -426,7 +429,7 @@ function ManualWindDialog({
             disabled={!valid}
             onClick={() => onSubmit(kmhNum / 3.6, dirNum)}
           >
-            Relancer l'analyse
+            {t("diag.rerun")}
           </Button>
         </div>
       </div>

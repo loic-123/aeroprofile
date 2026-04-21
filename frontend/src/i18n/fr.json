@@ -528,22 +528,22 @@
     "featuredTagRegTest": "test régression",
     "featuredTagMeta": "méta-analyse",
     "builderEyebrow": "Qui a fait ça",
-    "builderPitch": "AeroProfile, c'est ce qui arrive quand un triathlète qui bosse en labo d'IA à Imperial en a marre de ne trouver aucun outil sérieux pour mesurer son CdA.",
+    "builderPitch": "Un triathlète au labo d'IA d'Imperial qui voulait savoir si son casque aéro servait vraiment à quelque chose. Voilà d'où sort AeroProfile.",
     "builderCta": "À propos du créateur"
   },
   "about": {
-    "back": "Retour à l'accueil",
+    "back": "Retour",
     "eyebrow": "À propos",
-    "title": "AeroProfile, c'est ce qui arrive quand un triathlète qui bosse en labo d'IA à Imperial en a marre de ne trouver aucun outil sérieux pour mesurer son CdA.",
-    "p1": "Moi, c'est <name>Loïc Bouxirot</name>. Le point de départ d'AeroProfile, c'est une question bête : en 2024, je m'achète un casque aéro à 300 €. Pendant six mois, je me demande — avec la tête d'obsédé que seul un triathlète peut avoir — s'il me fait vraiment gagner des watts, ou si je viens de payer <em>de l'espoir moulé dans du polystyrène</em>.",
-    "p2": "Y répondre sérieusement, ça suppose trois choses : des problèmes inverses, de l'incertitude bayésienne, et une vraie humilité devant le champ de vent d'Open-Meteo. Un mélange un peu inhabituel. Alors j'ai codé l'outil qui me manquait, en combinant le boulot (ML critique à <imperial>Imperial College London</imperial>, après des passages chez Safran, Decathlon et Ochy sur des modèles de fondation, de la vision par ordinateur et des pipelines LLM) et l'obsession du week-end (triathlon dans le top, vents de face, et des avis beaucoup trop tranchés sur la pression des pneus).",
-    "p3": "Le solveur wind-inverse, l'agrégation hiérarchique, les tests qui vérifient l'invariance au prior, les huit garde-fous qualité — tout vient de ce va-et-vient entre les deux mondes. Si ça paraît trop poussé pour un outil vélo, c'est parce que tous les autres que j'ai testés étaient <em>trop légers</em> pour un outil de mesure. Les 14 articles de méthodo, je ne les avais pas prévus non plus : ils sont venus tout seuls, à mesure que j'ajoutais des fonctionnalités.",
-    "p4": "Le code est sur GitHub. Un bug report avec un fichier FIT en pièce jointe, c'est de l'or. S'il commence par <em>« je crois que ta physique est fausse »</em>, c'est encore mieux — à condition qu'il finisse quand même par un FIT.",
+    "title": "Un triathlète au labo d'IA d'Imperial qui voulait savoir si son casque aéro servait vraiment à quelque chose. Voilà d'où sort AeroProfile.",
+    "p1": "<name>Loïc Bouxirot</name>, enchanté. Tout a commencé par un casque aéro à 300 balles, acheté en 2024. Très vite, la question du triathlète lambda : est-ce que ça marche vraiment, ou est-ce que j'ai juste payé pour <em>du vent dans du polystyrène</em> ? J'ai cherché un outil pour trancher. Rien de convaincant.",
+    "p2": "Alors j'ai fini par le coder. Problèmes inverses, incertitude bayésienne, vent API à ne surtout pas prendre au pied de la lettre — c'est ce qui tombe pile entre mon taf à <imperial>Imperial College London</imperial> (ML critique, après Safran, Decathlon et Ochy sur des modèles de fondation, de la vision par ordinateur et des pipelines LLM) et mes week-ends (triathlon dans le top, vents de face, et bien trop d'opinions sur la pression des pneus).",
+    "p3": "Wind-inverse, agrégation hiérarchique, tests d'invariance au prior, les huit garde-fous qualité : tout vient de ce frottement entre les deux mondes. Ça peut sembler exagéré pour un outil vélo. En fait c'est l'inverse — les autres sont sous-calibrés pour un outil de mesure. Les 14 articles de méthodo se sont ajoutés au fil du développement, sans plan.",
+    "p4": "Le code est sur GitHub. Un bug report avec un FIT joint vaut son pesant d'or. Un <em>« ta physique est fausse »</em> accompagné d'un FIT, encore plus.",
     "contact": "Me contacter",
-    "ctaAnalyzeTitle": "Analyse ta sortie",
-    "ctaAnalyzeBody": "Le plus rapide pour voir ce que fait l'outil : dépose un .fit, et tu as ton CdA en trente secondes.",
-    "ctaMethodsTitle": "Lis la méthodo",
-    "ctaMethodsBody": "14 articles reprennent chaque solveur, chaque filtre, chaque choix statistique qui tourne dans AeroProfile."
+    "ctaAnalyzeTitle": "Analyser une sortie",
+    "ctaAnalyzeBody": "Le chemin le plus court : tu déposes un .fit, tu as ton CdA en trente secondes.",
+    "ctaMethodsTitle": "Voir la méthodo",
+    "ctaMethodsBody": "14 articles détaillent chaque solveur, chaque filtre, chaque choix stat qui tourne sous le capot."
   },
   "footer": {
     "brand": "AeroProfile",

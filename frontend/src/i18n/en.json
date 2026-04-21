@@ -290,11 +290,21 @@
     "gainTime": "Time gain over 40 km"
   },
   "profile": {
+    "label": "Profile:",
+    "activeTooltip": "Active profile - click to reload its settings",
+    "activateTooltip": "Activate this profile",
+    "delete": "Delete this profile",
+    "deleteConfirm": "Delete this profile?",
+    "new": "New",
+    "newTooltip": "Create a new profile with the current form settings",
+    "namePlaceholder": "Profile name",
+    "add": "Add",
+    "reload": "Reload",
+    "reloadTooltip": "Reload the settings saved in the active profile",
     "save": "Save",
-    "load": "Load",
-    "new": "New profile",
-    "nameLabel": "Name",
-    "delete": "Delete",
-    "active": "Active"
+    "saved": "Saved!",
+    "saveTooltip": "Save the current form settings into the active profile",
+    "helpUpload": "Saves the mass, bike, position, and Crr. Reloading a profile pre-fills the form fields.",
+    "helpIntervals": "Saves the Intervals credentials, mass, bike, position, and filters. Reloading a profile pre-fills all these fields."
   }
 }

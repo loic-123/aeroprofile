@@ -290,11 +290,21 @@
     "gainTime": "Gain de temps sur 40 km"
   },
   "profile": {
-    "save": "Enregistrer",
-    "load": "Charger",
-    "new": "Nouveau profil",
-    "nameLabel": "Nom",
-    "delete": "Supprimer",
-    "active": "Actif"
+    "label": "Profil :",
+    "activeTooltip": "Profil actif - cliquez pour recharger ses paramètres",
+    "activateTooltip": "Activer ce profil",
+    "delete": "Supprimer ce profil",
+    "deleteConfirm": "Supprimer ce profil ?",
+    "new": "Nouveau",
+    "newTooltip": "Créer un nouveau profil avec les paramètres actuels du formulaire",
+    "namePlaceholder": "Nom du profil",
+    "add": "Ajouter",
+    "reload": "Recharger",
+    "reloadTooltip": "Recharger les paramètres enregistrés dans le profil actif",
+    "save": "Sauvegarder",
+    "saved": "Enregistré !",
+    "saveTooltip": "Sauvegarder les paramètres actuels du formulaire dans le profil actif",
+    "helpUpload": "Enregistre la masse, le vélo, la position et le Crr. Recharger un profil pré-remplit les champs du formulaire.",
+    "helpIntervals": "Enregistre les identifiants Intervals, la masse, le vélo, la position et les filtres. Recharger un profil pré-remplit tous ces champs."
   }
 }

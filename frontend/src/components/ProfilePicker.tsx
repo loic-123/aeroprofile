@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { User, Plus, Trash2, Save, Download } from "lucide-react";
 import {
   getProfiles,
@@ -32,6 +33,7 @@ export default function ProfilePicker({
   /** "intervals" | "upload" — only used for the contextual tooltip. */
   context: "intervals" | "upload";
 }) {
+  const { t } = useTranslation();
   const [profiles, setProfiles] = useState<LocalProfile[]>(() => getProfiles());
   const [active, setActive] = useState<LocalProfile>(() => getActiveProfile());
   const [adding, setAdding] = useState(false);
@@ -65,7 +67,7 @@ export default function ProfilePicker({
 
   const onDelete = (key: string) => {
     if (key === "local:moi") return;
-    if (confirm("Supprimer ce profil ?")) {
+    if (confirm(t("profile.deleteConfirm"))) {
       deleteProfile(key);
       refresh();
     }
@@ -84,15 +86,13 @@ export default function ProfilePicker({
   };
 
   const helpText =
-    context === "intervals"
-      ? "Enregistre les identifiants Intervals, la masse, le vélo, la position et les filtres. Recharger un profil pré-remplit tous ces champs."
-      : "Enregistre la masse, le vélo, la position et le Crr. Recharger un profil pré-remplit les champs du formulaire.";
+    context === "intervals" ? t("profile.helpIntervals") : t("profile.helpUpload");
 
   return (
     <div className="bg-panel border border-border rounded-lg p-3 mb-3">
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1.5 text-xs text-muted font-semibold">
-          <User size={12} /> Profil :
+          <User size={12} /> {t("profile.label")}
         </div>
         {profiles.map((p) => {
           const isActive = p.key === active.key;
@@ -105,7 +105,7 @@ export default function ProfilePicker({
                     ? "bg-teal/20 border-teal text-teal"
                     : "bg-bg border-border text-muted hover:border-muted"
                 }`}
-                title={isActive ? "Profil actif — cliquez pour recharger ses paramètres" : "Activer ce profil"}
+                title={isActive ? t("profile.activeTooltip") : t("profile.activateTooltip")}
               >
                 {p.name}
               </button>
@@ -113,7 +113,7 @@ export default function ProfilePicker({
                 <button
                   onClick={() => onDelete(p.key)}
                   className="text-muted hover:text-coral p-1"
-                  title="Supprimer ce profil"
+                  title={t("profile.delete")}
                 >
                   <Trash2 size={10} />
                 </button>
@@ -133,7 +133,7 @@ export default function ProfilePicker({
               autoFocus
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Nom du profil"
+              placeholder={t("profile.namePlaceholder")}
               className="text-xs bg-bg border border-border rounded px-2 py-1 font-mono w-32"
               onBlur={() => setTimeout(() => setAdding(false), 150)}
             />
@@ -141,25 +141,25 @@ export default function ProfilePicker({
               type="submit"
               className="text-xs px-2 py-1 rounded border border-teal text-teal hover:bg-teal/10"
             >
-              OK
+              {t("profile.add")}
             </button>
           </form>
         ) : (
           <button
             onClick={() => setAdding(true)}
             className="text-xs px-2 py-1 rounded border border-border text-muted hover:border-teal hover:text-teal flex items-center gap-1"
-            title="Créer un nouveau profil avec les paramètres actuels du formulaire"
+            title={t("profile.newTooltip")}
           >
-            <Plus size={11} /> Nouveau
+            <Plus size={11} /> {t("profile.new")}
           </button>
         )}
         <div className="flex items-center gap-1 ml-auto">
           <button
             onClick={onLoadActive}
             className="text-[10px] px-2 py-1 rounded border border-border text-muted hover:border-info hover:text-info flex items-center gap-1"
-            title="Recharger les paramètres enregistrés dans le profil actif"
+            title={t("profile.reloadTooltip")}
           >
-            <Download size={10} /> Recharger
+            <Download size={10} /> {t("profile.reload")}
           </button>
           <button
             onClick={onSaveToActive}
@@ -168,9 +168,9 @@ export default function ProfilePicker({
                 ? "border-teal text-teal bg-teal/10"
                 : "border-border text-muted hover:border-teal hover:text-teal"
             }`}
-            title="Sauvegarder les paramètres actuels du formulaire dans le profil actif"
+            title={t("profile.saveTooltip")}
           >
-            <Save size={10} /> {savedFlash ? "Enregistré !" : "Sauvegarder"}
+            <Save size={10} /> {savedFlash ? t("profile.saved") : t("profile.save")}
           </button>
         </div>
       </div>

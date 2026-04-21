@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { AnalysisResult } from "../../types";
 import { Card, Metric } from "../ui";
 import InfoTooltip from "../InfoTooltip";
@@ -16,6 +17,7 @@ interface Props {
  * wide viewports; on mobile the grid collapses to 2×2.
  */
 export function ResultsSecondaryStats({ result, unreliable }: Props) {
+  const { t } = useTranslation();
   const crrOutOfRange = result.crr < 0.0025 || result.crr > 0.008;
   const badFit = result.r_squared < 0.3;
 
@@ -37,10 +39,10 @@ export function ResultsSecondaryStats({ result, unreliable }: Props) {
           size="md"
           sub={
             unreliable
-              ? "non fiable"
+              ? t("secondary.crrUnreliable")
               : result.crr_was_fixed
-                ? "FIXÉ (peu de variété)"
-                : `IC [${result.crr_ci_low.toFixed(4)} – ${result.crr_ci_high.toFixed(4)}]`
+                ? t("secondary.crrFixed")
+                : t("secondary.crrCi", { low: result.crr_ci_low.toFixed(4), high: result.crr_ci_high.toFixed(4) })
           }
         />
       </Card>
@@ -49,7 +51,7 @@ export function ResultsSecondaryStats({ result, unreliable }: Props) {
         <Metric
           label={
             <span className="flex items-center">
-              Erreur moyenne
+              {t("secondary.rmseLabel")}
               <InfoTooltip text="Erreur RMSE (root-mean-square) entre la puissance modélisée et la puissance mesurée. Sur une sortie réelle, 15-25 W est typique ; sous 15 W excellent ; au-dessus de 30 W il y a un biais. Le R² complémentaire dépend de la variance de la sortie." />
             </span>
           }
@@ -65,14 +67,14 @@ export function ResultsSecondaryStats({ result, unreliable }: Props) {
         <Metric
           label={
             <span className="flex items-center">
-              ρ moyen
+              {t("secondary.rho")}
               <InfoTooltip text="Densité de l'air moyenne sur la sortie. Varie selon l'altitude, la température et l'humidité. ~1.22 au niveau de la mer à 15°C, ~1.05 à 1500 m." />
             </span>
           }
           value={result.avg_rho.toFixed(3)}
           unit="kg/m³"
           size="md"
-          sub="air humide calculé par point"
+          sub={t("secondary.rhoSub")}
         />
       </Card>
 
@@ -80,14 +82,14 @@ export function ResultsSecondaryStats({ result, unreliable }: Props) {
         <Metric
           label={
             <span className="flex items-center">
-              Vent moyen
+              {t("secondary.windMean")}
               <InfoTooltip text="Vent moyen sur la sortie, récupéré depuis Open-Meteo. La direction est la provenance (0°=N, 90°=E, 180°=S, 270°=O). Le vent est corrigé à hauteur du cycliste (facteur 0.7)." />
             </span>
           }
           value={(result.avg_wind_speed_ms * 3.6).toFixed(1)}
           unit="km/h"
           size="md"
-          sub={`provenance ${result.avg_wind_dir_deg.toFixed(0)}°`}
+          sub={t("secondary.windFrom", { deg: result.avg_wind_dir_deg.toFixed(0) })}
         />
       </Card>
     </div>

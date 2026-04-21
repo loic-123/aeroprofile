@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { AnalysisResult } from "../../types";
 import { Badge } from "../ui";
 import { Route, Mountain, Clock, Zap } from "lucide-react";
@@ -13,6 +14,7 @@ interface Props {
  * was the first thing users saw.
  */
 export function ResultsHeader({ result }: Props) {
+  const { t } = useTranslation();
   const hours = Math.floor(result.ride_duration_s / 3600);
   const mins = Math.floor((result.ride_duration_s % 3600) / 60);
   const solverLabel: Record<string, string> = {
@@ -31,7 +33,7 @@ export function ResultsHeader({ result }: Props) {
         <time className="font-mono">{result.ride_date}</time>
         <span aria-hidden>•</span>
         <Badge tone="neutral" size="sm">
-          Solveur : {solverLabel[result.solver_method] ?? result.solver_method}
+          {t("header.solver")} {solverLabel[result.solver_method] ?? result.solver_method}
         </Badge>
       </div>
       <div className="flex items-center gap-x-6 gap-y-1 flex-wrap text-sm font-mono">
@@ -41,7 +43,7 @@ export function ResultsHeader({ result }: Props) {
         </span>
         <span className="inline-flex items-center gap-1.5">
           <Mountain size={14} className="text-muted" aria-hidden />
-          D+ {Math.round(result.ride_elevation_gain_m)} m
+          {t("header.elevation")} {Math.round(result.ride_elevation_gain_m)} m
         </span>
         <span className="inline-flex items-center gap-1.5">
           <Clock size={14} className="text-muted" aria-hidden />
@@ -49,7 +51,7 @@ export function ResultsHeader({ result }: Props) {
         </span>
         <span className="inline-flex items-center gap-1.5">
           <Zap size={14} className="text-muted" aria-hidden />
-          {result.avg_power_w.toFixed(0)} W moy.
+          {result.avg_power_w.toFixed(0)} {t("header.avgPower")}
         </span>
       </div>
     </header>

@@ -159,5 +159,81 @@
     "setupA": "Configuration A",
     "setupB": "Configuration B",
     "backToAnalyze": "Retour à l'analyse"
+  },
+  "header": {
+    "solver": "Solveur :",
+    "avgPower": "W moy.",
+    "elevation": "D+"
+  },
+  "secondary": {
+    "crr": "Crr",
+    "crrUnreliable": "non fiable",
+    "crrFixed": "FIXÉ (peu de variété)",
+    "crrCi": "IC [{{low}} – {{high}}]",
+    "rmseLabel": "Erreur moyenne",
+    "rho": "ρ moyen",
+    "rhoSub": "air humide calculé par point",
+    "windMean": "Vent moyen",
+    "windFrom": "provenance {{deg}}°"
+  },
+  "diag": {
+    "windRobust": "Vent Open-Meteo cohérent avec les données (robuste)",
+    "windModerate": "Vent API peut-être imprécis (CdA modérément sensible)",
+    "windFragile": "Vent API probablement incorrect - CdA fragile",
+    "windBodyFragile": "Sur cette sortie, faire varier le vent API de ±30% déplace le CdA estimé de plus de 0,05 m². C'est le signe d'une zone où Open-Meteo capture mal le vent réel (côte, relief, grille grossière). Saisis le vent mesuré pour fiabiliser l'analyse.",
+    "windBodyModerate": "Faire varier le vent API de ±30% déplace le CdA de 0,02 à 0,05 m². Sensibilité modérée - un vent mesuré améliorerait la précision.",
+    "windBodyRobust": "Faire varier le vent API de ±30% laisse le CdA quasi inchangé. Estimation robuste au vent.",
+    "windCorrect": "Corriger le vent",
+    "unreliable": "Estimation non fiable",
+    "unreliableBody": "R² est négatif. Le modèle physique prédit moins la variance de puissance qu'une simple moyenne. Souvent signe de drafting, trafic, ou capteur de puissance mal calibré.",
+    "badFit": "Fit faible",
+    "badFitBody": "R² inférieur à 0,3. L'estimation est probablement fausse. Vérifier sorties en groupe, trafic stop-and-go, ou dérive du capteur."
+  },
+  "breakdown": {
+    "title": "CdA par régime de pente",
+    "flat": "Plat",
+    "climb": "Montée",
+    "descent": "Descente",
+    "notEnough": "Pas assez de points pour estimer ce régime."
+  },
+  "derived": {
+    "title": "Métriques dérivées (moyenne)",
+    "watts": "W",
+    "speed": "km/h",
+    "footnote": "Watts pour rouler sur le plat ({{mass}} kg, pas de vent, ρ = {{rho}})"
+  },
+  "charts": {
+    "speedPower": "Vitesse vs puissance",
+    "altitude": "Altitude réelle vs virtuelle (Chung)",
+    "cdaRolling": "CdA glissant (10 min)",
+    "cdaRollingHint": "CdA instantané estimé sur une fenêtre glissante de 10 minutes. Devrait rester relativement stable autour de la ligne horizontale (CdA moyen). Des pics ou chutes correspondent à des changements de position, du drafting, ou des zones où le modèle est peu fiable.",
+    "cdaRetained": "CdA (retenu)",
+    "cdaFiltered": "CdA (filtré)",
+    "altReal": "Altitude réelle",
+    "altVirtual": "Altitude virtuelle",
+    "filteredHint": "zones grises = segments exclus par le raffinement itératif"
+  },
+  "anomalies": {
+    "title": "Alertes d'anomalies"
+  },
+  "filters": {
+    "title": "Filtres de données",
+    "validSamples": "Échantillons valides",
+    "totalSamples": "Échantillons totaux"
+  },
+  "whatIf": {
+    "title": "Et si…",
+    "subtitle": "Simulez un changement de position ou un CdA cible",
+    "mass": "Masse",
+    "target": "CdA cible",
+    "gainTime": "Gain de temps sur 40 km"
+  },
+  "profile": {
+    "save": "Enregistrer",
+    "load": "Charger",
+    "new": "Nouveau profil",
+    "nameLabel": "Nom",
+    "delete": "Supprimer",
+    "active": "Actif"
   }
 }

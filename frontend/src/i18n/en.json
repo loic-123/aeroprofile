@@ -159,5 +159,81 @@
     "setupA": "Setup A",
     "setupB": "Setup B",
     "backToAnalyze": "Back to analysis"
+  },
+  "header": {
+    "solver": "Solver:",
+    "avgPower": "avg W",
+    "elevation": "Elev+"
+  },
+  "secondary": {
+    "crr": "Crr",
+    "crrUnreliable": "unreliable",
+    "crrFixed": "FIXED (low variety)",
+    "crrCi": "CI [{{low}} – {{high}}]",
+    "rmseLabel": "Mean error",
+    "rho": "Mean ρ",
+    "rhoSub": "humid air computed per point",
+    "windMean": "Mean wind",
+    "windFrom": "from {{deg}}°"
+  },
+  "diag": {
+    "windRobust": "Open-Meteo wind consistent with data (robust)",
+    "windModerate": "Wind may be imprecise (CdA moderately sensitive)",
+    "windFragile": "Wind probably wrong - fragile CdA",
+    "windBodyFragile": "On this ride, varying the API wind by ±30% moves the estimated CdA by more than 0.05 m². Typical of an area where Open-Meteo doesn't capture the real wind (coast, relief, coarse grid). Enter measured wind to make the analysis reliable.",
+    "windBodyModerate": "Varying the API wind by ±30% moves the CdA by 0.02 to 0.05 m². Moderate sensitivity - a measured wind would improve precision.",
+    "windBodyRobust": "Varying the API wind by ±30% leaves the CdA almost unchanged. Estimate is robust to wind.",
+    "windCorrect": "Correct the wind",
+    "unreliable": "Unreliable estimate",
+    "unreliableBody": "R² is below 0. The physical model predicts less of the power variance than a flat mean would. Often a sign of drafting, traffic, or a miscalibrated power meter.",
+    "badFit": "Weak fit",
+    "badFitBody": "R² below 0.3. The estimate is probably off. Check for group rides, stop-and-go traffic, or power meter drift."
+  },
+  "breakdown": {
+    "title": "CdA by gradient regime",
+    "flat": "Flat",
+    "climb": "Climb",
+    "descent": "Descent",
+    "notEnough": "Not enough points to estimate this regime."
+  },
+  "derived": {
+    "title": "Derived metrics (average)",
+    "watts": "W",
+    "speed": "km/h",
+    "footnote": "Watts to ride on the flat ({{mass}} kg, no wind, ρ = {{rho}})"
+  },
+  "charts": {
+    "speedPower": "Speed vs power",
+    "altitude": "Real vs virtual altitude (Chung)",
+    "cdaRolling": "Rolling CdA (10 min)",
+    "cdaRollingHint": "Instantaneous CdA over a rolling 10-minute window. Should stay roughly flat around the horizontal line (mean CdA). Spikes or dips = position change, drafting, or zones where the model is unreliable.",
+    "cdaRetained": "CdA (retained)",
+    "cdaFiltered": "CdA (filtered)",
+    "altReal": "Real altitude",
+    "altVirtual": "Virtual altitude",
+    "filteredHint": "grey zones = segments excluded by iterative refinement"
+  },
+  "anomalies": {
+    "title": "Anomaly alerts"
+  },
+  "filters": {
+    "title": "Data filters",
+    "validSamples": "Valid samples",
+    "totalSamples": "Total samples"
+  },
+  "whatIf": {
+    "title": "What if…",
+    "subtitle": "Simulate a position change or CdA target",
+    "mass": "Mass",
+    "target": "Target CdA",
+    "gainTime": "Time gain over 40 km"
+  },
+  "profile": {
+    "save": "Save",
+    "load": "Load",
+    "new": "New profile",
+    "nameLabel": "Name",
+    "delete": "Delete",
+    "active": "Active"
   }
 }

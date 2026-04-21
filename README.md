@@ -188,7 +188,7 @@ All 14 methodology articles in the app link back to specific papers. The core st
 
 ## Author
 
-**Loïc Briand** — [GitHub](https://github.com/loic-123)
+**Loïc Bouxirot** — [GitHub](https://github.com/loic-123)
 
 If AeroProfile saves you a trip to the wind tunnel, star the repo ⭐ or drop a comment in an [issue](https://github.com/loic-123/aeroprofile/issues). Bug reports with a FIT file attached are gold.
 

@@ -7,7 +7,7 @@ interface Props {
   onAnalyze: (
     files: File[],
     mass_kg: number,
-    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean; bikeType?: BikeType; positionIdx?: number; maxNrmse?: number },
+    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean; bikeType?: BikeType; positionIdx?: number; maxNrmse?: number; manual_wind_ms?: number; manual_wind_dir_deg?: number },
   ) => void;
   loading: boolean;
   error: string | null;
@@ -58,6 +58,9 @@ export default function FileUpload({
   };
   const [windFactor, setWindFactor] = useState(0.7);
   const [maxNrmse, setMaxNrmse] = useState(initialMaxNrmse ?? 45);
+  // Optional manual wind override. Empty string = use Open-Meteo (default).
+  const [manualWindKmh, setManualWindKmh] = useState<string>("");
+  const [manualWindDir, setManualWindDir] = useState<string>("");
 
   useEffect(() => {
     if (!onSettingsChange) return;
@@ -82,6 +85,8 @@ export default function FileUpload({
   const windId = useId();
   const nrmseId = useId();
   const cacheId = useId();
+  const windKmhId = useId();
+  const windDirId = useId();
 
   const addFiles = (newFiles: File[]) => {
     const accepted = newFiles.filter((f) => /\.(fit|gpx|tcx)$/i.test(f.name));
@@ -118,7 +123,17 @@ export default function FileUpload({
     if (files.length === 0 || !mass) return;
     const crrVal = crrFixed ? parseFloat(crrFixed.replace(",", ".")) : 0;
     const crr = crrVal > 0 ? crrVal : null;
-    onAnalyze(files, mass, { crr_fixed: crr, eta, wind_height_factor: windFactor, useCache, bikeType, positionIdx, maxNrmse: maxNrmse >= 100 ? 999 : maxNrmse / 100 });
+    const windKmh = manualWindKmh ? parseFloat(manualWindKmh.replace(",", ".")) : NaN;
+    const windDir = manualWindDir ? parseFloat(manualWindDir.replace(",", ".")) : NaN;
+    const manual_wind_ms = Number.isFinite(windKmh) && windKmh > 0 ? windKmh / 3.6 : undefined;
+    const manual_wind_dir_deg = Number.isFinite(windDir) && windDir >= 0 && windDir <= 360 ? windDir : undefined;
+    const bothOrNeither = manual_wind_ms != null && manual_wind_dir_deg != null;
+    onAnalyze(files, mass, {
+      crr_fixed: crr, eta, wind_height_factor: windFactor, useCache, bikeType, positionIdx,
+      maxNrmse: maxNrmse >= 100 ? 999 : maxNrmse / 100,
+      manual_wind_ms: bothOrNeither ? manual_wind_ms : undefined,
+      manual_wind_dir_deg: bothOrNeither ? manual_wind_dir_deg : undefined,
+    });
   };
 
   return (
@@ -382,6 +397,50 @@ export default function FileUpload({
                   max={1.0}
                 />
               </div>
+            </div>
+            <div>
+              <p className="text-xs text-muted mb-1">
+                Vent mesuré (optionnel, remplace Open-Meteo)
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor={windKmhId} className="block text-[10px] text-muted mb-0.5">
+                    Vitesse au sol (km/h)
+                  </label>
+                  <input
+                    id={windKmhId}
+                    type="number"
+                    inputMode="decimal"
+                    value={manualWindKmh}
+                    onChange={(e) => setManualWindKmh(e.target.value)}
+                    placeholder="vide = API"
+                    className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
+                    step={1}
+                    min={0}
+                    max={150}
+                  />
+                </div>
+                <div>
+                  <label htmlFor={windDirId} className="block text-[10px] text-muted mb-0.5">
+                    Direction d'où il vient (°, 0=N 90=E)
+                  </label>
+                  <input
+                    id={windDirId}
+                    type="number"
+                    inputMode="decimal"
+                    value={manualWindDir}
+                    onChange={(e) => setManualWindDir(e.target.value)}
+                    placeholder="vide = API"
+                    className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
+                    step={5}
+                    min={0}
+                    max={360}
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-muted mt-1">
+                Renseigne ces deux champs si le verdict affiche "vent fragile" ou si tu as une mesure fiable (station, Windy, Tempest). Laisse vide pour garder Open-Meteo.
+              </p>
             </div>
           </div>
         )}

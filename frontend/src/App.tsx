@@ -594,7 +594,7 @@ export default function App() {
                                 )}
                               </div>
                             </div>
-                            <div className="ml-auto flex gap-6 text-right">
+                            <div className="ml-auto grid grid-cols-2 sm:flex gap-4 sm:gap-6 text-right">
                               {aggCrr !== null && (
                                 <div>
                                   <div className="text-xs text-muted">Crr moyen</div>
@@ -668,7 +668,7 @@ export default function App() {
                                     </div>
                                   )}
                                 </div>
-                                <div className="ml-auto flex gap-6 text-right">
+                                <div className="ml-auto grid grid-cols-2 sm:flex gap-4 sm:gap-6 text-right">
                                   <div>
                                     <div className="text-xs text-muted">Crr partagé</div>
                                     <div className="text-xl font-mono text-info">{hierResult.crr.toFixed(4)}</div>

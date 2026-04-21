@@ -283,11 +283,37 @@
     }
   },
   "whatIf": {
-    "title": "What if…",
-    "subtitle": "Simulate a position change or CdA target",
-    "mass": "Mass",
-    "target": "Target CdA",
-    "gainTime": "Time gain over 40 km"
+    "title": "What-If Simulator",
+    "varyCda": "Vary CdA",
+    "varyPower": "Vary power",
+    "varySpeed": "Vary speed",
+    "fix": {
+      "powerImpactSpeed": "Power fixed → impact on speed",
+      "speedImpactPower": "Speed fixed → impact on power",
+      "cdaImpactSpeed": "CdA fixed → impact on speed",
+      "speedEqCda": "Speed fixed → equivalent CdA",
+      "powerRequiredPower": "Power fixed → required power",
+      "cdaRequiredPower": "CdA fixed → required power"
+    },
+    "powerProfile": "Power profile:",
+    "powerReal": "Real (with intervals)",
+    "powerSmooth": "Smoothed (constant power)",
+    "sliderCda": "CdA:",
+    "sliderCdaDelta": "({{delta}} vs real {{base}})",
+    "sliderPower": "Power:",
+    "sliderPowerDelta": "({{newW}} W vs {{baseW}} W)",
+    "sliderSpeed": "Speed:",
+    "sliderSpeedDelta": "({{newKmh}} vs {{baseKmh}} km/h)",
+    "current": "current",
+    "avgSpeed": "Avg speed",
+    "avgPower": "Avg power",
+    "equivCda": "Equivalent CdA",
+    "estimatedTime": "Estimated time",
+    "over": "over {{km}} km",
+    "legendPReal": "Real P",
+    "legendPSim": "Simulated P",
+    "legendVReal": "Real V",
+    "legendVSim": "Simulated V"
   },
   "profile": {
     "label": "Profile:",

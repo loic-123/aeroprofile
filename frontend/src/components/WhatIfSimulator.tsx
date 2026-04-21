@@ -11,6 +11,7 @@
  */
 
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { SlidersHorizontal } from "lucide-react";
 import {
   LineChart,
@@ -62,6 +63,7 @@ type FixedParam = "power" | "speed";
 type PowerProfile = "real" | "smooth";
 
 export default function WhatIfSimulator({ result }: { result: AnalysisResult }) {
+  const { t } = useTranslation();
   const [vary, setVary] = useState<VaryParam>("cda");
   const [fixed, setFixed] = useState<FixedParam>("power");
   const [powerProfile, setPowerProfile] = useState<PowerProfile>("real");
@@ -81,12 +83,12 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
 
   // What fixed options make sense for each vary param
   const fixedOptions: Record<VaryParam, { id: FixedParam; label: string }[]> = {
-    cda:   [{ id: "power", label: "Puissance fixée → impact sur vitesse" },
-            { id: "speed", label: "Vitesse fixée → impact sur puissance" }],
-    power: [{ id: "power", label: "CdA fixé → impact sur vitesse" },
-            { id: "speed", label: "Vitesse fixée → CdA équivalent" }],
-    speed: [{ id: "power", label: "Puissance fixée → puissance nécessaire" },
-            { id: "speed", label: "CdA fixé → puissance nécessaire" }],
+    cda:   [{ id: "power", label: t("whatIf.fix.powerImpactSpeed") },
+            { id: "speed", label: t("whatIf.fix.speedImpactPower") }],
+    power: [{ id: "power", label: t("whatIf.fix.cdaImpactSpeed") },
+            { id: "speed", label: t("whatIf.fix.speedEqCda") }],
+    speed: [{ id: "power", label: t("whatIf.fix.powerRequiredPower") },
+            { id: "speed", label: t("whatIf.fix.cdaRequiredPower") }],
   };
 
   const resetSliders = () => { setCdaDelta(0); setPowerDelta(0); setSpeedDelta(0); };
@@ -250,16 +252,16 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
     <div className="bg-panel border border-border rounded-lg p-4 space-y-4">
       <h3 className="text-sm font-semibold flex items-center gap-2">
         <SlidersHorizontal size={16} className="text-teal" />
-        Simulateur What-If
+        {t("whatIf.title")}
         <InfoTooltip text="Faites varier un paramètre et voyez l'impact sur la sortie. Le modèle recalcule point par point avec l'équation de Martin, en gardant parcours et météo identiques." />
       </h3>
 
       {/* Vary selector */}
       <div className="flex gap-1">
         {([
-          { id: "cda" as VaryParam, label: "Varier le CdA" },
-          { id: "power" as VaryParam, label: "Varier la puissance" },
-          { id: "speed" as VaryParam, label: "Varier la vitesse" },
+          { id: "cda" as VaryParam, label: t("whatIf.varyCda") },
+          { id: "power" as VaryParam, label: t("whatIf.varyPower") },
+          { id: "speed" as VaryParam, label: t("whatIf.varySpeed") },
         ]).map((m) => (
           <button key={m.id}
             onClick={() => { setVary(m.id); setFixed(fixedOptions[m.id][0].id); resetSliders(); }}
@@ -287,14 +289,14 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       {/* Power profile (only when power is an input, not output) */}
       {!(vary === "cda" && fixed === "speed") && vary !== "speed" && (
         <div className="flex items-center gap-3 text-xs">
-          <span className="text-muted">Profil de puissance :</span>
+          <span className="text-muted">{t("whatIf.powerProfile")}</span>
           <button onClick={() => setPowerProfile("real")}
             className={`px-2 py-1 rounded ${powerProfile === "real" ? "bg-info/20 text-info font-semibold" : "text-muted"}`}>
-            Réel (avec intervalles)
+            {t("whatIf.powerReal")}
           </button>
           <button onClick={() => setPowerProfile("smooth")}
             className={`px-2 py-1 rounded ${powerProfile === "smooth" ? "bg-info/20 text-info font-semibold" : "text-muted"}`}>
-            Lissé (puissance constante)
+            {t("whatIf.powerSmooth")}
           </button>
         </div>
       )}
@@ -304,14 +306,14 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
         {vary === "cda" && (
           <>
             <label className="block text-xs text-muted mb-1">
-              CdA : <span className="text-teal font-mono font-semibold">{(baseCda + cdaDelta).toFixed(3)} m²</span>
-              <span className="ml-2">({cdaDelta >= 0 ? "+" : ""}{cdaDelta.toFixed(3)} vs réel {baseCda.toFixed(3)})</span>
+              {t("whatIf.sliderCda")} <span className="text-teal font-mono font-semibold">{(baseCda + cdaDelta).toFixed(3)} m²</span>
+              <span className="ml-2">{t("whatIf.sliderCdaDelta", { delta: (cdaDelta >= 0 ? "+" : "") + cdaDelta.toFixed(3), base: baseCda.toFixed(3) })}</span>
             </label>
             <input type="range" min={-0.25} max={0.25} step={0.005} value={cdaDelta}
               onChange={(e) => setCdaDelta(parseFloat(e.target.value))} className="w-full accent-teal" />
             <div className="flex justify-between text-[10px] text-muted">
               <span>{Math.max(baseCda - 0.25, 0.05).toFixed(2)}</span>
-              <span className="text-teal cursor-pointer" onClick={() => setCdaDelta(0)}>actuel</span>
+              <span className="text-teal cursor-pointer" onClick={() => setCdaDelta(0)}>{t("whatIf.current")}</span>
               <span>{(baseCda + 0.25).toFixed(2)}</span>
             </div>
           </>
@@ -319,14 +321,14 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
         {vary === "power" && (
           <>
             <label className="block text-xs text-muted mb-1">
-              Puissance : <span className="text-teal font-mono font-semibold">{powerDelta >= 0 ? "+" : ""}{powerDelta}%</span>
-              <span className="ml-2">({(avgPower * (1 + powerDelta / 100)).toFixed(0)} W vs {avgPower.toFixed(0)} W)</span>
+              {t("whatIf.sliderPower")} <span className="text-teal font-mono font-semibold">{powerDelta >= 0 ? "+" : ""}{powerDelta}%</span>
+              <span className="ml-2">{t("whatIf.sliderPowerDelta", { newW: (avgPower * (1 + powerDelta / 100)).toFixed(0), baseW: avgPower.toFixed(0) })}</span>
             </label>
             <input type="range" min={-50} max={50} step={1} value={powerDelta}
               onChange={(e) => setPowerDelta(parseInt(e.target.value))} className="w-full accent-teal" />
             <div className="flex justify-between text-[10px] text-muted">
               <span>-50%</span>
-              <span className="text-teal cursor-pointer" onClick={() => setPowerDelta(0)}>actuel</span>
+              <span className="text-teal cursor-pointer" onClick={() => setPowerDelta(0)}>{t("whatIf.current")}</span>
               <span>+50%</span>
             </div>
           </>
@@ -334,14 +336,14 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
         {vary === "speed" && (
           <>
             <label className="block text-xs text-muted mb-1">
-              Vitesse : <span className="text-teal font-mono font-semibold">{speedDelta >= 0 ? "+" : ""}{speedDelta.toFixed(1)} km/h</span>
-              <span className="ml-2">({(result.avg_speed_kmh + speedDelta).toFixed(1)} vs {result.avg_speed_kmh.toFixed(1)} km/h)</span>
+              {t("whatIf.sliderSpeed")} <span className="text-teal font-mono font-semibold">{speedDelta >= 0 ? "+" : ""}{speedDelta.toFixed(1)} km/h</span>
+              <span className="ml-2">{t("whatIf.sliderSpeedDelta", { newKmh: (result.avg_speed_kmh + speedDelta).toFixed(1), baseKmh: result.avg_speed_kmh.toFixed(1) })}</span>
             </label>
             <input type="range" min={-15} max={15} step={0.5} value={speedDelta}
               onChange={(e) => setSpeedDelta(parseFloat(e.target.value))} className="w-full accent-teal" />
             <div className="flex justify-between text-[10px] text-muted">
               <span>-15 km/h</span>
-              <span className="text-teal cursor-pointer" onClick={() => setSpeedDelta(0)}>actuel</span>
+              <span className="text-teal cursor-pointer" onClick={() => setSpeedDelta(0)}>{t("whatIf.current")}</span>
               <span>+15 km/h</span>
             </div>
           </>
@@ -352,7 +354,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       {summary && (
         <div className="grid grid-cols-3 gap-3 text-center">
           <div className="bg-bg rounded p-2">
-            <div className="text-[10px] text-muted uppercase">Vitesse moy.</div>
+            <div className="text-[10px] text-muted uppercase">{t("whatIf.avgSpeed")}</div>
             <div className="font-mono text-sm">
               <span className="text-muted">{summary.avgVReal.toFixed(1)}</span>
               <span className="mx-1">→</span>
@@ -366,7 +368,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
           <div className="bg-bg rounded p-2">
             {vary === "power" && fixed === "speed" ? (
               <>
-                <div className="text-[10px] text-muted uppercase">CdA équivalent</div>
+                <div className="text-[10px] text-muted uppercase">{t("whatIf.equivCda")}</div>
                 <div className="font-mono text-sm">
                   <span className="text-muted">{baseCda.toFixed(3)}</span>
                   <span className="mx-1">→</span>
@@ -379,7 +381,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
               </>
             ) : (
               <>
-                <div className="text-[10px] text-muted uppercase">Puissance moy.</div>
+                <div className="text-[10px] text-muted uppercase">{t("whatIf.avgPower")}</div>
                 <div className="font-mono text-sm">
                   <span className="text-muted">{summary.avgPReal.toFixed(0)}</span>
                   <span className="mx-1">→</span>
@@ -393,13 +395,13 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
             )}
           </div>
           <div className="bg-bg rounded p-2">
-            <div className="text-[10px] text-muted uppercase">Temps estimé</div>
+            <div className="text-[10px] text-muted uppercase">{t("whatIf.estimatedTime")}</div>
             <div className="font-mono text-sm">
               <span className={summary.deltaTime < -1 ? "text-emerald-400 font-semibold" : summary.deltaTime > 1 ? "text-coral font-semibold" : "text-muted"}>
                 {fmtTime(summary.deltaTime)}
               </span>
             </div>
-            <div className="text-xs text-muted">sur {profile.distance_km[n - 1].toFixed(0)} km</div>
+            <div className="text-xs text-muted">{t("whatIf.over", { km: profile.distance_km[n - 1].toFixed(0) })}</div>
           </div>
         </div>
       )}
@@ -415,13 +417,13 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
             <Legend />
             {showPowerChart ? (
               <>
-                <Line type="monotone" dataKey="pReal" stroke="#8b8ba0" dot={false} name="P réelle" strokeWidth={1} />
-                <Line type="monotone" dataKey="pSim" stroke="#1D9E75" dot={false} name="P simulée" strokeWidth={2} />
+                <Line type="monotone" dataKey="pReal" stroke="#8b8ba0" dot={false} name={t("whatIf.legendPReal")} strokeWidth={1} />
+                <Line type="monotone" dataKey="pSim" stroke="#1D9E75" dot={false} name={t("whatIf.legendPSim")} strokeWidth={2} />
               </>
             ) : (
               <>
-                <Line type="monotone" dataKey="vReal" stroke="#8b8ba0" dot={false} name="V réelle" strokeWidth={1} />
-                <Line type="monotone" dataKey="vSim" stroke="#1D9E75" dot={false} name="V simulée" strokeWidth={2} />
+                <Line type="monotone" dataKey="vReal" stroke="#8b8ba0" dot={false} name={t("whatIf.legendVReal")} strokeWidth={1} />
+                <Line type="monotone" dataKey="vSim" stroke="#1D9E75" dot={false} name={t("whatIf.legendVSim")} strokeWidth={2} />
               </>
             )}
           </LineChart>

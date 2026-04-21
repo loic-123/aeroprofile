@@ -425,6 +425,105 @@
     "mapTitle": "Parcours",
     "mapDesc": "Tracé GPS de la sortie sur fond de carte. Coloré selon le CdA glissant (voir la légende sous la carte) pour lire d'un coup d'œil où la position tient ou dérape."
   },
+  "landing": {
+    "badge": "Open-source · v2026.04 · MIT",
+    "heroTitle1": "Estime ton",
+    "heroTitle2": "cyclisme",
+    "heroTitle3": "depuis n'importe quelle sortie.",
+    "heroLede": "Pas de vélodrome. Pas de protocole. Pas d'abonnement mensuel. Dépose un <fit>.fit</fit>, obtiens un CdA avec intervalle de confiance calibré - et la méthodologie complète derrière chaque chiffre.",
+    "ctaAnalyze": "Analyser ma sortie",
+    "ctaMethod": "Comment ça marche",
+    "byline": "Créé par Loïc Bouxirot · ingénieur IA à Imperial College",
+    "sampleAnalysis": "exemple d'analyse",
+    "cdaOverTime": "CdA au fil du temps",
+    "diffEyebrow": "Ce qui change",
+    "diffHeadline": "Six choix qui rendent cet outil fiable.",
+    "diffs": {
+      "windInverse": {
+        "title": "Solveur wind-inverse",
+        "body": "Le solveur principal ajuste conjointement le CdA et le champ de vent, au lieu de faire confiance à une API météo grille 10 km. Sur les rides avec variété de cap, ça double typiquement le R² (0.5 → 0.98)."
+      },
+      "hierarchical": {
+        "title": "Méta-analyse hiérarchique",
+        "body": "L'agrégation multi-rides utilise l'estimateur DerSimonian-Laird à effets aléatoires avec la correction Hartung-Knapp-Sidik-Jonkman pour petits échantillons. Vraie méta-analyse, pas une moyenne naïve."
+      },
+      "priorInvariance": {
+        "title": "Invariance au prior, testée",
+        "body": "Ton prior de position ne devrait pas déplacer le CdA agrégé. AeroProfile publie cda_raw sur chaque ride pour vérification, et un test pytest garantit l'invariance en CI."
+      },
+      "qualityGates": {
+        "title": "Huit quality gates",
+        "body": "Toutes les sorties ne donnent pas un bon CdA. Chaque analyse est classifiée par 8 gates documentés (solvers_pegged, sensor_miscalib, prior_dominated…) pour que les mauvaises rides soient flagguées, pas silencieusement moyennées."
+      },
+      "windSens": {
+        "title": "Sensibilité vent par ride",
+        "body": "Un re-solve post-hoc avec wind × 1.05 expose le Δ CdA. Pas une correction aveugle - un nombre transparent qui dit si ce ride est robuste ou fragile au vent."
+      },
+      "pmDrift": {
+        "title": "Détection dérive capteur",
+        "body": "Indépendant du solveur. Ratio de biais en pédalage plat suivi par capteur, dans ton historique, avec distribution KDE. Détecte un Assioma qui dérive avant que ton CdA ne devienne louche."
+      }
+    },
+    "methodLink": "Méthode",
+    "howItWorksEyebrow": "Comment ça marche",
+    "howItWorksHeadline": "D'un fichier vélo à un CdA fiable en ~30 secondes.",
+    "step1Title": "Dépose ta sortie",
+    "step1Body": ".fit, .gpx ou .tcx. Un fichier ou un batch - les batches sont agrégés par méta-analyse hiérarchique, pas par une moyenne naïve.",
+    "step2Title": "Le pipeline tourne",
+    "step2Body": "13 filtres isolent les points en régime permanent. Trois solveurs concourent (wind-inverse, Chung VE, Martin LS). Huit quality gates notent l'estimation. La météo Open-Meteo tuilée nourrit le vent.",
+    "step3Title": "Tu obtiens un chiffre fiable",
+    "step3Body": "CdA avec intervalles de confiance Hessien + conforme. Breakdown par régime (plat / montée / descente). Diagnostics si quelque chose cloche. Et chaque choix expliqué dans /méthodes.",
+    "methodsEyebrow": "Méthodes",
+    "methodsHeadline": "14 articles qui expliquent chaque chiffre.",
+    "methodsLede": "Chaque seuil, prior et choix de solveur dans AeroProfile est documenté. En voici trois favoris.",
+    "seeAll": "Voir les 14 articles",
+    "featuredRead": "Lire",
+    "featuredBlurbs": {
+      "windCorrection": "Pourquoi AeroProfile ne fait pas confiance au vent Open-Meteo tel quel - et comment un problème inverse bayésien sur le champ de vent double le R² sur les rides avec variété de cap.",
+      "windCorrectionTitle": "Le solveur wind-inverse",
+      "priorInvariance": "Si ton prior de position déplace le CdA agrégé, l'outil est cassé. Comment AeroProfile garantit l'invariance en CI, avec une étude de cas sur un vrai dataset 4iiii.",
+      "priorInvarianceTitle": "Le test d'invariance au prior",
+      "aggregation": "Estimateur DerSimonian-Laird à effets aléatoires avec correction HKSJ pour petits échantillons. Quand l'utiliser, et pourquoi 'faire la moyenne' ne suffit pas.",
+      "aggregationTitle": "Agrégation hiérarchique, bien faite"
+    },
+    "featuredTagPhysics": "physique",
+    "featuredTagStats": "statistiques",
+    "featuredTagAdv": "avancé",
+    "featuredTagRegTest": "test régression",
+    "featuredTagMeta": "méta-analyse",
+    "builderEyebrow": "Qui a fait ça",
+    "builderPitch": "AeroProfile, c'est ce qui arrive quand un triathlète s'entraîne au labo d'IA d'Imperial et ne trouve pas d'estimateur de CdA auquel il fait confiance.",
+    "builderCta": "À propos du créateur"
+  },
+  "about": {
+    "back": "Retour à l'accueil",
+    "eyebrow": "À propos",
+    "title": "AeroProfile, c'est ce qui arrive quand un triathlète s'entraîne au labo d'IA d'Imperial et ne trouve pas d'estimateur de CdA auquel il fait confiance.",
+    "p1": "Salut, je suis <name>Loïc Bouxirot</name>. AeroProfile existe parce qu'en 2024, j'ai acheté un casque aéro et passé les six mois suivants à me demander - de la manière obsessionnelle que seul un triathlète peut produire - s'il faisait vraiment quelque chose, ou si j'avais juste donné 300 € à une boîte qui vend <em>de l'espoir, en polystyrène expansé</em>.",
+    "p2": "La réponse honnête à cette question demande des problèmes inverses, de l'incertitude bayésienne, et un certain respect pour le champ de vent d'Open-Meteo. Un diagramme de Venn bizarrement spécifique. Alors j'ai écrit l'outil que je voulais voir exister - en m'appuyant sur le job (ML safety-critical à <imperial>Imperial College London</imperial>, avec des passages chez Safran, Decathlon et Ochy sur des modèles de fondation, vision par ordinateur, et pipelines LLM) et sur l'habitude du week-end (triathlon à l'avant, vents de face, opinions sur la pression des pneus).",
+    "p3": "Le solveur wind-inverse, l'agrégation hiérarchique, les tests de régression d'invariance au prior, les huit quality gates - tout vient de cette boucle biculturelle. Si ça paraît sur-ingénieré pour un outil vélo, c'est parce que tous les autres outils que j'ai trouvés étaient <em>sous</em>-ingénierés pour un outil de mesure. Je ne me suis pas mis à écrire 14 articles de méthodologie exprès. Ça s'est juste accumulé.",
+    "p4": "Le code est sur GitHub. Les bug reports avec fichier FIT joint sont en or. Les bug reports qui commencent par <em>\"je pense que ta physique est fausse\"</em> sont encore mieux, à condition de finir par un fichier FIT.",
+    "contact": "Contact",
+    "ctaAnalyzeTitle": "Analyse ta sortie",
+    "ctaAnalyzeBody": "Le plus rapide pour voir ce que fait l'outil - dépose un .fit et obtiens ton CdA en ~30 secondes.",
+    "ctaMethodsTitle": "Lis la méthodologie",
+    "ctaMethodsBody": "14 articles couvrent chaque solveur, filtre, et choix statistique dans AeroProfile."
+  },
+  "footer": {
+    "brand": "AeroProfile",
+    "tagline": "Estimateur de CdA open-source pour cyclistes. Créé par Loïc Bouxirot. Sous licence MIT. Tes données de ride restent dans ton navigateur - rien n'est stocké sur un serveur.",
+    "version": "v2026.04 · made in France",
+    "nav": "Pied de page",
+    "methods": "Méthodes",
+    "about": "À propos"
+  },
+  "blogIndexHeader": {
+    "eyebrow": "Méthodes",
+    "title": "Comment AeroProfile calcule ton CdA - chaque étape, chaque hypothèse.",
+    "lede": "14 articles qui couvrent la physique, les algorithmes et les choix statistiques dans l'outil. Formules incluses, expliquées simplement.",
+    "featured": "Mis en avant",
+    "all": "Les 14 articles"
+  },
   "postureSchematic": {
     "ttPro": { "name": "CLM pro (Superman)", "description": "Prolongateurs, dos plat, position CLM pro" },
     "ttAmateur": { "name": "CLM amateur", "description": "Prolongateurs, dos et bras tendus" },

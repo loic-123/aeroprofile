@@ -425,6 +425,105 @@
     "mapTitle": "Route",
     "mapDesc": "GPS trace on a basemap. Coloured by rolling CdA (see legend below the map) for a quick read of where the position held or drifted."
   },
+  "landing": {
+    "badge": "Open-source · v2026.04 · MIT",
+    "heroTitle1": "Estimate your",
+    "heroTitle2": "cycling",
+    "heroTitle3": "from any ride.",
+    "heroLede": "No velodrome. No protocol. No monthly fee. Drop a <fit>.fit</fit>, get a CdA with a calibrated confidence interval - and the complete methodology behind every number.",
+    "ctaAnalyze": "Analyze your ride",
+    "ctaMethod": "See how it works",
+    "byline": "Built by Loïc Bouxirot · AI engineer at Imperial College",
+    "sampleAnalysis": "sample analysis",
+    "cdaOverTime": "CdA over time",
+    "diffEyebrow": "Why it's different",
+    "diffHeadline": "Six choices that make this tool trustworthy.",
+    "diffs": {
+      "windInverse": {
+        "title": "Wind-inverse solver",
+        "body": "The primary solver jointly fits CdA and the wind field, rather than trusting a 10 km-grid weather API. On rides with heading variety this typically doubles R² (0.5 → 0.98)."
+      },
+      "hierarchical": {
+        "title": "Hierarchical meta-analysis",
+        "body": "Multi-ride aggregation uses a DerSimonian-Laird random-effects estimator with the Hartung-Knapp-Sidik-Jonkman small-sample correction. Proper meta-analysis, not a naïve average."
+      },
+      "priorInvariance": {
+        "title": "Prior invariance, tested",
+        "body": "Your position prior should not shift the aggregate CdA. AeroProfile publishes cda_raw on every ride so you can verify, and a pytest regression enforces the invariant in CI."
+      },
+      "qualityGates": {
+        "title": "Eight quality gates",
+        "body": "Not every ride yields a good CdA. Each analysis is classified by 8 documented gates (solvers_pegged, sensor_miscalib, prior_dominated…) so bad rides are flagged, not silently averaged in."
+      },
+      "windSens": {
+        "title": "Per-ride wind sensitivity",
+        "body": "A post-hoc re-solve with wind × 1.05 exposes the Δ CdA. Not a blind correction - a transparent number showing whether this ride is wind-robust or wind-fragile."
+      },
+      "pmDrift": {
+        "title": "Power-meter drift detection",
+        "body": "Independent of the solver. Flat-pedaling bias ratio tracked per sensor, in your history, with a KDE distribution. Spots a drifting Assioma before your CdA starts to look weird."
+      }
+    },
+    "methodLink": "Method",
+    "howItWorksEyebrow": "How it works",
+    "howItWorksHeadline": "From a bike file to a trustworthy CdA in ~30 seconds.",
+    "step1Title": "Drop your ride",
+    "step1Body": ".fit, .gpx or .tcx. One file or a batch - batches get aggregated with proper hierarchical meta-analysis, not a naïve mean.",
+    "step2Title": "The pipeline runs",
+    "step2Body": "13 filters isolate steady-state points. Three solvers compete (wind-inverse, Chung VE, Martin LS). Eight quality gates grade the estimate. Tiled Open-Meteo weather feeds the wind.",
+    "step3Title": "You get a number you can trust",
+    "step3Body": "CdA with Hessian + conformal confidence intervals. Per-regime breakdown (flat / climb / descent). Diagnostics if something smells off. And every choice explained in /methods.",
+    "methodsEyebrow": "Methods",
+    "methodsHeadline": "14 articles explaining every number.",
+    "methodsLede": "Every threshold, prior, and solver choice in AeroProfile is documented. Here are three favourites.",
+    "seeAll": "See all 14 articles",
+    "featuredRead": "Read",
+    "featuredBlurbs": {
+      "windCorrection": "Why AeroProfile doesn't trust Open-Meteo's wind at face value - and how a Bayesian inverse problem over the wind field doubles R² on rides with heading variety.",
+      "windCorrectionTitle": "The wind-inverse solver",
+      "priorInvariance": "If your position prior shifts the aggregate CdA, the tool is broken. How AeroProfile guarantees invariance in CI, with a real 4iiii dataset case study.",
+      "priorInvarianceTitle": "The prior-invariance test",
+      "aggregation": "DerSimonian-Laird random-effects estimator with HKSJ small-sample correction. When to use it, and why 'average all the rides' isn't good enough.",
+      "aggregationTitle": "Hierarchical aggregation, done right"
+    },
+    "featuredTagPhysics": "physics",
+    "featuredTagStats": "statistics",
+    "featuredTagAdv": "advanced",
+    "featuredTagRegTest": "regression test",
+    "featuredTagMeta": "meta-analysis",
+    "builderEyebrow": "Who built this",
+    "builderPitch": "AeroProfile is what you get when a triathlete trains at Imperial's AI lab and can't find a CdA estimator he trusts.",
+    "builderCta": "About the builder"
+  },
+  "about": {
+    "back": "Back to home",
+    "eyebrow": "About",
+    "title": "AeroProfile is what you get when a triathlete trains at Imperial's AI lab and can't find a CdA estimator he trusts.",
+    "p1": "Hi, I'm <name>Loïc Bouxirot</name>. AeroProfile exists because, in 2024, I bought an aero helmet and spent the next six months wondering - in the unhinged, slightly obsessive way only a triathlete can - whether it was actually doing anything, or whether I'd just given €300 to a company that sells <em>hope, in expanded polystyrene form</em>.",
+    "p2": "It turns out the answer to that question, honestly measured, requires inverse problems, Bayesian uncertainty, and a healthy respect for Open-Meteo's wind field. Which is a weirdly specific Venn diagram. So I wrote the tool I wanted to exist - leaning on the day job (safety-critical ML at <imperial>Imperial College London</imperial>, with previous stops at Safran, Decathlon, and Ochy doing foundation models, computer vision, and LLM pipelines) and the weekend habit (front-pack triathlon, headwinds, opinions about tyre pressure).",
+    "p3": "The wind-inverse solver, the hierarchical aggregation, the prior-invariance regression tests, the eight quality gates - they all come from that bicultural loop. If it looks over-engineered for a cycling tool, it's because every other tool I found was <em>under</em>-engineered for a measurement tool. I did not set out to write 14 methodology articles. It just kept happening.",
+    "p4": "The code is on GitHub. Bug reports with a FIT file attached are gold. Bug reports that begin with <em>\"I think your physics is wrong\"</em> are even better, provided they end with a FIT file.",
+    "contact": "Get in touch",
+    "ctaAnalyzeTitle": "Analyze your ride",
+    "ctaAnalyzeBody": "The fastest way to see what the tool does - drop a .fit and get your CdA in ~30 seconds.",
+    "ctaMethodsTitle": "Read the methodology",
+    "ctaMethodsBody": "14 articles cover every solver, filter, and statistical choice inside AeroProfile."
+  },
+  "footer": {
+    "brand": "AeroProfile",
+    "tagline": "Open-source CdA estimator for cyclists. Built by Loïc Bouxirot. MIT licensed. Your ride data stays in your browser - nothing is stored on any server.",
+    "version": "v2026.04 · made in France",
+    "nav": "Footer",
+    "methods": "Methods",
+    "about": "About"
+  },
+  "blogIndexHeader": {
+    "eyebrow": "Methods",
+    "title": "How AeroProfile calculates your CdA - every step, every assumption.",
+    "lede": "14 articles covering the physics, the algorithms, and the statistical choices inside the tool. Formulas included, explained in plain language.",
+    "featured": "Featured",
+    "all": "All 14 articles"
+  },
   "postureSchematic": {
     "ttPro": { "name": "Pro TT (Superman)", "description": "Aerobars, flat back, pro-TT tuck" },
     "ttAmateur": { "name": "Amateur TT", "description": "Aerobars, arms and back extended" },

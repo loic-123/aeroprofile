@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { ArrowRight, BookOpen } from "lucide-react";
 
 interface Props {
@@ -8,42 +9,35 @@ interface Props {
 
 interface Article {
   slug: string;
-  title: string;
-  blurb: string;
+  titleKey: string;
+  blurbKey: string;
   read: string;
-  tags: string[];
+  tagKeys: string[];
 }
 
-/**
- * Three featured methodology articles on the landing — the intent is
- * to show prospective users that the tool is documented, not just
- * shipped. Each card links straight into the article.
- */
 export function FeaturedMethods({ onGotoArticle, onGotoMethodsIndex }: Props) {
+  const { t } = useTranslation();
   const featured: Article[] = [
     {
       slug: "wind-correction",
-      title: "The wind-inverse solver",
-      blurb:
-        "Why AeroProfile doesn't trust Open-Meteo's wind at face value - and how a Bayesian inverse problem over the wind field doubles R² on rides with heading variety.",
+      titleKey: "landing.featuredBlurbs.windCorrectionTitle",
+      blurbKey: "landing.featuredBlurbs.windCorrection",
       read: "12 min",
-      tags: ["physics", "statistics", "advanced"],
+      tagKeys: ["featuredTagPhysics", "featuredTagStats", "featuredTagAdv"],
     },
     {
       slug: "prior-invariance",
-      title: "The prior-invariance test",
-      blurb:
-        "If your position prior shifts the aggregate CdA, the tool is broken. How AeroProfile guarantees invariance in CI, with a real 4iiii dataset case study.",
+      titleKey: "landing.featuredBlurbs.priorInvarianceTitle",
+      blurbKey: "landing.featuredBlurbs.priorInvariance",
       read: "8 min",
-      tags: ["statistics", "regression test"],
+      tagKeys: ["featuredTagStats", "featuredTagRegTest"],
     },
     {
       slug: "aggregation-methods",
-      title: "Hierarchical aggregation, done right",
-      blurb:
-        "DerSimonian–Laird random-effects estimator with HKSJ small-sample correction. When to use it, and why 'average all the rides' isn't good enough.",
+      titleKey: "landing.featuredBlurbs.aggregationTitle",
+      blurbKey: "landing.featuredBlurbs.aggregation",
       read: "10 min",
-      tags: ["meta-analysis", "advanced"],
+      tagKeys: ["featuredTagMeta", "featuredTagAdv"],
     },
   ];
 
@@ -52,21 +46,20 @@ export function FeaturedMethods({ onGotoArticle, onGotoMethodsIndex }: Props) {
       <div className="mb-12 md:mb-16 flex items-end justify-between gap-6 flex-wrap">
         <div className="max-w-2xl">
           <div className="text-[11px] uppercase tracking-widest text-primary font-semibold mb-3">
-            Methods
+            {t("landing.methodsEyebrow")}
           </div>
           <h2 className="font-display text-3xl md:text-4xl leading-[1.1] text-text">
-            14 articles explaining every number.
+            {t("landing.methodsHeadline")}
           </h2>
           <p className="text-muted-strong mt-4 max-w-lg leading-relaxed">
-            Every threshold, prior, and solver choice in AeroProfile is
-            documented. Here are three favourites.
+            {t("landing.methodsLede")}
           </p>
         </div>
         <button
           onClick={onGotoMethodsIndex}
           className="inline-flex items-center gap-2 text-sm text-text hover:text-primary transition-colors"
         >
-          See all 14 articles
+          {t("landing.seeAll")}
           <ArrowRight size={14} aria-hidden />
         </button>
       </div>
@@ -94,23 +87,23 @@ export function FeaturedMethods({ onGotoArticle, onGotoMethodsIndex }: Props) {
                 <span className="num text-xs">{a.read}</span>
               </div>
               <h3 className="text-lg font-semibold text-text mb-3 tracking-tight leading-snug">
-                {a.title}
+                {t(a.titleKey)}
               </h3>
               <p className="text-sm text-muted-strong leading-relaxed mb-4">
-                {a.blurb}
+                {t(a.blurbKey)}
               </p>
               <div className="flex items-center gap-2 flex-wrap mt-auto">
-                {a.tags.map((t) => (
+                {a.tagKeys.map((tk) => (
                   <span
-                    key={t}
+                    key={tk}
                     className="text-[10px] uppercase tracking-widest text-muted px-1.5 py-0.5 rounded border border-border/80"
                   >
-                    {t}
+                    {t(`landing.${tk}`)}
                   </span>
                 ))}
               </div>
               <div className="mt-4 inline-flex items-center gap-1 text-xs text-primary">
-                Read
+                {t("landing.featuredRead")}
                 <ArrowRight
                   size={12}
                   className="transition-transform duration-base group-hover:translate-x-0.5"

@@ -1,17 +1,13 @@
 import { motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
 
 interface Props {
   onGotoAbout: () => void;
 }
 
-/**
- * A short builder teaser on the landing — the tool is introduced via
- * a single honest sentence about who made it, then a CTA to the
- * /about page. The point is to anchor credibility visually (the
- * photo) without turning the landing into a CV.
- */
 export function BuilderTeaser({ onGotoAbout }: Props) {
+  const { t } = useTranslation();
   return (
     <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16 md:py-24">
       <motion.div
@@ -25,8 +21,6 @@ export function BuilderTeaser({ onGotoAbout }: Props) {
           <img
             src="/loic.jpg"
             onError={(e) => {
-              // Graceful fallback to the SVG placeholder if the
-              // user hasn't uploaded their photo yet.
               (e.currentTarget as HTMLImageElement).src = "/loic.svg";
             }}
             alt="Loïc Bouxirot"
@@ -44,17 +38,16 @@ export function BuilderTeaser({ onGotoAbout }: Props) {
         </div>
         <div>
           <div className="text-[11px] uppercase tracking-widest text-primary font-semibold mb-3">
-            Who built this
+            {t("landing.builderEyebrow")}
           </div>
           <p className="text-xl md:text-2xl font-display text-text leading-snug tracking-tight">
-            AeroProfile is what you get when a triathlete trains at
-            Imperial's AI lab and can't find a CdA estimator he trusts.
+            {t("landing.builderPitch")}
           </p>
           <button
             onClick={onGotoAbout}
             className="mt-5 inline-flex items-center gap-2 text-sm text-primary hover:text-primary-hover transition-colors"
           >
-            About the builder
+            {t("landing.builderCta")}
             <ArrowRight size={14} aria-hidden />
           </button>
         </div>

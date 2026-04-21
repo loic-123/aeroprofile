@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { useTranslation, Trans } from "react-i18next";
 import { Github, Mail, Linkedin, ArrowLeft, ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -8,31 +9,25 @@ interface Props {
   onGotoMethods: () => void;
 }
 
-/**
- * About page. Compact on purpose: ~5 sentences that introduce Loïc
- * THROUGH the tool (not the reverse — no CV rundown). The page
- * should feel like a short, honest "who's behind this" aside that
- * pushes the visitor back to the product.
- */
 export default function AboutPage({
   onGotoHome,
   onGotoAnalyze,
   onGotoMethods,
 }: Props) {
+  const { t } = useTranslation();
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12 md:py-20">
-      {/* Back link */}
       <button
         onClick={onGotoHome}
         className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-text transition-colors mb-10"
       >
         <ArrowLeft size={12} aria-hidden />
-        Back to home
+        {t("about.back")}
       </button>
 
       <FadeIn>
         <div className="text-[11px] uppercase tracking-widest text-primary font-semibold mb-5">
-          About
+          {t("about.eyebrow")}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-[auto,1fr] gap-6 md:gap-10 items-start mb-10">
           <img
@@ -47,8 +42,7 @@ export default function AboutPage({
           />
           <div className="space-y-4">
             <h1 className="font-display text-3xl md:text-4xl leading-[1.1] text-text tracking-tight">
-              AeroProfile is what you get when a triathlete trains at
-              Imperial's AI lab and can't find a CdA estimator he trusts.
+              {t("about.title")}
             </h1>
           </div>
         </div>
@@ -57,45 +51,42 @@ export default function AboutPage({
       <FadeIn delay={100}>
         <div className="prose prose-invert max-w-none space-y-5 text-[15px] leading-relaxed text-muted-strong">
           <p>
-            Hi, I'm <span className="text-text font-medium">Loïc Bouxirot</span>.
-            AeroProfile exists because, in 2024, I bought an aero helmet and spent
-            the next six months wondering - in the unhinged, slightly obsessive
-            way only a triathlete can - whether it was actually doing anything,
-            or whether I'd just given €300 to a company that sells{" "}
-            <em>hope, in expanded polystyrene form</em>.
+            <Trans
+              i18nKey="about.p1"
+              components={{
+                name: <span className="text-text font-medium" />,
+                em: <em />,
+              }}
+            />
           </p>
           <p>
-            It turns out the answer to that question, honestly measured, requires
-            inverse problems, Bayesian uncertainty, and a healthy respect for
-            Open-Meteo's wind field. Which is a weirdly specific Venn diagram.
-            So I wrote the tool I wanted to exist - leaning on the day job
-            (safety-critical ML at{" "}
-            <span className="text-text">Imperial College London</span>, with
-            previous stops at Safran, Decathlon, and Ochy doing foundation
-            models, computer vision, and LLM pipelines) and the weekend habit
-            (front-pack triathlon, headwinds, opinions about tyre pressure).
+            <Trans
+              i18nKey="about.p2"
+              components={{
+                imperial: <span className="text-text" />,
+                em: <em />,
+              }}
+            />
           </p>
           <p>
-            The wind-inverse solver, the hierarchical aggregation, the
-            prior-invariance regression tests, the eight quality gates - they
-            all come from that bicultural loop. If it looks over-engineered for
-            a cycling tool, it's because every other tool I found was{" "}
-            <em>under</em>-engineered for a measurement tool. I did not set out
-            to write 14 methodology articles. It just kept happening.
+            <Trans
+              i18nKey="about.p3"
+              components={{ em: <em /> }}
+            />
           </p>
           <p className="text-muted">
-            The code is on GitHub. Bug reports with a FIT file attached are
-            gold. Bug reports that begin with <em>"I think your physics is
-            wrong"</em> are even better, provided they end with a FIT file.
+            <Trans
+              i18nKey="about.p4"
+              components={{ em: <em /> }}
+            />
           </p>
         </div>
       </FadeIn>
 
-      {/* Contact row */}
       <FadeIn delay={180}>
         <div className="mt-10 pt-8 border-t border-border/60 flex flex-wrap items-center gap-4">
           <span className="text-xs uppercase tracking-widest text-muted font-semibold">
-            Get in touch
+            {t("about.contact")}
           </span>
           <a
             href="https://github.com/loic-123/aeroprofile"
@@ -125,18 +116,17 @@ export default function AboutPage({
         </div>
       </FadeIn>
 
-      {/* CTAs */}
       <FadeIn delay={260}>
         <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4">
           <Cta
             onClick={onGotoAnalyze}
-            title="Analyze your ride"
-            body="The fastest way to see what the tool does - drop a .fit and get your CdA in ~30 seconds."
+            title={t("about.ctaAnalyzeTitle")}
+            body={t("about.ctaAnalyzeBody")}
           />
           <Cta
             onClick={onGotoMethods}
-            title="Read the methodology"
-            body="14 articles cover every solver, filter, and statistical choice inside AeroProfile."
+            title={t("about.ctaMethodsTitle")}
+            body={t("about.ctaMethodsBody")}
           />
         </div>
       </FadeIn>

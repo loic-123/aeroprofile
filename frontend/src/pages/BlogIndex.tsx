@@ -61,16 +61,13 @@ export default function BlogIndex() {
       {/* Header */}
       <div className="mb-12">
         <div className="text-[11px] uppercase tracking-widest text-primary font-semibold mb-3">
-          Methods
+          {t("blogIndexHeader.eyebrow")}
         </div>
         <h1 className="font-display text-3xl md:text-4xl leading-[1.1] text-text mb-4">
-          How AeroProfile calculates your CdA -
-          every step, every assumption.
+          {t("blogIndexHeader.title")}
         </h1>
         <p className="text-muted-strong max-w-2xl leading-relaxed">
-          14 articles covering the physics, the algorithms, and the
-          statistical choices inside the tool. Formulas included,
-          explained in plain language.
+          {t("blogIndexHeader.lede")}
         </p>
       </div>
 
@@ -78,7 +75,7 @@ export default function BlogIndex() {
       <section className="mb-16">
         <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-accent font-semibold mb-5">
           <Sparkles size={12} aria-hidden />
-          Featured
+          {t("blogIndexHeader.featured")}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
           {featured.map((a, i) => (
@@ -90,7 +87,7 @@ export default function BlogIndex() {
       {/* All articles by category */}
       <section>
         <div className="text-[11px] uppercase tracking-widest text-muted font-semibold mb-5">
-          All 14 articles
+          {t("blogIndexHeader.all")}
         </div>
         <div className="space-y-10">
           {CATEGORY_ORDER.map((cat) => (

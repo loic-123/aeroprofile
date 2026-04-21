@@ -425,6 +425,19 @@
     "mapTitle": "Parcours",
     "mapDesc": "Tracé GPS de la sortie sur fond de carte. Coloré selon le CdA glissant (voir la légende sous la carte) pour lire d'un coup d'œil où la position tient ou dérape."
   },
+  "totem": {
+    "headline": "Aérodynamiquement, vous êtes…",
+    "t0": { "name": "Formule 1", "desc": "Vous fendez l'air comme une monoplace de GP. Position CLM d'exception." },
+    "t1": { "name": "Pingouin empereur en glisse", "desc": "Profilé comme un pingouin sur la glace. Position contre-la-montre pro." },
+    "t2": { "name": "Aigle en piqué", "desc": "Ailes repliées, vous plongez dans l'air comme un rapace. CLM amateur solide." },
+    "t3": { "name": "Dauphin", "desc": "Hydrodynamique parfait. Position route agressive, mains en bas, dos plat." },
+    "t4": { "name": "Ballon de foot", "desc": "Étonnamment aéro grâce aux coutures. Position route drops, bon compromis." },
+    "t5": { "name": "Skieur en descente", "desc": "Position de recherche de vitesse. Route sur cocottes, rien de honteux." },
+    "t6": { "name": "Lion au galop", "desc": "Puissant mais pas très profilé. Position hoods standard, marge de progression sur le buste." },
+    "t7": { "name": "Brique posée à plat", "desc": "Pas le plus aéro du zoo. Position relevée, mains en haut du cintre." },
+    "t8": { "name": "Ours debout", "desc": "Imposant face au vent. Position très droite, VTT ou vélo ville." },
+    "t9": { "name": "Porte de grange", "desc": "Vous offrez toute votre surface au vent. Il y a du travail ! 😄" }
+  },
   "chartsLegend": {
     "cdaRetained": "CdA (retenu)",
     "cdaFiltered": "CdA (filtré)",

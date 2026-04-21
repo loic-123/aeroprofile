@@ -425,6 +425,19 @@
     "mapTitle": "Route",
     "mapDesc": "GPS trace on a basemap. Coloured by rolling CdA (see legend below the map) for a quick read of where the position held or drifted."
   },
+  "totem": {
+    "headline": "Aerodynamically, you are…",
+    "t0": { "name": "Formula 1", "desc": "You slice through the air like a GP single-seater. Elite TT position." },
+    "t1": { "name": "Gliding emperor penguin", "desc": "As streamlined as a penguin on ice. Pro-level TT position." },
+    "t2": { "name": "Diving eagle", "desc": "Wings tucked, you dive through the air like a raptor. Solid amateur TT." },
+    "t3": { "name": "Dolphin", "desc": "Perfect hydrodynamics. Aggressive road position, hands in the drops, flat back." },
+    "t4": { "name": "Football", "desc": "Surprisingly aero thanks to the seams. Road drops, good compromise." },
+    "t5": { "name": "Downhill skier", "desc": "Tuck-and-go position. Road hoods, nothing to be ashamed of." },
+    "t6": { "name": "Galloping lion", "desc": "Powerful but not very streamlined. Standard hoods, room to improve on the torso." },
+    "t7": { "name": "Brick on its side", "desc": "Not the most aero at the zoo. Upright, hands on the tops." },
+    "t8": { "name": "Bear on its hind legs", "desc": "Imposing into the wind. Very upright, MTB or city bike." },
+    "t9": { "name": "Barn door", "desc": "You offer your whole surface to the wind. Work to do! 😄" }
+  },
   "chartsLegend": {
     "cdaRetained": "CdA (retained)",
     "cdaFiltered": "CdA (filtered)",

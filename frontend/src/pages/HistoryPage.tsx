@@ -61,7 +61,7 @@ export default function HistoryPage() {
   };
 
   const handleClear = () => {
-    if (confirm("Supprimer tout l'historique ?")) {
+    if (confirm(t("history.clearConfirm"))) {
       clearHistory();
       setEntries([]);
     }
@@ -101,7 +101,7 @@ export default function HistoryPage() {
       const text = await file.text();
       const res = importHistoryFromText(text);
       if (!res.ok) {
-        setImportMessage({ kind: "err", text: res.error || "Import échoué." });
+        setImportMessage({ kind: "err", text: res.error || t("history.importFailedGen") });
         return;
       }
       setImportMessage({
@@ -123,7 +123,7 @@ export default function HistoryPage() {
   };
 
   const modeLabel = (m: string) =>
-    m === "single" ? "Analyse" : m === "intervals" ? "Intervals" : "Comparer";
+    m === "single" ? t("history.modeSingle") : m === "intervals" ? t("history.modeIntervals") : t("history.modeCompare");
 
   // --- Filter options (athletes / sensors / bikes) ---
   // Sensor options are built from the per-ride `rideCdas[].powerMeter`
@@ -652,10 +652,10 @@ export default function HistoryPage() {
                 }`}
                 title={
                   isIgnored
-                    ? "Réinclure cette analyse dans le graphique de stabilité et l'histogramme de biais"
-                    : "Exclure cette analyse du graphique de stabilité et de l'histogramme de biais (sans la supprimer)"
+                    ? t("history.reincludeInCharts")
+                    : t("history.excludeFromCharts")
                 }
-                aria-label={isIgnored ? "Réinclure dans les graphiques" : "Exclure des graphiques"}
+                aria-label={isIgnored ? t("history.reincludeInCharts") : t("history.excludeFromCharts")}
               >
                 {isIgnored ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
@@ -675,72 +675,72 @@ export default function HistoryPage() {
                     <div>
                       <div className="text-xs text-muted">Crr</div>
                       <div className="font-mono text-teal text-lg">{e.crr.toFixed(4)}</div>
-                      {e.crrFixed != null && <div className="text-xs text-muted">fixé</div>}
+                      {e.crrFixed != null && <div className="text-xs text-muted">{t("history.fixed")}</div>}
                     </div>
                     <div>
-                      <div className="text-xs text-muted">W/CdA</div>
+                      <div className="text-xs text-muted">{t("history.wCda")}</div>
                       <div className="font-mono text-info text-lg">{wCda}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted">V plat</div>
+                      <div className="text-xs text-muted">{t("history.flatSpeed")}</div>
                       <div className="font-mono text-info text-lg">{vFlat} km/h</div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 mt-3 text-xs text-muted">
-                    <div>RMSE : <span className="text-text font-mono">±{e.rmseW.toFixed(0)} W</span> (nRMSE {nrmse}%)</div>
-                    <div>Masse : <span className="text-text font-mono">{e.massKg} kg</span></div>
-                    <div>Rides : <span className="text-text font-mono">{e.nRides}</span> retenues, <span className="text-text font-mono">{e.nExcluded}</span> exclues</div>
-                    <div>Vélo : <span className="text-text">{e.bikeType}</span> · <span className="text-text">{e.positionLabel}</span></div>
-                    <div>Crr : <span className="text-text font-mono">{e.crrFixed != null ? `${e.crrFixed.toFixed(4)} (fixé)` : "auto"}</span></div>
-                    <div>Prior CdA : <span className="text-text font-mono">
-                      {e.cdaPriorMean != null && e.cdaPriorMean > 0 ? `${e.cdaPriorMean.toFixed(2)} ± ${e.cdaPriorSigma?.toFixed(2)}` : "aucun"}
+                    <div>{t("history.colRmse")} : <span className="text-text font-mono">±{e.rmseW.toFixed(0)} W</span> (nRMSE {nrmse}%)</div>
+                    <div>{t("history.colMass")} : <span className="text-text font-mono">{e.massKg} kg</span></div>
+                    <div>{t("history.colRides")} : <span className="text-text font-mono">{e.nRides}</span> {t("history.ridesKept")}, <span className="text-text font-mono">{e.nExcluded}</span> {t("history.ridesExcluded")}</div>
+                    <div>{t("history.colBike")} : <span className="text-text">{e.bikeType}</span> · <span className="text-text">{e.positionLabel}</span></div>
+                    <div>{t("history.colCrr")} : <span className="text-text font-mono">{e.crrFixed != null ? `${e.crrFixed.toFixed(4)} (${t("history.fixed")})` : t("history.auto")}</span></div>
+                    <div>{t("history.colPriorCda")} : <span className="text-text font-mono">
+                      {e.cdaPriorMean != null && e.cdaPriorMean > 0 ? `${e.cdaPriorMean.toFixed(2)} ± ${e.cdaPriorSigma?.toFixed(2)}` : "—"}
                     </span></div>
                     {e.powerMeterLabel && (
                       <div className="md:col-span-2">
-                        Capteur : <span className={`font-mono ${
+                        {t("history.colSensor")} : <span className={`font-mono ${
                           e.powerMeterQuality === "low" ? "text-coral" :
                           e.powerMeterQuality === "medium" ? "text-warn" :
                           e.powerMeterQuality === "high" ? "text-teal" : "text-text"
                         }`}>{e.powerMeterLabel}</span>
                         {e.powerBiasRatio != null && (
-                          <span className="text-muted"> · biais médian ×{e.powerBiasRatio.toFixed(2)}</span>
+                          <span className="text-muted"> · {t("history.biasMedian")} ×{e.powerBiasRatio.toFixed(2)}</span>
                         )}
                       </div>
                     )}
                     {e.athleteName && (
-                      <div>Profil : <span className="text-info font-mono">{e.athleteName}</span></div>
+                      <div>{t("history.colProfile")} : <span className="text-info font-mono">{e.athleteName}</span></div>
                     )}
                     {e.bikeLabel && (
-                      <div>Vélo : <span className="text-warn font-mono">{e.bikeLabel}</span></div>
+                      <div>{t("history.colBike")} : <span className="text-warn font-mono">{e.bikeLabel}</span></div>
                     )}
                     {e.maxNrmse != null && (
-                      <div>Seuil qualité : <span className="text-text font-mono">{e.maxNrmse >= 9.9 ? "désactivé" : `${(e.maxNrmse * 100).toFixed(0)}%`}</span></div>
+                      <div>{t("history.colQualityThreshold")} : <span className="text-text font-mono">{e.maxNrmse >= 9.9 ? t("history.disabled") : `${(e.maxNrmse * 100).toFixed(0)}%`}</span></div>
                     )}
                     {e.useCache != null && (
-                      <div>Cache : <span className="text-text">{e.useCache ? "activé" : "désactivé"}</span></div>
+                      <div>{t("history.colCache")} : <span className="text-text">{e.useCache ? t("history.enabled") : t("history.disabled")}</span></div>
                     )}
                     {e.dateFrom && e.dateTo && (
-                      <div className="md:col-span-3">Période : <span className="text-text font-mono">{e.dateFrom} → {e.dateTo}</span></div>
+                      <div className="md:col-span-3">{t("history.colPeriod")} : <span className="text-text font-mono">{e.dateFrom} → {e.dateTo}</span></div>
                     )}
                     {e.minDistanceKm != null && (
-                      <div>Distance : <span className="text-text font-mono">{e.minDistanceKm}–{e.maxDistanceKm} km</span></div>
+                      <div>{t("history.colDistance")} : <span className="text-text font-mono">{e.minDistanceKm}–{e.maxDistanceKm} km</span></div>
                     )}
                     {e.maxElevationM != null && (
-                      <div>D+ max : <span className="text-text font-mono">{e.maxElevationM} m</span></div>
+                      <div>{t("history.colMaxElev")} : <span className="text-text font-mono">{e.maxElevationM} m</span></div>
                     )}
                     {e.minDurationH != null && (
-                      <div>Durée min : <span className="text-text font-mono">{Math.round(e.minDurationH * 60)} min</span></div>
+                      <div>{t("history.colMinDuration")} : <span className="text-text font-mono">{Math.round(e.minDurationH * 60)} min</span></div>
                     )}
                     {e.excludeGroup != null && (
-                      <div>Groupe exclu : <span className="text-text">{e.excludeGroup ? "oui" : "non"}</span></div>
+                      <div>{t("history.colGroupExcluded")} : <span className="text-text">{e.excludeGroup ? t("history.yes") : t("history.no")}</span></div>
                     )}
                   </div>
 
                   {/* Mini CdA evolution */}
                   {e.rideCdas.length >= 2 && (
                     <div className="mt-3">
-                      <div className="text-xs text-muted mb-1">CdA par sortie</div>
+                      <div className="text-xs text-muted mb-1">{t("history.cdaPerRide")}</div>
                       <div className="flex items-end gap-0.5 h-12">
                         {e.rideCdas.map((rc, j) => {
                           const min = Math.min(...e.rideCdas.map((x) => x.cda));
@@ -880,6 +880,7 @@ interface FilterBlocksProps {
 }
 
 function FilterBlocks({ athletes, sensors, bikes, nFiltered, nTotal }: FilterBlocksProps) {
+  const { t } = useTranslation();
   const anyFilter =
     athletes.options.labels.length > 0 ||
     athletes.options.unknownCount > 0 ||
@@ -891,8 +892,8 @@ function FilterBlocks({ athletes, sensors, bikes, nFiltered, nTotal }: FilterBlo
   return (
     <div className="space-y-2">
       <FilterBlock
-        title="Filtrer par profil :"
-        unknownLabel="Profil inconnu"
+        title={t("history.filterProfile")}
+        unknownLabel={t("history.profileUnknown")}
         options={athletes.options}
         selected={athletes.selected}
         toggle={athletes.toggle}
@@ -901,8 +902,8 @@ function FilterBlocks({ athletes, sensors, bikes, nFiltered, nTotal }: FilterBlo
         accent="info"
       />
       <FilterBlock
-        title="Filtrer par capteur :"
-        unknownLabel="Capteur inconnu"
+        title={t("history.filterSensor")}
+        unknownLabel={t("intervals.sensorUnknown")}
         options={sensors.options}
         selected={sensors.selected}
         toggle={sensors.toggle}
@@ -911,8 +912,8 @@ function FilterBlocks({ athletes, sensors, bikes, nFiltered, nTotal }: FilterBlo
         accent="teal"
       />
       <FilterBlock
-        title="Filtrer par vélo :"
-        unknownLabel="Vélo inconnu"
+        title={t("history.filterBike")}
+        unknownLabel={t("history.bikeUnknown")}
         options={bikes.options}
         selected={bikes.selected}
         toggle={bikes.toggle}

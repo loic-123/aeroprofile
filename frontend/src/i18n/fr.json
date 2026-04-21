@@ -144,15 +144,26 @@
     "allSensors": "Tous les capteurs"
   },
   "history": {
-    "title": "Historique",
-    "empty": "Aucune analyse pour le moment. Uploadez une sortie pour la voir ici.",
+    "title": "Historique des analyses",
+    "subtitle_one": "{{count}} analyse sauvegardée",
+    "subtitle_other": "{{count}} analyses sauvegardées",
+    "empty": "Aucune analyse dans l'historique",
+    "emptyDesc": "Lancez une analyse pour la voir apparaître ici.",
+    "disclaimer": "Vos analyses sont stockées <strong>uniquement dans votre navigateur</strong> (localStorage), jamais sur un serveur. Elles peuvent être perdues si vous videz le cache ou changez d'appareil - <strong>exportez régulièrement</strong> pour conserver une sauvegarde.",
     "clear": "Tout effacer",
     "export": "Exporter",
+    "exportTitle": "Télécharger toutes les analyses au format JSON",
     "import": "Importer",
-    "date": "Date",
-    "label": "Sortie",
-    "bike": "Vélo",
-    "delete": "Supprimer"
+    "importTitle": "Importer un historique JSON (fusion avec l'existant)",
+    "importFileAria": "Importer un fichier JSON d'historique",
+    "importedOk": "Importé avec succès",
+    "importFailed": "Import échoué",
+    "filterProfile": "Filtrer par profil :",
+    "filterSensor": "Filtrer par capteur :",
+    "filterBike": "Filtrer par vélo :",
+    "excludeFromCharts": "Exclure des graphiques",
+    "reincludeInCharts": "Réinclure dans les graphiques",
+    "profile": "Profil : {{name}}"
   },
   "compare": {
     "title": "Comparer deux configurations",
@@ -248,9 +259,28 @@
     "title": "Alertes d'anomalies"
   },
   "filters": {
-    "title": "Filtres de données",
-    "validSamples": "Échantillons valides",
-    "totalSamples": "Échantillons totaux"
+    "title": "Filtrage des données",
+    "retentionTitle": "Rétention : >60% bon, 25-60% modéré, <25% insuffisant",
+    "tierGood": "bon",
+    "tierModerate": "modéré",
+    "tierInsufficient": "insuffisant",
+    "usedOutOf": "<kept>{{valid}}</kept> points utilisés sur <total>{{total}}</total> - <excl>{{excluded}}</excl> exclus",
+    "labels": {
+      "stopped": "Arrêt / très lent",
+      "lowSpeed": "Vitesse trop basse (< 3 m/s)",
+      "noPower": "Puissance trop faible (< 50 W)",
+      "braking": "Freinage (décel > 0.3 m/s²)",
+      "hardAccel": "Accélération forte (> 0.3 m/s²)",
+      "steepClimb": "Montée raide (> 8%)",
+      "descent": "Descente raide (< -8%)",
+      "sharpTurn": "Virage serré (yaw > 10°/s)",
+      "negativeVAir": "V_air négatif (vent arrière > vitesse)",
+      "gpsJump": "Saut GPS (> 50 m entre 2 pts)",
+      "powerSpike": "Spike de puissance (> 3×NP)",
+      "unsteady": "Vitesse instable (CV > 15%)",
+      "drafting": "Drafting détecté (CdA inst. < 0.12, ≥ 30s)",
+      "veDrift": "Dérive altitude virtuelle (passe 2 itérative)"
+    }
   },
   "whatIf": {
     "title": "Et si…",

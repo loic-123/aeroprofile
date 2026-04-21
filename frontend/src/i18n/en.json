@@ -144,15 +144,26 @@
     "allSensors": "All sensors"
   },
   "history": {
-    "title": "History",
-    "empty": "No analysis yet. Upload a ride to see it here.",
+    "title": "Analysis history",
+    "subtitle_one": "{{count}} saved analysis",
+    "subtitle_other": "{{count}} saved analyses",
+    "empty": "No analysis in history",
+    "emptyDesc": "Run an analysis to see it appear here.",
+    "disclaimer": "Your analyses are stored <strong>only in your browser</strong> (localStorage), never on a server. They can be lost if you clear the cache or change device - <strong>export regularly</strong> to keep a backup.",
     "clear": "Clear all",
     "export": "Export",
+    "exportTitle": "Download all analyses in JSON format",
     "import": "Import",
-    "date": "Date",
-    "label": "Ride",
-    "bike": "Bike",
-    "delete": "Delete"
+    "importTitle": "Import a JSON history (merges with existing)",
+    "importFileAria": "Import a history JSON file",
+    "importedOk": "Imported successfully",
+    "importFailed": "Import failed",
+    "filterProfile": "Filter by profile:",
+    "filterSensor": "Filter by sensor:",
+    "filterBike": "Filter by bike:",
+    "excludeFromCharts": "Exclude from charts",
+    "reincludeInCharts": "Include back in charts",
+    "profile": "Profile: {{name}}"
   },
   "compare": {
     "title": "Compare two setups",
@@ -248,9 +259,28 @@
     "title": "Anomaly alerts"
   },
   "filters": {
-    "title": "Data filters",
-    "validSamples": "Valid samples",
-    "totalSamples": "Total samples"
+    "title": "Data filtering",
+    "retentionTitle": "Retention: >60% good, 25-60% moderate, <25% insufficient",
+    "tierGood": "good",
+    "tierModerate": "moderate",
+    "tierInsufficient": "insufficient",
+    "usedOutOf": "<kept>{{valid}}</kept> points used out of <total>{{total}}</total> - <excl>{{excluded}}</excl> excluded",
+    "labels": {
+      "stopped": "Stopped / very slow",
+      "lowSpeed": "Speed too low (< 3 m/s)",
+      "noPower": "Power too low (< 50 W)",
+      "braking": "Braking (decel > 0.3 m/s²)",
+      "hardAccel": "Strong acceleration (> 0.3 m/s²)",
+      "steepClimb": "Steep climb (> 8%)",
+      "descent": "Steep descent (< -8%)",
+      "sharpTurn": "Sharp turn (yaw > 10°/s)",
+      "negativeVAir": "Negative V_air (tailwind > speed)",
+      "gpsJump": "GPS jump (> 50 m between 2 pts)",
+      "powerSpike": "Power spike (> 3×NP)",
+      "unsteady": "Unsteady speed (CV > 15%)",
+      "drafting": "Drafting detected (inst. CdA < 0.12, ≥ 30s)",
+      "veDrift": "Virtual altitude drift (iterative pass 2)"
+    }
   },
   "whatIf": {
     "title": "What if…",

@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from "react";
+import { useTranslation, Trans } from "react-i18next";
 import { Clock, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, Download, Upload, Info, History } from "lucide-react";
 import {
   getHistory,
@@ -25,6 +26,7 @@ function rollingStd(values: number[], window: number): (number | null)[] {
 }
 
 export default function HistoryPage() {
+  const { t } = useTranslation();
   const [entries, setEntries] = useState(() => getHistory());
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   // Multi-select filter sets. Null-sentinel "__unknown__" is used for entries
@@ -405,8 +407,8 @@ export default function HistoryPage() {
     <div className="max-w-5xl mx-auto space-y-6">
       <PageHeader
         icon={<Clock size={20} />}
-        title="Historique des analyses"
-        subtitle={`${entries.length} analyse${entries.length > 1 ? "s" : ""} sauvegardée${entries.length > 1 ? "s" : ""}`}
+        title={t("history.title")}
+        subtitle={t("history.subtitle", { count: entries.length })}
         actions={
           <>
             <Button
@@ -414,9 +416,9 @@ export default function HistoryPage() {
               size="sm"
               onClick={handleImportClick}
               leftIcon={<Upload size={14} />}
-              title="Importer un historique JSON (fusion avec l'existant)"
+              title={t("history.importTitle")}
             >
-              Importer
+              {t("history.import")}
             </Button>
             <Button
               variant="secondary"
@@ -424,9 +426,9 @@ export default function HistoryPage() {
               onClick={handleExport}
               disabled={entries.length === 0}
               leftIcon={<Download size={14} />}
-              title="Télécharger toutes les analyses au format JSON"
+              title={t("history.exportTitle")}
             >
-              Exporter
+              {t("history.export")}
             </Button>
             {entries.length > 0 && (
               <Button
@@ -436,7 +438,7 @@ export default function HistoryPage() {
                 leftIcon={<Trash2 size={14} />}
                 className="hover:text-danger"
               >
-                Tout effacer
+                {t("history.clear")}
               </Button>
             )}
             <input
@@ -445,7 +447,7 @@ export default function HistoryPage() {
               accept="application/json,.json"
               className="hidden"
               onChange={handleImportFile}
-              aria-label="Importer un fichier JSON d'historique"
+              aria-label={t("history.importFileAria")}
             />
           </>
         }
@@ -456,10 +458,7 @@ export default function HistoryPage() {
       <Card tone="info" elevation={0} className="px-4 py-2.5 text-xs text-muted flex items-start gap-2.5">
         <Info size={14} className="text-info mt-0.5 shrink-0" aria-hidden />
         <div className="leading-relaxed">
-          Vos analyses sont stockées <strong>uniquement dans votre navigateur</strong>{" "}
-          (localStorage), jamais sur un serveur. Elles peuvent être perdues
-          si vous videz le cache ou changez d'appareil — <strong>exportez
-          régulièrement</strong> pour conserver une sauvegarde.
+          <Trans i18nKey="history.disclaimer" components={{ strong: <strong /> }} />
         </div>
       </Card>
 
@@ -481,8 +480,8 @@ export default function HistoryPage() {
       {entries.length === 0 && (
         <EmptyState
           icon={<History size={40} strokeWidth={1.5} />}
-          title="Aucune analyse dans l'historique"
-          description="Lancez une analyse pour la voir apparaître ici."
+          title={t("history.empty")}
+          description={t("history.emptyDesc")}
         />
       )}
 

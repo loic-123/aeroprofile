@@ -71,7 +71,7 @@ export function FeaturedMethods({ onGotoArticle, onGotoMethodsIndex }: Props) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 items-stretch">
         {featured.map((a, i) => (
           <motion.article
             key={a.slug}
@@ -83,10 +83,11 @@ export function FeaturedMethods({ onGotoArticle, onGotoMethodsIndex }: Props) {
               ease: [0.16, 1, 0.3, 1],
               delay: i * 0.06,
             }}
+            className="h-full"
           >
             <button
               onClick={() => onGotoArticle(a.slug)}
-              className="group block text-left w-full h-full rounded-lg border border-border bg-panel p-6 transition-all duration-base hover:border-primary-border hover:bg-panel-2 hover:shadow-e2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+              className="group flex flex-col text-left w-full h-full rounded-lg border border-border bg-panel p-6 transition-all duration-base hover:border-primary-border hover:bg-panel-2 hover:shadow-e2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
             >
               <div className="flex items-center gap-2 text-muted mb-4">
                 <BookOpen size={14} aria-hidden />
@@ -98,7 +99,7 @@ export function FeaturedMethods({ onGotoArticle, onGotoMethodsIndex }: Props) {
               <p className="text-sm text-muted-strong leading-relaxed mb-4">
                 {a.blurb}
               </p>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap mt-auto">
                 {a.tags.map((t) => (
                   <span
                     key={t}

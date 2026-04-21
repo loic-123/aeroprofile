@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import FileUpload from "./components/FileUpload";
 import ProfilePicker from "./components/ProfilePicker";
 import ResultsDashboard from "./components/ResultsDashboard";
@@ -73,6 +73,10 @@ export default function App() {
   const [uploadFormSettings, setUploadFormSettings] = useState<ProfileSettings>(
     initialActiveProfile.settings || {},
   );
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [mode, blogSlug]);
+
   const onUploadProfileLoad = (s: ProfileSettings) => {
     setUploadInitialSettings(s);
     setUploadFormSettings(s);

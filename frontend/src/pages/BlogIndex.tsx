@@ -189,7 +189,7 @@ export default function BlogIndex() {
           <Sparkles size={12} aria-hidden />
           Featured
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
           {featured.map((a, i) => (
             <FeaturedCard key={a.slug} article={a} index={i} />
           ))}
@@ -258,9 +258,10 @@ function FeaturedCard({ article: a, index }: { article: Article; index: number }
         ease: [0.16, 1, 0.3, 1],
         delay: index * 0.06,
       }}
+      className="h-full"
     >
       <Link slug={a.slug}>
-        <article className="group block h-full rounded-lg border border-border bg-panel p-5 cursor-pointer transition-all duration-base hover:border-primary-border hover:bg-panel-2 hover:shadow-e2">
+        <article className="group flex h-full flex-col rounded-lg border border-border bg-panel p-5 cursor-pointer transition-all duration-base hover:border-primary-border hover:bg-panel-2 hover:shadow-e2">
           <div className="flex items-center justify-between text-[10px] uppercase tracking-widest text-muted mb-4">
             <span>{a.category}</span>
             <span className="font-mono">{a.readMin} min</span>
@@ -271,7 +272,7 @@ function FeaturedCard({ article: a, index }: { article: Article; index: number }
           <p className="text-xs text-muted-strong leading-relaxed line-clamp-3">
             {a.desc}
           </p>
-          <div className="flex gap-1.5 mt-4 flex-wrap">
+          <div className="flex gap-1.5 mt-auto pt-4 flex-wrap">
             {a.tags.map((t) => (
               <TagPill key={t}>{t}</TagPill>
             ))}

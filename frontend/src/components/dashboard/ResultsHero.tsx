@@ -7,6 +7,7 @@ import { Card, Badge } from "../ui";
 import InfoTooltip from "../InfoTooltip";
 import PositionSchematic from "../PositionSchematic";
 import { motion } from "framer-motion";
+import { useNumberRoll } from "../../hooks/useNumberRoll";
 
 interface Props {
   result: AnalysisResult;
@@ -14,24 +15,30 @@ interface Props {
 }
 
 /**
- * The hero section of the dashboard. The CdA value is THE headline —
- * 5xl mono, teal, centred. The position silhouette on the right reads
- * as a 2-second visual summary. Secondary metrics (Hessian CI,
- * conformal CI, personal solver bias, prior-reinforced badge, cda_raw)
- * stack below the number so they don't compete with it.
+ * The hero section of the single-ride dashboard. The CdA value IS
+ * the headline — 5xl/6xl mono, tabular, animated on mount via the
+ * useNumberRoll hook. Hessian + conformal + personal solver bias
+ * live right below in a tight <dl> so the reader can drill once
+ * they've anchored on the big number.
  *
- * This is the component users will quote/screenshot when sharing
- * their results, so visual weight is intentionally heavy.
+ * The position silhouette sits on the right and collapses to the
+ * top on narrow viewports. Whole card is elevated two steps so it
+ * visually stands out from the rest of the dashboard.
  */
 export function ResultsHero({ result, unreliable }: Props) {
   const factor = result.prior_adaptive_factor ?? 1.0;
   const showFactor = factor > 1.05;
   const raw = result.cda_raw;
   const showRaw = raw != null && Math.abs(raw - result.cda) > 0.02;
-
   const outOfRange = result.cda < 0.2 || result.cda > 0.5;
 
-  // Conformal interval — distribution-free IC from the user's history.
+  // Number-roll on the hero only for reliable results. Unreliable
+  // shows "—" immediately — no animation on non-values.
+  const rolled = useNumberRoll(unreliable ? 0 : result.cda, {
+    decimals: 3,
+    durationMs: 900,
+  });
+
   const conformal = useMemo(() => {
     if (unreliable) return null;
     try {
@@ -47,9 +54,6 @@ export function ResultsHero({ result, unreliable }: Props) {
     }
   }, [result.cda, result.power_meter_display, result.gear_id, unreliable]);
 
-  // Personal solver bias: median(chung_cda − cda) on the user's clean
-  // rides. Exposes systematic wind_inverse vs Chung disagreement on
-  // THIS user's dataset.
   const personalSolverBias = useMemo(() => {
     try {
       const hist = getHistory();
@@ -76,68 +80,77 @@ export function ResultsHero({ result, unreliable }: Props) {
   }, []);
 
   return (
-    <Card elevation={2} className="p-6 md:p-8 overflow-hidden relative">
-      <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-6 items-center">
-        {/* Hero number + caption */}
+    <Card elevation={3} className="p-6 md:p-10 overflow-hidden relative">
+      {/* Subtle iris radial glow behind the hero number */}
+      <div
+        className="pointer-events-none absolute -top-20 -left-10 h-[360px] w-[360px] rounded-full opacity-50 blur-3xl"
+        style={{
+          background:
+            "radial-gradient(circle, rgb(124 111 222 / 0.16) 0%, rgba(124, 111, 222, 0) 70%)",
+        }}
+        aria-hidden
+      />
+
+      <div className="relative grid grid-cols-1 md:grid-cols-[1fr,auto] gap-8 items-center">
         <div className="space-y-4">
-          <div>
-            <div className="text-xs uppercase tracking-widest text-muted font-medium flex items-center">
-              CdA
-              <InfoTooltip text="CdA = coefficient de traînée × surface frontale (m²). IC Hessien = intervalle de confiance 95% basé sur la courbure de la vraisemblance au point optimal. IC conforme = intervalle distribution-free avec garantie formelle de couverture 95% sur l'historique du rider." />
-            </div>
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              className={`num font-bold leading-none mt-2 text-5xl md:text-6xl ${
-                unreliable
-                  ? "text-muted"
-                  : outOfRange
-                    ? "text-danger"
-                    : "text-primary"
-              }`}
-            >
-              {unreliable ? "—" : result.cda.toFixed(3)}
-              <span className="text-xl md:text-2xl text-muted font-normal ml-2">m²</span>
-            </motion.div>
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-primary font-semibold">
+            CdA
+            <InfoTooltip text="CdA = coefficient de traînée × surface frontale (m²). IC Hessien = intervalle de confiance 95% basé sur la courbure de la vraisemblance au point optimal. IC conforme = intervalle distribution-free avec garantie formelle de couverture 95% sur l'historique du rider." />
           </div>
-          {!unreliable && (
-            <div className="space-y-1 text-xs font-mono">
-              <div className="text-muted">
-                IC Hessien 95%{" "}
-                <span className="text-text">
+
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className={`num font-bold leading-none tracking-tight text-5xl md:text-7xl ${
+              unreliable ? "text-muted" : outOfRange ? "text-danger" : "text-text"
+            }`}
+          >
+            {unreliable ? "—" : rolled}
+            <span className="text-xl md:text-2xl text-muted font-normal ml-3">m²</span>
+          </motion.div>
+
+          {!unreliable ? (
+            <dl className="space-y-1.5 text-xs font-mono max-w-md pt-2">
+              <div className="flex items-baseline gap-3">
+                <dt className="text-muted w-32 text-[10px] uppercase tracking-wider shrink-0">
+                  IC Hessian 95%
+                </dt>
+                <dd className="text-text">
                   [{result.cda_ci_low.toFixed(3)} – {result.cda_ci_high.toFixed(3)}]
-                </span>
+                </dd>
               </div>
               {conformal && (
-                <div className="text-info/90">
-                  IC conforme 95%{" "}
-                  <span className="text-info">
+                <div className="flex items-baseline gap-3">
+                  <dt className="text-muted w-32 text-[10px] uppercase tracking-wider shrink-0">
+                    IC Conformal 95%
+                  </dt>
+                  <dd className="text-accent">
                     [{conformal.low.toFixed(3)} – {conformal.high.toFixed(3)}]
-                  </span>
-                  <span className="text-muted ml-1.5">(n={conformal.n})</span>
+                    <span className="text-muted ml-1.5">n={conformal.n}</span>
+                  </dd>
                 </div>
               )}
               {personalSolverBias && Math.abs(personalSolverBias.median) > 0.005 && (
-                <div className="text-muted opacity-90 flex items-center gap-1">
-                  <span>
-                    Δ solveur perso :{" "}
-                    <span className="text-text">
-                      {personalSolverBias.median >= 0 ? "+" : ""}
-                      {personalSolverBias.median.toFixed(3)}
-                    </span>
-                    <span className="opacity-70"> (n={personalSolverBias.n})</span>
-                  </span>
-                  <InfoTooltip text="Médiane de (CdA Chung VE − CdA wind_inverse) sur tes rides clean passées. Mesure le désaccord systématique entre les deux solveurs sur TON dataset, qui n'est pas capturé par l'IC Hessien." />
+                <div className="flex items-baseline gap-3">
+                  <dt className="text-muted w-32 text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1">
+                    Δ solver
+                    <InfoTooltip text="Médiane de (CdA Chung VE − CdA wind_inverse) sur tes rides clean passées. Mesure le désaccord systématique entre les deux solveurs sur TON dataset, qui n'est pas capturé par l'IC Hessien." />
+                  </dt>
+                  <dd className="text-text">
+                    {personalSolverBias.median >= 0 ? "+" : ""}
+                    {personalSolverBias.median.toFixed(3)}
+                    <span className="text-muted ml-1.5">n={personalSolverBias.n}</span>
+                  </dd>
                 </div>
               )}
-            </div>
-          )}
-          {unreliable && (
+            </dl>
+          ) : (
             <div className="text-sm text-danger font-medium">
               non fiable (R² &lt; 0)
             </div>
           )}
+
           {(showFactor || showRaw) && (
             <div className="flex items-center gap-2 flex-wrap pt-1">
               {showFactor && (
@@ -156,16 +169,20 @@ export function ResultsHero({ result, unreliable }: Props) {
           )}
         </div>
 
-        {/* Position silhouette on the right — collapses to top on narrow viewports */}
         {!unreliable && (
-          <div className="flex justify-center md:justify-end">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="flex justify-center md:justify-end"
+          >
             <div className="relative">
               <PositionSchematic cda={result.cda} size={200} />
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[10px] text-muted uppercase tracking-wider font-medium whitespace-nowrap">
-                Position estimée
+              <div className="text-center mt-2 text-[10px] uppercase tracking-widest text-muted font-semibold">
+                Position
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
       </div>
     </Card>

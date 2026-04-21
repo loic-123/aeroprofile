@@ -16,9 +16,13 @@ import { saveToHistory, type HistoryEntry } from "./api/history";
 import { weightedAggregate, type AggregationInput } from "./lib/aggregate";
 import { getActiveProfile, type ProfileSettings } from "./api/profiles";
 import HistoryPage from "./pages/HistoryPage";
+import LandingPage from "./pages/LandingPage";
+import AboutPage from "./pages/AboutPage";
+import { Footer } from "./components/layout/Footer";
 import InfoTooltip from "./components/InfoTooltip";
 import { NavTabs } from "./components/ui";
 import { AnimatePresence, motion } from "framer-motion";
+import { Github } from "lucide-react";
 import CdAEvolutionChart from "./components/CdAEvolutionChart";
 import CdARunningAvgChart from "./components/CdARunningAvgChart";
 import CdATotem from "./components/CdATotem";
@@ -26,7 +30,7 @@ import TabSwitcher from "./components/TabSwitcher";
 import ReferenceTable from "./components/ReferenceTable";
 import PositionSchematic from "./components/PositionSchematic";
 
-type Mode = "single" | "compare" | "intervals" | "blog" | "history";
+type Mode = "home" | "single" | "compare" | "intervals" | "blog" | "history" | "about";
 
 const DEFAULT_MAX_NRMSE = 0.45;
 
@@ -38,7 +42,7 @@ interface RideAnalysis {
 }
 
 export default function App() {
-  const [mode, setMode] = useState<Mode>("single");
+  const [mode, setMode] = useState<Mode>("home");
   const [rides, setRides] = useState<RideAnalysis[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -298,42 +302,94 @@ export default function App() {
 
   const selectedResult = rides[selectedIdx]?.result || null;
 
+  // Helper that resets ride state when switching modes — avoids
+  // showing stale results from a previous analysis when returning
+  // to /analyze from another tab.
+  const changeMode = (v: Mode) => {
+    setMode(v);
+    if (v === "single" || v === "compare") {
+      setRides([]);
+      setError(null);
+    }
+    if (v === "blog") setBlogSlug(null);
+  };
+
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-border px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 flex-wrap">
-        <Wind className="text-primary" size={24} aria-hidden />
-        <h1 className="text-lg sm:text-xl font-bold tracking-tight">AeroProfile</h1>
-        <span className="text-[10px] font-mono text-muted opacity-60 hidden sm:inline" title="Build ID">
-          v2026.04.14
-        </span>
-        <span className="text-muted text-sm ml-2 hidden lg:inline">
-          CdA / Crr depuis votre fichier d'activité
-        </span>
-        <div className="flex-1" />
-        <NavTabs<Mode>
-          ariaLabel="Mode principal"
-          layoutId="app-nav"
-          iconOnlyOnMobile
-          value={mode}
-          onChange={(v) => {
-            setMode(v);
-            if (v === "single" || v === "compare") {
-              setRides([]);
-              setError(null);
-            }
-            if (v === "blog") setBlogSlug(null);
-          }}
-          items={[
-            { value: "single", label: "Analyse", icon: <User size={14} aria-hidden /> },
-            { value: "compare", label: "Comparer", icon: <Users size={14} aria-hidden /> },
-            { value: "intervals", label: "Intervals", icon: <Link2 size={14} aria-hidden /> },
-            { value: "history", label: "Historique", icon: <Clock size={14} aria-hidden /> },
-            { value: "blog", label: "Méthodo", icon: <BookOpen size={14} aria-hidden /> },
-          ]}
-        />
+    <div className="min-h-screen flex flex-col">
+      <header className="sticky top-0 z-30 border-b border-border/60 bg-bg/85 backdrop-blur-md">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
+          {/* Brand — clickable, goes home */}
+          <button
+            onClick={() => changeMode("home")}
+            className="inline-flex items-center gap-2 text-text font-semibold tracking-tight transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg rounded"
+            aria-label="Go to AeroProfile home"
+          >
+            <Wind size={18} className="text-primary" aria-hidden />
+            <span className="text-base">AeroProfile</span>
+          </button>
+
+          {/* Primary nav — only shown when NOT on the home landing so
+              the landing page itself reads as a single continuous
+              narrative rather than a dashboard with a top bar. */}
+          {mode !== "home" && (
+            <NavTabs<Mode>
+              ariaLabel="Main navigation"
+              layoutId="app-nav"
+              iconOnlyOnMobile
+              className="ml-2"
+              value={(["single", "compare"].includes(mode) ? "analyze" : mode) as Mode}
+              onChange={(v) => {
+                // The "analyze" virtual value maps onto "single".
+                if ((v as string) === "analyze") changeMode("single");
+                else changeMode(v);
+              }}
+              items={[
+                { value: "analyze" as Mode, label: "Analyze", icon: <User size={14} aria-hidden /> },
+                { value: "intervals", label: "Intervals", icon: <Link2 size={14} aria-hidden /> },
+                { value: "blog", label: "Methods", icon: <BookOpen size={14} aria-hidden /> },
+                { value: "about", label: "About", icon: <User size={14} aria-hidden /> },
+              ]}
+            />
+          )}
+
+          <div className="flex-1" />
+
+          {/* Utility icons: history + github. History is a personal
+              archive (localStorage), not a primary feature — it lives
+              as a discreet icon in the top-right. */}
+          <button
+            onClick={() => changeMode("history")}
+            aria-label="History"
+            title="History"
+            className="p-2 rounded text-muted hover:text-text hover:bg-panel transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+          >
+            <Clock size={16} aria-hidden />
+          </button>
+          <a
+            href="https://github.com/loic-123/aeroprofile"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="GitHub repository"
+            title="GitHub"
+            className="p-2 rounded text-muted hover:text-text hover:bg-panel transition-colors"
+          >
+            <Github size={16} aria-hidden />
+          </a>
+
+          {/* Primary CTA on the landing — pushes users directly into
+              the analyze flow without making them hunt for it. */}
+          {mode === "home" && (
+            <button
+              onClick={() => changeMode("single")}
+              className="ml-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-fg text-sm font-medium transition-colors duration-base hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+            >
+              Analyze
+            </button>
+          )}
+        </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+      <main className={mode === "home" ? "flex-1" : "flex-1 max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 w-full"}>
         <AnimatePresence mode="wait">
           <motion.div
             key={mode}
@@ -342,7 +398,29 @@ export default function App() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
           >
-        {mode === "history" ? (
+        {mode === "home" ? (
+          <LandingPage
+            onGotoAnalyze={() => changeMode("single")}
+            onGotoMethodsIndex={() => {
+              setBlogSlug(null);
+              setMode("blog");
+            }}
+            onGotoArticle={(slug) => {
+              setBlogSlug(slug);
+              setMode("blog");
+            }}
+            onGotoAbout={() => changeMode("about")}
+          />
+        ) : mode === "about" ? (
+          <AboutPage
+            onGotoHome={() => changeMode("home")}
+            onGotoAnalyze={() => changeMode("single")}
+            onGotoMethods={() => {
+              setBlogSlug(null);
+              setMode("blog");
+            }}
+          />
+        ) : mode === "history" ? (
           <HistoryPage />
         ) : mode === "intervals" ? (
           <IntervalsPage />
@@ -780,6 +858,13 @@ export default function App() {
           </motion.div>
         </AnimatePresence>
       </main>
+      <Footer
+        onGotoMethods={() => {
+          setBlogSlug(null);
+          setMode("blog");
+        }}
+        onGotoAbout={() => changeMode("about")}
+      />
     </div>
   );
 }

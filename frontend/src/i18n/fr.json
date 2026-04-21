@@ -528,22 +528,22 @@
     "featuredTagRegTest": "test régression",
     "featuredTagMeta": "méta-analyse",
     "builderEyebrow": "Qui a fait ça",
-    "builderPitch": "Un triathlète au labo d'IA d'Imperial qui voulait savoir si son casque aéro servait vraiment à quelque chose. Voilà d'où sort AeroProfile.",
+    "builderPitch": "AeroProfile est né d'une question simple : est-ce que mon casque aéro me fait vraiment gagner quelque chose ?",
     "builderCta": "À propos du créateur"
   },
   "about": {
     "back": "Retour",
     "eyebrow": "À propos",
-    "title": "Un triathlète au labo d'IA d'Imperial qui voulait savoir si son casque aéro servait vraiment à quelque chose. Voilà d'où sort AeroProfile.",
-    "p1": "<name>Loïc Bouxirot</name>, enchanté. Tout a commencé par un casque aéro à 300 balles, acheté en 2024. Très vite, la question du triathlète lambda : est-ce que ça marche vraiment, ou est-ce que j'ai juste payé pour <em>du vent dans du polystyrène</em> ? J'ai cherché un outil pour trancher. Rien de convaincant.",
-    "p2": "Alors j'ai fini par le coder. Problèmes inverses, incertitude bayésienne, vent API à ne surtout pas prendre au pied de la lettre — c'est ce qui tombe pile entre mon taf à <imperial>Imperial College London</imperial> (ML critique, après Safran, Decathlon et Ochy sur des modèles de fondation, de la vision par ordinateur et des pipelines LLM) et mes week-ends (triathlon dans le top, vents de face, et bien trop d'opinions sur la pression des pneus).",
-    "p3": "Wind-inverse, agrégation hiérarchique, tests d'invariance au prior, les huit garde-fous qualité : tout vient de ce frottement entre les deux mondes. Ça peut sembler exagéré pour un outil vélo. En fait c'est l'inverse — les autres sont sous-calibrés pour un outil de mesure. Les 14 articles de méthodo se sont ajoutés au fil du développement, sans plan.",
-    "p4": "Le code est sur GitHub. Un bug report avec un FIT joint vaut son pesant d'or. Un <em>« ta physique est fausse »</em> accompagné d'un FIT, encore plus.",
+    "title": "AeroProfile est né d'une question simple : est-ce que mon casque aéro me fait vraiment gagner quelque chose ?",
+    "p1": "Je suis <name>Loïc Bouxirot</name>, ingénieur en IA à <imperial>Imperial College London</imperial>. Avant ça, j'ai bossé chez Safran, Decathlon et Ochy sur des modèles de fondation, de la vision par ordinateur et des pipelines LLM. Le reste du temps, je fais du triathlon longue distance.",
+    "p2": "En 2024, j'achète un casque aéro à 300 €. Assez vite, je me dis qu'il faudrait pouvoir vérifier s'il sert à quelque chose. Je cherche un outil capable de le faire proprement, sans vélodrome ni protocole complexe. Je n'en trouve aucun qui me convainc.",
+    "p3": "J'ai donc fini par le construire. AeroProfile estime ton CdA à partir d'une simple sortie, avec un intervalle de confiance sérieux. Sous le capot : un solveur qui estime conjointement le vent et la traînée, une méta-analyse hiérarchique pour agréger plusieurs sorties, et une série de garde-fous pour écarter les rides non exploitables. Les 14 articles de méthodologie documentent chaque choix.",
+    "p4": "Le code est sur GitHub, tout est open source. Si tu trouves un bug, envoie-moi un message avec le fichier FIT de la sortie concernée — c'est la manière la plus rapide de le corriger.",
     "contact": "Me contacter",
     "ctaAnalyzeTitle": "Analyser une sortie",
-    "ctaAnalyzeBody": "Le chemin le plus court : tu déposes un .fit, tu as ton CdA en trente secondes.",
-    "ctaMethodsTitle": "Voir la méthodo",
-    "ctaMethodsBody": "14 articles détaillent chaque solveur, chaque filtre, chaque choix stat qui tourne sous le capot."
+    "ctaAnalyzeBody": "Dépose un fichier .fit, récupère ton CdA en une trentaine de secondes.",
+    "ctaMethodsTitle": "Voir la méthodologie",
+    "ctaMethodsBody": "14 articles expliquent chaque solveur, chaque filtre et chaque choix statistique utilisés dans l'outil."
   },
   "footer": {
     "brand": "AeroProfile",

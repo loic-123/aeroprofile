@@ -25,7 +25,7 @@ export function FeaturedMethods({ onGotoArticle, onGotoMethodsIndex }: Props) {
       slug: "wind-correction",
       title: "The wind-inverse solver",
       blurb:
-        "Why AeroProfile doesn't trust Open-Meteo's wind at face value — and how a Bayesian inverse problem over the wind field doubles R² on rides with heading variety.",
+        "Why AeroProfile doesn't trust Open-Meteo's wind at face value - and how a Bayesian inverse problem over the wind field doubles R² on rides with heading variety.",
       read: "12 min",
       tags: ["physics", "statistics", "advanced"],
     },

@@ -59,8 +59,8 @@ export default function AboutPage({
           <p>
             Hi, I'm <span className="text-text font-medium">Loïc Bouxirot</span>.
             AeroProfile exists because, in 2024, I bought an aero helmet and spent
-            the next six months wondering — in the unhinged, slightly obsessive
-            way only a triathlete can — whether it was actually doing anything,
+            the next six months wondering - in the unhinged, slightly obsessive
+            way only a triathlete can - whether it was actually doing anything,
             or whether I'd just given €300 to a company that sells{" "}
             <em>hope, in expanded polystyrene form</em>.
           </p>
@@ -68,7 +68,7 @@ export default function AboutPage({
             It turns out the answer to that question, honestly measured, requires
             inverse problems, Bayesian uncertainty, and a healthy respect for
             Open-Meteo's wind field. Which is a weirdly specific Venn diagram.
-            So I wrote the tool I wanted to exist — leaning on the day job
+            So I wrote the tool I wanted to exist - leaning on the day job
             (safety-critical ML at{" "}
             <span className="text-text">Imperial College London</span>, with
             previous stops at Safran, Decathlon, and Ochy doing foundation
@@ -77,7 +77,7 @@ export default function AboutPage({
           </p>
           <p>
             The wind-inverse solver, the hierarchical aggregation, the
-            prior-invariance regression tests, the eight quality gates — they
+            prior-invariance regression tests, the eight quality gates - they
             all come from that bicultural loop. If it looks over-engineered for
             a cycling tool, it's because every other tool I found was{" "}
             <em>under</em>-engineered for a measurement tool. I did not set out
@@ -131,7 +131,7 @@ export default function AboutPage({
           <Cta
             onClick={onGotoAnalyze}
             title="Analyze your ride"
-            body="The fastest way to see what the tool does — drop a .fit and get your CdA in ~30 seconds."
+            body="The fastest way to see what the tool does - drop a .fit and get your CdA in ~30 seconds."
           />
           <Cta
             onClick={onGotoMethods}

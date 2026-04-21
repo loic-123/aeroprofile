@@ -21,7 +21,7 @@ export function HowItWorks() {
       icon: <Upload size={16} />,
       title: "Drop your ride",
       body:
-        ".fit, .gpx or .tcx. One file or a batch — batches get aggregated with proper hierarchical meta-analysis, not a naïve mean.",
+        ".fit, .gpx or .tcx. One file or a batch - batches get aggregated with proper hierarchical meta-analysis, not a naïve mean.",
     },
     {
       num: "02",

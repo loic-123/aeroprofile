@@ -61,7 +61,7 @@ export function LandingHero({ onCtaAnalyze, onCtaMethod }: Props) {
           <AnimatedBlock delay={120}>
             <p className="text-base md:text-lg text-muted-strong leading-relaxed max-w-md">
               No velodrome. No protocol. No monthly fee. Drop a <span className="num text-text">.fit</span>,
-              get a CdA with a calibrated confidence interval — and the
+              get a CdA with a calibrated confidence interval - and the
               complete methodology behind every number.
             </p>
           </AnimatedBlock>

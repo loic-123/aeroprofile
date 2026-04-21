@@ -21,7 +21,7 @@ export function Footer({ onGotoMethods, onGotoAbout }: Props) {
           </div>
           <p className="text-xs text-muted-strong leading-relaxed max-w-md">
             Open-source CdA estimator for cyclists. Built by Loïc Bouxirot.
-            MIT licensed. Your ride data stays in your browser — nothing
+            MIT licensed. Your ride data stays in your browser - nothing
             is stored on any server.
           </p>
           <div className="text-[10px] text-muted font-mono pt-2">

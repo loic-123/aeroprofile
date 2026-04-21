@@ -106,7 +106,7 @@ const ARTICLES: Article[] = [
   {
     slug: "prior-invariance",
     title: "L'invariance au prior : pourquoi votre choix de position ne devrait pas bouger le CdA agrégé",
-    desc: "Le test de cohérence le plus puissant en méta-analyse : relancer la même analyse avec deux priors différents. Quand l'invariance casse, c'est presque toujours un bug de convergence — et l'histoire d'un fix sur un dataset 4iiii mono-jambe bruité.",
+    desc: "Le test de cohérence le plus puissant en méta-analyse : relancer la même analyse avec deux priors différents. Quand l'invariance casse, c'est presque toujours un bug de convergence - et l'histoire d'un fix sur un dataset 4iiii mono-jambe bruité.",
     tags: ["statistiques", "diagnostic", "avancé"],
     category: "Statistics",
     readMin: 8,
@@ -173,7 +173,7 @@ export default function BlogIndex() {
           Methods
         </div>
         <h1 className="font-display text-3xl md:text-4xl leading-[1.1] text-text mb-4">
-          How AeroProfile calculates your CdA —
+          How AeroProfile calculates your CdA -
           every step, every assumption.
         </h1>
         <p className="text-muted-strong max-w-2xl leading-relaxed">

@@ -63,7 +63,7 @@ export function DifferentiatorGrid({ onGotoMethod }: Props) {
       icon: <Gauge size={18} />,
       title: "Per-ride wind sensitivity",
       body:
-        "A post-hoc re-solve with wind × 1.05 exposes the Δ CdA. Not a blind correction — a transparent number showing whether this ride is wind-robust or wind-fragile.",
+        "A post-hoc re-solve with wind × 1.05 exposes the Δ CdA. Not a blind correction - a transparent number showing whether this ride is wind-robust or wind-fragile.",
       link: { label: "Method", slug: "wind-correction" },
     },
     {

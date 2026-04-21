@@ -1,0 +1,32 @@
+import i18n from "i18next";
+import { initReactI18next } from "react-i18next";
+import LanguageDetector from "i18next-browser-languagedetector";
+
+import en from "./en.json";
+import fr from "./fr.json";
+
+export const SUPPORTED_LANGUAGES = ["en", "fr"] as const;
+export type Language = (typeof SUPPORTED_LANGUAGES)[number];
+
+i18n
+  .use(LanguageDetector)
+  .use(initReactI18next)
+  .init({
+    resources: {
+      en: { translation: en },
+      fr: { translation: fr },
+    },
+    fallbackLng: "en",
+    supportedLngs: SUPPORTED_LANGUAGES as unknown as string[],
+    detection: {
+      order: ["localStorage", "navigator"],
+      caches: ["localStorage"],
+      lookupLocalStorage: "aeroprofile_lang",
+    },
+    interpolation: {
+      escapeValue: false,
+    },
+    returnNull: false,
+  });
+
+export default i18n;

@@ -21,6 +21,8 @@ import AboutPage from "./pages/AboutPage";
 import { Footer } from "./components/layout/Footer";
 import InfoTooltip from "./components/InfoTooltip";
 import { NavTabs } from "./components/ui";
+import { LanguageToggle } from "./components/LanguageToggle";
+import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
 import { Github } from "lucide-react";
 import CdAEvolutionChart from "./components/CdAEvolutionChart";
@@ -42,6 +44,7 @@ interface RideAnalysis {
 }
 
 export default function App() {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>("home");
   const [rides, setRides] = useState<RideAnalysis[]>([]);
   const [loading, setLoading] = useState(false);
@@ -55,6 +58,15 @@ export default function App() {
   const [lastMass, setLastMass] = useState(75);
   const [lastMaxNrmse, setLastMaxNrmse] = useState(DEFAULT_MAX_NRMSE);
   const [lastPositionIdx, setLastPositionIdx] = useState<number | undefined>(undefined);
+  // Snapshot of the last analyze() opts so a "Corriger le vent" re-run
+  // can reproduce every setting (prior, crr, eta, etc.) with only the
+  // wind overridden. Null before the first analysis.
+  type AnalyzeOpts = {
+    crr_fixed?: number | null; eta?: number; wind_height_factor?: number;
+    useCache?: boolean; bikeType?: BikeType; positionIdx?: number;
+    maxNrmse?: number; manual_wind_ms?: number; manual_wind_dir_deg?: number;
+  };
+  const [lastAnalyzeOpts, setLastAnalyzeOpts] = useState<AnalyzeOpts | null>(null);
   const [hierResult, setHierResult] = useState<HierarchicalAnalysisResult | null>(null);
   const [hierLoading, setHierLoading] = useState(false);
   const [hierError, setHierError] = useState<string | null>(null);
@@ -88,12 +100,13 @@ export default function App() {
   const handleAnalyze = async (
     files: File[],
     mass_kg: number,
-    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean; bikeType?: BikeType; positionIdx?: number; maxNrmse?: number },
+    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean; bikeType?: BikeType; positionIdx?: number; maxNrmse?: number; manual_wind_ms?: number; manual_wind_dir_deg?: number },
   ) => {
     const bt = opts.bikeType || "road";
     setBikeType(bt);
     setLastMass(mass_kg);
     setLastPositionIdx(opts.positionIdx);
+    setLastAnalyzeOpts(opts);
     const { minCda: MIN_CDA, maxCda: MAX_CDA } = BIKE_TYPE_CONFIG[bt];
     const MAX_NRMSE = opts.maxNrmse || DEFAULT_MAX_NRMSE;
     setLastMaxNrmse(MAX_NRMSE);
@@ -115,6 +128,8 @@ export default function App() {
       cda_prior_mean: isMultiRideTop ? undefined : posPreset?.cdaPrior,
       cda_prior_sigma: isMultiRideTop ? undefined : posPreset?.cdaSigma,
       disable_prior: isMultiRideTop,
+      manual_wind_ms: opts.manual_wind_ms,
+      manual_wind_dir_deg: opts.manual_wind_dir_deg,
     };
     const results: RideAnalysis[] = [];
     for (let fi = 0; fi < files.length; fi++) {
@@ -265,6 +280,14 @@ export default function App() {
     setLoading(false);
   };
 
+  const handleReanalyzeWithWind = async (manual_wind_ms: number, manual_wind_dir_deg: number) => {
+    const ride = rides[selectedIdx];
+    if (!ride?.file) return;
+    const opts = lastAnalyzeOpts ?? {};
+    const nextOpts: AnalyzeOpts = { ...opts, manual_wind_ms, manual_wind_dir_deg, useCache: false };
+    await handleAnalyze([ride.file], lastMass, nextOpts);
+  };
+
   const goodRides = rides.filter((r) => !r.excluded && r.result);
   const hasResults = rides.some((r) => r.result);
   const isMulti = rides.length > 1;
@@ -350,10 +373,10 @@ export default function App() {
                 else changeMode(v);
               }}
               items={[
-                { value: "analyze" as Mode, label: "Analyze", icon: <User size={14} aria-hidden /> },
-                { value: "intervals", label: "Intervals", icon: <Link2 size={14} aria-hidden /> },
-                { value: "blog", label: "Methods", icon: <BookOpen size={14} aria-hidden /> },
-                { value: "about", label: "About", icon: <User size={14} aria-hidden /> },
+                { value: "analyze" as Mode, label: t("app.nav.analyze"), icon: <User size={14} aria-hidden /> },
+                { value: "intervals", label: t("app.nav.intervals"), icon: <Link2 size={14} aria-hidden /> },
+                { value: "blog", label: t("app.nav.methods"), icon: <BookOpen size={14} aria-hidden /> },
+                { value: "about", label: t("app.nav.about"), icon: <User size={14} aria-hidden /> },
               ]}
             />
           )}
@@ -363,10 +386,11 @@ export default function App() {
           {/* Utility icons: history + github. History is a personal
               archive (localStorage), not a primary feature — it lives
               as a discreet icon in the top-right. */}
+          <LanguageToggle />
           <button
             onClick={() => changeMode("history")}
-            aria-label="History"
-            title="History"
+            aria-label={t("app.nav.history")}
+            title={t("app.nav.history")}
             className="p-2 rounded text-muted hover:text-text hover:bg-panel transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
           >
             <Clock size={16} aria-hidden />
@@ -475,7 +499,7 @@ export default function App() {
             {loading && !hasResults && (
               <div className="text-center py-12">
                 <Loader2 className="animate-spin mx-auto text-teal" size={32} />
-                <p className="text-muted mt-3">Analyse en cours…</p>
+                <p className="text-muted mt-3">{t("app.loading.analyzing")}</p>
               </div>
             )}
 
@@ -488,7 +512,7 @@ export default function App() {
                   }}
                   className="mb-4 text-sm text-muted hover:text-text"
                 >
-                  ← Nouvelle analyse
+                  ← {t("app.cta.newAnalysis")}
                 </button>
 
                 {/* Progress bar while still analyzing */}
@@ -497,7 +521,7 @@ export default function App() {
                     <div className="flex items-center justify-between text-sm mb-2">
                       <span className="flex items-center gap-2">
                         <Loader2 className="animate-spin text-teal" size={14} />
-                        Analyse en cours…
+                        {t("app.loading.analyzing")}
                       </span>
                       <span className="font-mono text-teal">
                         {doneCount} / {totalFiles}
@@ -511,8 +535,8 @@ export default function App() {
                     </div>
                     <p className="text-xs text-muted mt-1.5">
                       {doneCount < totalFiles
-                        ? `${totalFiles - doneCount} restant${totalFiles - doneCount > 1 ? "s" : ""}…`
-                        : "Finalisation…"
+                        ? t("app.loading.remaining", { count: totalFiles - doneCount }) + "…"
+                        : t("app.loading.finalizing")
                       }
                     </p>
                   </div>
@@ -520,7 +544,7 @@ export default function App() {
 
                 {/* Single file → no tabs, show dashboard directly */}
                 {!isMulti && selectedResult && (
-                  <ResultsDashboard result={selectedResult} massKg={lastMass} bikeType={bikeType} positionIdx={lastPositionIdx} />
+                  <ResultsDashboard result={selectedResult} massKg={lastMass} bikeType={bikeType} positionIdx={lastPositionIdx} onReanalyzeWithWind={handleReanalyzeWithWind} />
                 )}
 
                 {/* Single file excluded → show warning with reason */}
@@ -851,7 +875,7 @@ export default function App() {
                             })}
                           </div>
                         </div>
-                        <ResultsDashboard result={selectedResult} massKg={lastMass} bikeType={bikeType} positionIdx={lastPositionIdx} />
+                        <ResultsDashboard result={selectedResult} massKg={lastMass} bikeType={bikeType} positionIdx={lastPositionIdx} onReanalyzeWithWind={handleReanalyzeWithWind} />
                       </div>
                     )}
                   </>

@@ -1,0 +1,139 @@
+{
+  "app": {
+    "brand": "AeroProfile",
+    "nav": {
+      "analyze": "Analyze",
+      "intervals": "Intervals",
+      "methods": "Methods",
+      "about": "About",
+      "history": "History",
+      "github": "GitHub",
+      "home": "Home"
+    },
+    "cta": {
+      "analyze": "Analyze",
+      "newAnalysis": "New analysis",
+      "back": "Back",
+      "backToHome": "Back to home",
+      "seeHow": "See how it works",
+      "readMethodology": "Read the methodology",
+      "analyzeYourRide": "Analyze your ride"
+    },
+    "loading": {
+      "analyzing": "Analyzing…",
+      "finalizing": "Finalizing…",
+      "remaining": "{{count}} remaining"
+    },
+    "errors": {
+      "analysisError": "Analysis error: {{message}}",
+      "excludedRide": "Ride excluded",
+      "excludedReason": "You can raise the nRMSE threshold in advanced options, or try other parameters (mass, Crr, position)."
+    }
+  },
+  "language": {
+    "toggle": "Language",
+    "fr": "Français",
+    "en": "English"
+  },
+  "dashboard": {
+    "cda": "CdA",
+    "crr": "Crr",
+    "rmse": "RMSE",
+    "wCda": "W/CdA",
+    "flatSpeed": "Flat speed",
+    "position": "Position",
+    "icHessian": "Hessian CI 95%",
+    "icConformal": "Conformal CI 95%",
+    "solverDelta": "Δ solver",
+    "unreliable": "unreliable (R² < 0)",
+    "priorReinforced": "prior reinforced ×{{factor}}",
+    "priorOff": "without CdA prior: ",
+    "meanCda": "Mean CdA ({{count}} ride kept out of {{total}}) - inverse-variance method",
+    "meanCda_plural": "Mean CdA ({{count}} rides kept out of {{total}}) - inverse-variance method",
+    "meanCrr": "Mean Crr",
+    "meanRmse": "Mean RMSE",
+    "meanCdaHierarchical": "Mean CdA - hierarchical method (DerSimonian-Laird)",
+    "hierarchicalSharedCrr": "Shared Crr",
+    "hierarchicalTau": "τ between-ride",
+    "ridesUsed": "Rides used",
+    "hierarchicalLoading": "Hierarchical optimisation in progress…",
+    "detailOf": "Detail of:",
+    "analyzedRides": "Analyzed rides",
+    "kept": "Kept (click → detail)",
+    "excluded": "Excluded",
+    "exclusionFooter": "Exclusion: nRMSE > 45%, CdA outside [{{min}}-{{max}}] m², or degenerate solver (bound hit / non-identifiable). Hover an excluded ride for the exact reason.",
+    "overview": "Overview",
+    "rideDetail": "Ride detail"
+  },
+  "position": {
+    "reference": "Reference position",
+    "yourCda": "Your CdA",
+    "referenceValue": "Reference",
+    "delta": "Δ",
+    "more_aero_hint": "A more aero position like {{label}} (ref. {{value}}) could save you up to {{gain}} m² - if your body follows.",
+    "why_prior": "Why a prior?"
+  },
+  "refTable": {
+    "cdaTitle": "CdA reference (m²)",
+    "cdaLead": "Where does your CdA sit compared to reference positions?",
+    "crrTitle": "Crr reference",
+    "crrLead": "Where does your Crr sit compared to reference tyres/surfaces?",
+    "colPosition": "Position / type",
+    "colDelta": "Δ vs you",
+    "colYou": "← you: {{value}}"
+  },
+  "fileUpload": {
+    "drop": "Drop your .fit / .gpx / .tcx file here",
+    "or": "or",
+    "browse": "Browse",
+    "mass": "Body + bike mass (kg)",
+    "bikeType": "Bike type",
+    "position": "Position",
+    "crrLabel": "Rolling resistance (Crr)",
+    "crrAuto": "Auto (expert mode)",
+    "advanced": "Advanced options",
+    "maxNrmse": "nRMSE threshold (%)",
+    "eta": "Drivetrain efficiency η",
+    "windFactor": "Wind height factor",
+    "useCache": "Use local cache",
+    "manualWind": "Manual wind (optional)",
+    "manualWindSpeed": "Wind speed (km/h)",
+    "manualWindDir": "Wind direction (° from)",
+    "submit": "Analyze",
+    "submitting": "Analyzing…"
+  },
+  "intervals": {
+    "title": "Intervals.icu",
+    "connect": "Connect",
+    "apiKey": "API key",
+    "athleteId": "Athlete ID",
+    "dateFrom": "From",
+    "dateTo": "To",
+    "list": "List rides",
+    "analyzeSelected": "Analyze selected",
+    "filters": "Filters",
+    "keepGroupRides": "Keep group rides",
+    "minDistance": "Min distance (km)",
+    "maxDistance": "Max distance (km)",
+    "minDuration": "Min duration (min)",
+    "sensor": "Sensor",
+    "allSensors": "All sensors"
+  },
+  "history": {
+    "title": "History",
+    "empty": "No analysis yet. Upload a ride to see it here.",
+    "clear": "Clear all",
+    "export": "Export",
+    "import": "Import",
+    "date": "Date",
+    "label": "Ride",
+    "bike": "Bike",
+    "delete": "Delete"
+  },
+  "compare": {
+    "title": "Compare two setups",
+    "setupA": "Setup A",
+    "setupB": "Setup B",
+    "backToAnalyze": "Back to analysis"
+  }
+}

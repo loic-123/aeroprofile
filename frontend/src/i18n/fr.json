@@ -1,0 +1,139 @@
+{
+  "app": {
+    "brand": "AeroProfile",
+    "nav": {
+      "analyze": "Analyse",
+      "intervals": "Intervals",
+      "methods": "Méthodes",
+      "about": "À propos",
+      "history": "Historique",
+      "github": "GitHub",
+      "home": "Accueil"
+    },
+    "cta": {
+      "analyze": "Analyser",
+      "newAnalysis": "Nouvelle analyse",
+      "back": "Retour",
+      "backToHome": "Retour à l'accueil",
+      "seeHow": "Comment ça marche",
+      "readMethodology": "Lire la méthodologie",
+      "analyzeYourRide": "Analyser une sortie"
+    },
+    "loading": {
+      "analyzing": "Analyse en cours…",
+      "finalizing": "Finalisation…",
+      "remaining": "{{count}} restant"
+    },
+    "errors": {
+      "analysisError": "Erreur d'analyse : {{message}}",
+      "excludedRide": "Sortie exclue",
+      "excludedReason": "Vous pouvez augmenter le seuil nRMSE dans les options avancées, ou essayer avec d'autres paramètres (masse, Crr, position)."
+    }
+  },
+  "language": {
+    "toggle": "Langue",
+    "fr": "Français",
+    "en": "English"
+  },
+  "dashboard": {
+    "cda": "CdA",
+    "crr": "Crr",
+    "rmse": "RMSE",
+    "wCda": "W/CdA",
+    "flatSpeed": "V plat",
+    "position": "Position",
+    "icHessian": "IC Hessian 95%",
+    "icConformal": "IC Conformal 95%",
+    "solverDelta": "Δ solver",
+    "unreliable": "non fiable (R² < 0)",
+    "priorReinforced": "prior renforcé ×{{factor}}",
+    "priorOff": "hors prior CdA : ",
+    "meanCda": "CdA moyen ({{count}} sortie retenue sur {{total}}) - méthode inverse-variance",
+    "meanCda_plural": "CdA moyen ({{count}} sorties retenues sur {{total}}) - méthode inverse-variance",
+    "meanCrr": "Crr moyen",
+    "meanRmse": "RMSE moyen",
+    "meanCdaHierarchical": "CdA moyen - méthode hiérarchique (DerSimonian-Laird)",
+    "hierarchicalSharedCrr": "Crr partagé",
+    "hierarchicalTau": "τ inter-rides",
+    "ridesUsed": "Rides utilisées",
+    "hierarchicalLoading": "Optimisation hiérarchique en cours…",
+    "detailOf": "Détail de :",
+    "analyzedRides": "Sorties analysées",
+    "kept": "Retenue (cliquer → détail)",
+    "excluded": "Exclue",
+    "exclusionFooter": "Exclusion : nRMSE > 45%, CdA hors [{{min}}-{{max}}] m², ou solveur dégénéré (tape une borne / non-identifiable). Survolez une ride exclue pour la raison exacte.",
+    "overview": "Vue d'ensemble",
+    "rideDetail": "Détail d'une sortie"
+  },
+  "position": {
+    "reference": "Position de référence",
+    "yourCda": "Ton CdA",
+    "referenceValue": "Référence",
+    "delta": "Δ",
+    "more_aero_hint": "Une position plus aéro comme {{label}} (réf. {{value}}) pourrait te faire gagner jusqu'à {{gain}} m² - si ton corps suit.",
+    "why_prior": "Pourquoi un prior ?"
+  },
+  "refTable": {
+    "cdaTitle": "Référence CdA (m²)",
+    "cdaLead": "Où se situe votre CdA par rapport aux positions de référence ?",
+    "crrTitle": "Référence Crr",
+    "crrLead": "Où se situe votre Crr par rapport aux pneus/surfaces de référence ?",
+    "colPosition": "Position / type",
+    "colDelta": "Δ vs vous",
+    "colYou": "← vous : {{value}}"
+  },
+  "fileUpload": {
+    "drop": "Déposez votre fichier .fit / .gpx / .tcx ici",
+    "or": "ou",
+    "browse": "Parcourir",
+    "mass": "Masse corps + vélo (kg)",
+    "bikeType": "Type de vélo",
+    "position": "Position",
+    "crrLabel": "Résistance au roulement (Crr)",
+    "crrAuto": "Auto (mode expert)",
+    "advanced": "Options avancées",
+    "maxNrmse": "Seuil nRMSE (%)",
+    "eta": "Rendement transmission η",
+    "windFactor": "Facteur hauteur vent",
+    "useCache": "Utiliser le cache local",
+    "manualWind": "Vent manuel (optionnel)",
+    "manualWindSpeed": "Vitesse du vent (km/h)",
+    "manualWindDir": "Direction du vent (° d'où)",
+    "submit": "Analyser",
+    "submitting": "Analyse en cours…"
+  },
+  "intervals": {
+    "title": "Intervals.icu",
+    "connect": "Se connecter",
+    "apiKey": "Clé API",
+    "athleteId": "ID athlète",
+    "dateFrom": "Du",
+    "dateTo": "Au",
+    "list": "Lister les sorties",
+    "analyzeSelected": "Analyser la sélection",
+    "filters": "Filtres",
+    "keepGroupRides": "Inclure les sorties en groupe",
+    "minDistance": "Distance min (km)",
+    "maxDistance": "Distance max (km)",
+    "minDuration": "Durée min (min)",
+    "sensor": "Capteur",
+    "allSensors": "Tous les capteurs"
+  },
+  "history": {
+    "title": "Historique",
+    "empty": "Aucune analyse pour le moment. Uploadez une sortie pour la voir ici.",
+    "clear": "Tout effacer",
+    "export": "Exporter",
+    "import": "Importer",
+    "date": "Date",
+    "label": "Sortie",
+    "bike": "Vélo",
+    "delete": "Supprimer"
+  },
+  "compare": {
+    "title": "Comparer deux configurations",
+    "setupA": "Configuration A",
+    "setupB": "Configuration B",
+    "backToAnalyze": "Retour à l'analyse"
+  }
+}

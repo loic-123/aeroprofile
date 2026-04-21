@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from "react";
+import { useTranslation, Trans } from "react-i18next";
 import { Upload, Trash2, Loader2, Trophy, Wind, Activity, User, AlertTriangle, X, FileText } from "lucide-react";
 import { analyze, analyzeBatch } from "../api/client";
 import { getCached, setCache, type CacheOpts } from "../api/cache";
@@ -138,6 +139,7 @@ function aggregate(r: RiderEntry, bikeType: BikeType = "road"): RiderAgg | null 
 /* ---------- main component ---------- */
 
 export default function CompareMode({ onBack }: { onBack: () => void }) {
+  const { t } = useTranslation();
   const [riders, setRiders] = useState<RiderEntry[]>([emptyRider(1), emptyRider(2)]);
   const [running, setRunning] = useState(false);
   const [bikeType, setBikeType] = useState<BikeType>("road");
@@ -391,17 +393,16 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
   return (
     <div className="space-y-6">
       <button onClick={onBack} className="text-sm text-muted hover:text-text">
-        ← Mode analyse unique
+        ← {t("compare.back")}
       </button>
 
       <div>
-        <h2 className="text-xl font-bold">Comparaison multi-cyclistes</h2>
+        <h2 className="text-xl font-bold">{t("compare.title")}</h2>
         <p className="text-sm text-muted mt-1">
-          Glissez-déposez <strong>plusieurs fichiers</strong> par cycliste pour des
-          résultats moyennés plus précis. Formats : .FIT, .GPX, .TCX.
+          <Trans i18nKey="compare.subtitle" components={{ strong: <strong /> }} />
         </p>
         <div className="mt-3">
-          <label className="block text-xs text-muted mb-1">Type de vélo</label>
+          <label className="block text-xs text-muted mb-1">{t("compare.bikeType")}</label>
           <div className="flex gap-1 max-w-sm">
             {(Object.entries(BIKE_TYPE_CONFIG) as [BikeType, typeof BIKE_TYPE_CONFIG[BikeType]][]).map(([key, cfg]) => (
               <button
@@ -420,7 +421,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
             ))}
           </div>
           <p className="text-xs text-muted mt-1">
-            CdA attendu : {BIKE_TYPE_CONFIG[bikeType].minCda} – {BIKE_TYPE_CONFIG[bikeType].maxCda} m²
+            {t("compare.expectedCda", { min: BIKE_TYPE_CONFIG[bikeType].minCda, max: BIKE_TYPE_CONFIG[bikeType].maxCda })}
           </p>
         </div>
       </div>
@@ -454,7 +455,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           }`} />
         </button>
         <label className="text-xs text-muted">
-          Cache local {useLocalCache ? "(activé)" : "(désactivé — re-analyse tout)"}
+          {useLocalCache ? t("fileUpload.cacheOn") : t("fileUpload.cacheOff")}
         </label>
       </div>
 
@@ -463,7 +464,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           onClick={addRider}
           className="px-4 py-2 border border-border rounded hover:border-muted text-sm"
         >
-          + Ajouter un cycliste
+          {t("compare.addRider")}
         </button>
         <button
           onClick={runAll}
@@ -472,10 +473,10 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
         >
           {running ? (
             <>
-              <Loader2 className="animate-spin" size={16} /> Analyse en cours…
+              <Loader2 className="animate-spin" size={16} /> {t("compare.analyzing")}
             </>
           ) : (
-            "Comparer"
+            t("compare.compareBtn")
           )}
         </button>
       </div>
@@ -484,12 +485,17 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
         <div className="bg-orange-500/10 border border-orange-500 rounded-lg p-4 flex gap-3">
           <AlertTriangle className="text-orange-400 flex-shrink-0" size={20} />
           <div className="text-sm">
-            <div className="font-semibold text-orange-400">Drafting probable</div>
+            <div className="font-semibold text-orange-400">{t("compare.draftingTitle")}</div>
             <p className="mt-1">
-              <strong>{draftWarning.drafter}</strong> a un CdA{" "}
-              {(draftWarning.cdaGap * 100).toFixed(0)}% plus bas que{" "}
-              <strong>{draftWarning.puller}</strong> à vitesse similaire.
-              Probable que {draftWarning.drafter} a suivi les roues.
+              <Trans
+                i18nKey="compare.draftingBody"
+                values={{
+                  drafter: draftWarning.drafter,
+                  puller: draftWarning.puller,
+                  pct: (draftWarning.cdaGap * 100).toFixed(0),
+                }}
+                components={{ strong: <strong /> }}
+              />
             </p>
           </div>
         </div>
@@ -501,13 +507,13 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
             {bestAero && (
               <RankCard
                 icon={<Wind className="text-teal" size={18} />}
-                title="Meilleur aéro"
-                tooltip="CdA le plus bas (moyenne pondérée sur toutes les sorties)."
+                title={t("compare.bestAero")}
+                tooltip={t("compare.bestAeroTooltip")}
                 winner={bestAero.rider.name}
                 metric={`CdA = ${bestAero.cda.toFixed(3)} m²`}
                 sub={
                   bestAero.nRides > 1
-                    ? `IC95 [${bestAero.cdaLow.toFixed(3)} – ${bestAero.cdaHigh.toFixed(3)}] • ${bestAero.nRides} sorties`
+                    ? t("compare.nRidesIC", { low: bestAero.cdaLow.toFixed(3), high: bestAero.cdaHigh.toFixed(3), n: bestAero.nRides })
                     : undefined
                 }
               />
@@ -515,8 +521,8 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
             {bestRolling && (
               <RankCard
                 icon={<Activity className="text-teal" size={18} />}
-                title="Meilleur roulement"
-                tooltip="Crr le plus bas."
+                title={t("compare.bestRolling")}
+                tooltip={t("compare.bestRollingTooltip")}
                 winner={bestRolling.rider.name}
                 metric={`Crr = ${bestRolling.crr.toFixed(4)}`}
               />
@@ -524,18 +530,18 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
             {bestWCda && (
               <RankCard
                 icon={<Wind className="text-teal" size={18} />}
-                title="Meilleur W/CdA"
-                tooltip="W/CdA = puissance moyenne / CdA. Le rouleur le plus rapide sur le plat : combine fitness (watts) et aéro (CdA bas). Analogue du W/kg pour le plat."
+                title={t("compare.bestWCda")}
+                tooltip={t("compare.bestWCdaTooltip")}
                 winner={bestWCda.rider.name}
                 metric={`${(bestWCda.avgPower / bestWCda.cda).toFixed(0)} W/CdA`}
-                sub={`→ ${(Math.pow(2 * bestWCda.avgPower / (bestWCda.cda * 1.2), 1/3) * 3.6).toFixed(1)} km/h théorique`}
+                sub={`→ ${(Math.pow(2 * bestWCda.avgPower / (bestWCda.cda * 1.2), 1/3) * 3.6).toFixed(1)} km/h`}
               />
             )}
             {mostEfficient && (
               <RankCard
                 icon={<Trophy className="text-teal" size={18} />}
-                title="Plus efficient"
-                tooltip="Force de traînée totale (aéro + roulement) à 40 km/h la plus basse."
+                title={t("compare.mostEfficient")}
+                tooltip={t("compare.mostEfficientTooltip")}
                 winner={mostEfficient.rider.name}
                 metric={`${drag(mostEfficient).toFixed(1)} N @ 40 km/h`}
               />
@@ -543,19 +549,19 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           </div>
 
           <div className="bg-panel border border-border rounded-lg p-4 overflow-x-auto">
-            <h3 className="text-sm font-semibold mb-3">Tableau comparatif</h3>
+            <h3 className="text-sm font-semibold mb-3">{t("compare.tableTitle")}</h3>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-muted text-xs uppercase border-b border-border">
-                  <th className="text-left py-2 font-normal">Cycliste</th>
-                  <th className="text-right font-normal">Sorties</th>
-                  <th className="text-right font-normal">Masse</th>
+                  <th className="text-left py-2 font-normal">{t("compare.colRider")}</th>
+                  <th className="text-right font-normal">{t("compare.colRides")}</th>
+                  <th className="text-right font-normal">{t("compare.colMass")}</th>
                   <th className="text-right font-normal">
                     CdA
                     <InfoTooltip text="CdA moyen pondéré sur toutes les sorties retenues. Avec ≥2 sorties, l'IC95 est calculé à partir de la dispersion inter-rides (pas intra-ride) : il reflète la reproductibilité de la mesure à travers les conditions." />
                   </th>
                   <th className="text-right font-normal">Crr</th>
-                  <th className="text-right font-normal">Traînée @ 40</th>
+                  <th className="text-right font-normal">{t("compare.colDrag")}</th>
                   <th className="text-right font-normal">
                     W/CdA
                     <InfoTooltip text="Puissance moyenne / CdA = capacité à aller vite sur le plat. L'analogue aéro du W/kg pour la montagne. Plus c'est haut, plus le cycliste va vite à plat. 300 ≈ 33 km/h, 500 ≈ 39 km/h, 700 ≈ 44 km/h (plat, sans vent, ρ=1.2)." />
@@ -661,7 +667,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           />
 
           <div>
-            <h3 className="text-sm font-semibold mb-3">Positions estimées</h3>
+            <h3 className="text-sm font-semibold mb-3">{t("compare.positions")}</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {aggs.map((a) => (
                 <div key={a.rider.id} className="bg-panel border border-border rounded-lg p-3">
@@ -725,6 +731,7 @@ function RiderRow({
   onRemoveFile: (idx: number) => void;
   onRemove?: () => void;
 }) {
+  const { t } = useTranslation();
   const { minCda: minCdaBound, maxCda: maxCdaBound } = BIKE_TYPE_CONFIG[bikeType];
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -925,7 +932,7 @@ function RiderRow({
 
         {/* Mass input */}
         <div>
-          <label className="block text-xs text-muted mb-1">Masse (kg)</label>
+          <label className="block text-xs text-muted mb-1">{t("compare.mass")}</label>
           <input
             type="number"
             value={rider.mass}
@@ -939,7 +946,7 @@ function RiderRow({
 
         {/* Crr dropdown */}
         <div>
-          <label className="block text-xs text-muted mb-1">Pneus (Crr)</label>
+          <label className="block text-xs text-muted mb-1">{t("compare.crrLabel")}</label>
           <select
             value={rider.crrFixed}
             onChange={(e) => onUpdate({ crrFixed: e.target.value })}

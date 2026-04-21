@@ -16,6 +16,7 @@ import {
   Legend,
   ReferenceLine,
 } from "recharts";
+import { useTranslation } from "react-i18next";
 import InfoTooltip from "./InfoTooltip";
 
 interface RidePoint {
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export default function CdARunningAvgChart({ rides, aggCda }: Props) {
+  const { t } = useTranslation();
   if (rides.length < 2) return null;
 
   // Sort by date
@@ -59,11 +61,11 @@ export default function CdARunningAvgChart({ rides, aggCda }: Props) {
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
       <h3 className="text-sm font-semibold mb-1 flex items-center">
-        Convergence du CdA moyen
+        {t("runningAvgChart.title")}
         <InfoTooltip text="Points = CdA de chaque sortie. Ligne = moyenne cumulative pondérée par qualité. Plus la ligne se stabilise, plus le CdA moyen est fiable. Les premières sorties font bouger la moyenne ; après 5-6 rides elle converge." />
       </h3>
       <p className="text-xs text-muted mb-3">
-        La moyenne se stabilise au fil des sorties
+        {t("runningAvgChart.subtitle")}
       </p>
       <ResponsiveContainer width="100%" height={250}>
         <ComposedChart data={data}>
@@ -72,7 +74,7 @@ export default function CdARunningAvgChart({ rides, aggCda }: Props) {
             dataKey="session"
             stroke="#8b8ba0"
             fontSize={11}
-            label={{ value: "Sortie n°", position: "insideBottom", offset: -5, fill: "#8b8ba0", fontSize: 10 }}
+            label={{ value: t("runningAvgChart.xAxis"), position: "insideBottom", offset: -5, fill: "#8b8ba0", fontSize: 10 }}
           />
           <YAxis
             stroke="#8b8ba0"
@@ -84,16 +86,16 @@ export default function CdARunningAvgChart({ rides, aggCda }: Props) {
             contentStyle={{ background: "#14141c", border: "1px solid #262633" }}
             formatter={(value: number, name: string) => [
               value.toFixed(3),
-              name === "avg" ? "CdA moyen cumulé" : "CdA de la sortie",
+              name === "avg" ? t("runningAvgChart.tooltipAvg") : t("runningAvgChart.tooltipRide"),
             ]}
             labelFormatter={(label) => {
               const d = data[Number(label) - 1];
-              return d ? `${d.date} — ${d.fileName}` : `Sortie ${label}`;
+              return d ? `${d.date} — ${d.fileName}` : t("runningAvgChart.rideFallback", { n: label });
             }}
           />
           <Legend
             formatter={(value) =>
-              value === "avg" ? "Moyenne cumulative" : "CdA par sortie"
+              value === "avg" ? t("runningAvgChart.legendAvg") : t("runningAvgChart.legendRide")
             }
           />
           {aggCda && (

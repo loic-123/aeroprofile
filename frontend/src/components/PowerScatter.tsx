@@ -8,9 +8,11 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
+import { useTranslation } from "react-i18next";
 import type { ProfileData } from "../types";
 
 export default function PowerScatter({ profile }: { profile: ProfileData }) {
+  const { t } = useTranslation();
   const data = profile.power_measured
     .map((m, i) => ({ x: m, y: profile.power_modeled[i] }))
     .filter((p) => p.x > 0 && p.x < 800 && Math.abs(p.y) < 800)
@@ -18,13 +20,13 @@ export default function PowerScatter({ profile }: { profile: ProfileData }) {
   const maxV = 600;
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
-      <h3 className="text-sm font-semibold mb-3">P_modèle vs P_mesuré</h3>
+      <h3 className="text-sm font-semibold mb-3">{t("charts.powerScatterTitle")}</h3>
       <ResponsiveContainer width="100%" height={260}>
         <ScatterChart>
           <CartesianGrid stroke="#262633" />
           <XAxis
             dataKey="x"
-            name="Mesuré"
+            name={t("chartsLegend.pMeasured")}
             stroke="#8b8ba0"
             fontSize={11}
             domain={[0, maxV]}
@@ -32,7 +34,7 @@ export default function PowerScatter({ profile }: { profile: ProfileData }) {
           />
           <YAxis
             dataKey="y"
-            name="Modèle"
+            name={t("chartsLegend.pModelled")}
             stroke="#8b8ba0"
             fontSize={11}
             domain={[0, maxV]}

@@ -451,8 +451,43 @@
     "cdaFiltered": "CdA (filtered)",
     "altReal": "Real altitude",
     "altVirtual": "Virtual altitude",
-    "filteredHint": "— grey zones = segments excluded by iterative refinement"
+    "filteredHint": "— grey zones = segments excluded by iterative refinement",
+    "pAero": "Aero",
+    "pRolling": "Rolling",
+    "pGravity": "Gravity",
+    "pAccel": "Acceleration",
+    "pMeasured": "Measured",
+    "pModelled": "Modelled",
+    "residuals": "Residuals",
+    "windSpeed": "Wind speed",
+    "windDir": "Wind direction",
+    "rhoAir": "Air density",
+    "perfectFit": "Perfect fit",
+    "gradient": "Gradient"
   },
+  "evolChart": {
+    "title": "CdA evolution over time",
+    "subtitle": "One point per ride — shows whether the aero position has improved."
+  },
+  "runningAvgChart": {
+    "title": "Mean CdA convergence",
+    "subtitle": "The running average stabilises over the rides",
+    "xAxis": "Ride n°",
+    "rideFallback": "Ride {{n}}",
+    "tooltipAvg": "Cumulative mean CdA",
+    "tooltipRide": "Per-ride CdA",
+    "legendAvg": "Cumulative average",
+    "legendRide": "CdA per ride"
+  },
+  "windChartLabel": {
+    "speed": "Wind speed",
+    "dir": "Wind direction"
+  },
+  "airDensityTitle": "Air density (ρ) along the route",
+  "energyAero": "Aero",
+  "energyRolling": "Rolling",
+  "energyGravity": "Gravity",
+  "energyAccel": "Acceleration",
   "anomalies": {
     "title": "Anomaly alerts"
   },

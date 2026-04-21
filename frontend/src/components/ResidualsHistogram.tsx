@@ -8,9 +8,11 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
+import { useTranslation } from "react-i18next";
 import type { ProfileData } from "../types";
 
 export default function ResidualsHistogram({ profile }: { profile: ProfileData }) {
+  const { t } = useTranslation();
   const residuals: number[] = [];
   for (let i = 0; i < profile.power_measured.length; i++) {
     if (!profile.filter_valid[i]) continue;
@@ -29,7 +31,7 @@ export default function ResidualsHistogram({ profile }: { profile: ProfileData }
   });
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
-      <h3 className="text-sm font-semibold mb-3">Histogramme des résidus (W)</h3>
+      <h3 className="text-sm font-semibold mb-3">{t("charts.residualsTitle")}</h3>
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={hist}>
           <CartesianGrid stroke="#262633" />

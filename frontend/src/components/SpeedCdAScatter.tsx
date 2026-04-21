@@ -7,9 +7,11 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { useTranslation } from "react-i18next";
 import type { ProfileData } from "../types";
 
 export default function SpeedCdAScatter({ profile }: { profile: ProfileData }) {
+  const { t } = useTranslation();
   const data: { x: number; y: number }[] = [];
   for (let i = 0; i < profile.cda_rolling.length; i++) {
     const cda = profile.cda_rolling[i];
@@ -22,7 +24,7 @@ export default function SpeedCdAScatter({ profile }: { profile: ProfileData }) {
   }
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
-      <h3 className="text-sm font-semibold mb-3">CdA glissant vs puissance mesurée</h3>
+      <h3 className="text-sm font-semibold mb-3">{t("charts.speedCdaTitle")}</h3>
       <ResponsiveContainer width="100%" height={240}>
         <ScatterChart>
           <CartesianGrid stroke="#262633" />

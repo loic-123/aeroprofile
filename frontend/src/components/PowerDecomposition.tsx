@@ -8,9 +8,11 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { useTranslation } from "react-i18next";
 import type { ProfileData } from "../types";
 
 export default function PowerDecomposition({ profile }: { profile: ProfileData }) {
+  const { t } = useTranslation();
   const data = profile.distance_km.map((d, i) => ({
     d,
     aero: Math.max(0, profile.p_aero[i] || 0),
@@ -19,7 +21,7 @@ export default function PowerDecomposition({ profile }: { profile: ProfileData }
   }));
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
-      <h3 className="text-sm font-semibold mb-3">Décomposition de la puissance</h3>
+      <h3 className="text-sm font-semibold mb-3">{t("charts.powerDecompTitle")}</h3>
       <ResponsiveContainer width="100%" height={220}>
         <AreaChart data={data}>
           <CartesianGrid stroke="#262633" />
@@ -34,7 +36,7 @@ export default function PowerDecomposition({ profile }: { profile: ProfileData }
             stroke="#1D9E75"
             fill="#1D9E75"
             fillOpacity={0.6}
-            name="Aéro"
+            name={t("chartsLegend.pAero")}
           />
           <Area
             type="monotone"
@@ -43,7 +45,7 @@ export default function PowerDecomposition({ profile }: { profile: ProfileData }
             stroke="#3B82F6"
             fill="#3B82F6"
             fillOpacity={0.6}
-            name="Roulement"
+            name={t("chartsLegend.pRolling")}
           />
           <Area
             type="monotone"
@@ -52,7 +54,7 @@ export default function PowerDecomposition({ profile }: { profile: ProfileData }
             stroke="#E8654A"
             fill="#E8654A"
             fillOpacity={0.6}
-            name="Gravité"
+            name={t("chartsLegend.pGravity")}
           />
         </AreaChart>
       </ResponsiveContainer>

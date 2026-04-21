@@ -608,7 +608,7 @@ export default function IntervalsPage() {
           <div>
             <label className="block text-xs text-muted mb-1">
               Clé API
-              <InfoTooltip text="Trouvez votre clé API dans Intervals.icu → Settings → Developer Settings (en bas de la page)." />
+              <InfoTooltip text={t("intervals.apiKeyTooltip")} />
             </label>
             <input
               type="password"
@@ -621,7 +621,7 @@ export default function IntervalsPage() {
           <div>
             <label className="block text-xs text-muted mb-1">
               Athlete ID
-              <InfoTooltip text="Visible dans l'URL de votre profil Intervals.icu (ex: i12345). Ou mettez '0' pour l'utilisateur connecté." />
+              <InfoTooltip text={t("intervals.athleteIdTooltip")} />
             </label>
             <input
               type="text"
@@ -753,9 +753,9 @@ export default function IntervalsPage() {
           {/* nRMSE threshold slider */}
           <div className="mt-3">
             <label className="block text-xs text-muted mb-1">
-              Seuil qualité (nRMSE max) : <span className="text-teal font-mono font-semibold">{maxNrmse > 95 ? "désactivé (toutes)" : `${maxNrmse}%`}</span>
+              {t("intervals.qualityThresholdLabel")} <span className="text-teal font-mono font-semibold">{maxNrmse > 95 ? t("intervals.qualityDisabled") : `${maxNrmse}%`}</span>
               <span className="ml-2">
-                ({maxNrmse > 95 ? "aucun filtre qualité" : maxNrmse < 30 ? "très strict — peu de sorties retenues" : maxNrmse < 45 ? "strict" : maxNrmse < 60 ? "modéré" : "permissif — plus de sorties mais moins précis"})
+                ({maxNrmse > 95 ? t("intervals.qualityQual.none") : maxNrmse < 30 ? t("intervals.qualityQual.veryStrict") : maxNrmse < 45 ? t("intervals.qualityQual.strict") : maxNrmse < 60 ? t("intervals.qualityQual.moderate") : t("intervals.qualityQual.permissive")})
               </span>
             </label>
             <input type="range" min={20} max={100} step={5} value={maxNrmse}
@@ -770,9 +770,9 @@ export default function IntervalsPage() {
           {/* Solver confidence threshold (P3) */}
           <div className="mt-3">
             <label className="block text-xs text-muted mb-1">
-              Accord wind_inverse ↔ Chung VE :{" "}
+              {t("intervals.solverConfLabel")}{" "}
               <span className="text-teal font-mono font-semibold">
-                {minConfidence === "off" ? "toutes (off)" : minConfidence === "medium" ? "exclure désaccord fort" : "garder uniquement accord élevé"}
+                {minConfidence === "off" ? t("intervals.solverConfOff") : minConfidence === "medium" ? t("intervals.solverConfMedium") : t("intervals.solverConfHigh")}
               </span>
             </label>
             <div className="flex gap-1.5 max-w-sm">
@@ -788,10 +788,10 @@ export default function IntervalsPage() {
                   }`}
                   title={
                     v === "off"
-                      ? t("intervals.keepUnfiltered")
+                      ? t("intervals.solverConfTooltipOff")
                       : v === "medium"
-                        ? "Exclure les sorties où |ΔCdA wind−chung| ≥ 0.05 (désaccord fort) ET les sorties où un solveur a touché une borne physique (cross-check non fiable)"
-                        : "Garder uniquement les sorties où |ΔCdA wind−chung| < 0.02 (solveurs en accord) et aucun solveur à la borne"
+                        ? t("intervals.solverConfTooltipMedium")
+                        : t("intervals.solverConfTooltipHigh")
                   }
                 >
                   {v === "off" ? "off" : v === "medium" ? "≥ medium" : "high only"}
@@ -1048,7 +1048,7 @@ export default function IntervalsPage() {
                   <div>
                     <div className="text-xs text-muted uppercase tracking-wide flex items-center">
                       CdA moyen ({goodRides.length} sortie{goodRides.length > 1 ? "s" : ""} retenue{goodRides.length > 1 ? "s" : ""} sur {rides.length})
-                      <InfoTooltip text="Moyenne pondérée par le nombre de points valides × qualité (1/nRMSE). Les sorties avec nRMSE > 45% ou CdA hors limites sont exclues." />
+                      <InfoTooltip text={t("intervals.inverseVarTooltip")} />
                     </div>
                     <div className="text-3xl font-mono font-bold text-teal mt-1">
                       CdA = {aggCda.toFixed(3)}
@@ -1104,7 +1104,7 @@ export default function IntervalsPage() {
                     {hierResult?.hksj_applied && (
                       <span
                         className="ml-2 text-[10px] font-mono bg-info/10 text-info/80 px-1.5 py-0.5 rounded border border-info/20"
-                        title="HKSJ (Hartung–Knapp–Sidik–Jonkman) : correction small-k appliquée car n<10. L'IC95 est élargi avec un t-quantile au lieu de 1.96 et un facteur q qui réinjecte la dispersion empirique. Réf. IntHout et al., BMC Med Res Methodol 2014."
+                        title={t("intervals.hksjTooltip")}
                       >
                         HKSJ small-k
                       </span>
@@ -1158,7 +1158,7 @@ export default function IntervalsPage() {
                       <div>
                         <div className="text-xs text-muted flex items-center">
                           N rides
-                          <InfoTooltip text="N = nombre de rides dans la méta-analyse. n_eff = effective sample size après pondération random-effects (Σwᵢ)²/Σwᵢ². Si n_eff << N, l'estimation est dominée par quelques rides (σ_i petits)." />
+                          <InfoTooltip text={t("intervals.nEffTooltip")} />
                         </div>
                         <div className="text-xl font-mono text-muted">
                           {hierResult.n_rides}
@@ -1266,9 +1266,9 @@ export default function IntervalsPage() {
                       if (r.result.solver_cross_check_delta != null && r.result.chung_cda != null) {
                         const d = r.result.solver_cross_check_delta;
                         const label = r.result.solver_confidence === "high" ? "accord solveurs"
-                                    : r.result.solver_confidence === "medium" ? "désaccord léger"
-                                    : r.result.solver_confidence === "low" ? "désaccord fort"
-                                    : "non fiable (solveur à la borne)";
+                                    : r.result.solver_confidence === "medium" ? t("intervals.confMild")
+                                    : r.result.solver_confidence === "low" ? t("intervals.confStrong")
+                                    : t("intervals.confUnreliable");
                         reason += `\nCross-check Chung VE: ${r.result.chung_cda.toFixed(3)} (Δ=${d.toFixed(3)} — ${label})`;
                         if (r.result.chung_cda_raw != null) {
                           reason += `\n  Chung hors prior: ${r.result.chung_cda_raw.toFixed(3)}`;
@@ -1288,14 +1288,14 @@ export default function IntervalsPage() {
                       ]);
                       if (r.result.quality_status && _softStatuses.has(r.result.quality_status)) {
                         const label = r.result.quality_status === "prior_dominated"
-                          ? "prior dominé"
+                          ? t("intervals.reasonPriorDominated")
                           : r.result.quality_status === "sensor_miscalib_warn"
-                            ? "biais capteur modéré"
+                            ? t("intervals.reasonSensorMild")
                             : r.result.quality_status === "model_mismatch_warn"
-                              ? "modèle physique imparfait (vent API ou position inhabituelle)"
+                              ? t("intervals.reasonModelImperfect")
                               : r.result.quality_status === "weak_estimate"
-                                ? "estimation peu précise (σ_CdA élevée)"
-                                : "trop de points filtrés";
+                                ? t("intervals.reasonLowPrecision")
+                                : t("intervals.reasonTooFiltered");
                         reason += `\nⓘ Signalement : ${label}`;
                       }
                       // Exhaustive exclusion explanation: enumerate every
@@ -1403,10 +1403,10 @@ export default function IntervalsPage() {
                             {(r.result.prior_adaptive_factor ?? 1) > 2.0 ? (
                               <span className="opacity-80 text-coral" title={`prior très fortement renforcé ×${(r.result.prior_adaptive_factor ?? 1).toFixed(1)} — données peu informatives`}>⚡⚡</span>
                             ) : (r.result.prior_adaptive_factor ?? 1) > 1.05 && (
-                              <span className="opacity-70 text-warn" title="prior renforcé">⚡</span>
+                              <span className="opacity-70 text-warn" title={t("intervals.priorReinforced")}>⚡</span>
                             )}
                             {r.result.quality_status === "prior_dominated" && (
-                              <span className="opacity-70 text-warn" title="résultat dominé par le prior — données peu informatives">ⓘ</span>
+                              <span className="opacity-70 text-warn" title={t("intervals.priorDominated")}>ⓘ</span>
                             )}
                             {r.result.solver_confidence === "low" && (
                               <span
@@ -1438,7 +1438,7 @@ export default function IntervalsPage() {
                   <span className="flex items-center gap-1">
                     <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> Retenue (cliquer → détail)
                   </span>
-                  <span className="flex items-center gap-1" title="nRMSE trop élevé : le modèle physique ne reproduit pas la puissance mesurée">
+                  <span className="flex items-center gap-1" title={t("intervals.errNrmse")}>
                     <span className="inline-block w-2 h-2 rounded-full bg-red-500" /> Fit raté (nRMSE)
                   </span>
                   <span className="flex items-center gap-1" title={t("intervals.errBounds")}>

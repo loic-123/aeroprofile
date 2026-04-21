@@ -36,7 +36,7 @@ export function PositionDelta({ cda, bikeType, positionIdx }: Props) {
       <div className="flex items-center justify-between">
         <div className="text-[10px] uppercase tracking-widest text-muted font-semibold flex items-center gap-1">
           {t("position.reference")}
-          <InfoTooltip text="La référence est le prior bayésien utilisé par le solveur — pas une vérité terrain. Elle représente la valeur moyenne attendue pour cette position sur ce type de vélo, issue de la littérature (Debraux et al. 2011) et des mesures soufflerie." />
+          <InfoTooltip text={t("tooltips.positionRef")} />
         </div>
         <div className="text-xs text-muted font-mono">
           {preset.label.toLowerCase()} · {bikeLabel}

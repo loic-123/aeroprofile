@@ -1261,7 +1261,7 @@ export default function IntervalsPage() {
                       if (r.result.power_meter_display) {
                         reason += `\nCapteur : ${r.result.power_meter_display}`;
                         if (r.result.power_meter_quality === "low") {
-                          reason += " ⚠ mono-jambe ou calibration manquante";
+                          reason += t("compare.singleLegWarn");
                         }
                       }
                       if (r.result.solver_cross_check_delta != null && r.result.chung_cda != null) {

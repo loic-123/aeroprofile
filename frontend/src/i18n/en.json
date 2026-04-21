@@ -80,7 +80,22 @@
     "crrLead": "Where does your Crr sit compared to reference tyres/surfaces?",
     "colPosition": "Position / type",
     "colDelta": "Δ vs you",
-    "colYou": "← you: {{value}}"
+    "colYou": "← you: {{value}}",
+    "cda": {
+      "r0": { "label": "Pro TT (Superman)", "desc": "Aerobars, flat back, aero helmet" },
+      "r1": { "label": "Amateur TT", "desc": "Aerobars, arms extended" },
+      "r2": { "label": "Road, aero drops", "desc": "Drops, flat back, good aero reflexes" },
+      "r3": { "label": "Road, hoods", "desc": "Standard hoods position" },
+      "r4": { "label": "Road, hands on tops", "desc": "Torso upright, hands on the bar top" },
+      "r5": { "label": "Upright / MTB", "desc": "MTB, city bike, very upright position" }
+    },
+    "crr": {
+      "r0": { "label": "Velodrome tubulars", "desc": "Track, max pressure, smooth surface" },
+      "r1": { "label": "Tubeless clincher, tarmac", "desc": "GP5000 TL, Corsa, Pro One, etc." },
+      "r2": { "label": "Standard clincher", "desc": "Classic road tyre with inner tube" },
+      "r3": { "label": "Rough tarmac", "desc": "Granular road, cobbles, repairs" },
+      "r4": { "label": "Gravel / wide tyre", "desc": "Tyre ≥ 35 mm, compacted trail" }
+    }
   },
   "fileUpload": {
     "dropAria": "Drop or select .FIT / .GPX / .TCX files",
@@ -250,6 +265,14 @@
     "excludeFromCharts": "Exclude from charts",
     "reincludeInCharts": "Include back in charts",
     "profile": "Profile: {{name}}",
+    "reincludeIgnored_one": "Include back the {{count}} ignored analysis",
+    "reincludeIgnored_other": "Include back the {{count}} ignored analyses",
+    "filteredSelection_one": "→ {{count}} analysis selected out of {{total}}",
+    "filteredSelection_other": "→ {{count}} analyses selected out of {{total}}",
+    "importAdded_one": "{{count}} analysis added",
+    "importAdded_other": "{{count}} analyses added",
+    "importSkipped_one": ", {{count}} skipped (already present or more recent)",
+    "importSkipped_other": ", {{count}} skipped (already present or more recent)",
     "clearConfirm": "Clear all history?",
     "importFailedGen": "Import failed.",
     "modeSingle": "Analyze",
@@ -331,7 +354,17 @@
     "mass": "Mass (kg)",
     "crrLabel": "Tyres (Crr)",
     "removeRider": "Remove",
-    "dropFiles": "Drop files here"
+    "dropFiles": "Drop files here",
+    "analysisFailed": "analysis failed",
+    "errorPrefix": "Error: {{err}}",
+    "rawCdaLine": "CdA without prior (wind+Crr regularised): {{value}}",
+    "priorReinforcedLine": "Prior reinforced ×{{factor}}",
+    "sensorLine": "Sensor: {{name}}",
+    "singleLegWarn": " ⚠ single-leg or missing calibration",
+    "excludedReason": "⚠ Excluded: {{reason}}",
+    "priorDominatedTitle": "result dominated by the prior",
+    "priorReinforcedTitle": "prior reinforced",
+    "priorHeavilyReinforcedTitle": "prior very strongly reinforced ×{{factor}} — data not very informative"
   },
   "header": {
     "solver": "Solver:",
@@ -379,6 +412,8 @@
     "pmBiasHigh": "**Sensor probably miscalibrated.** On flat pedalled sections ({{n}} points), the measured power is {{pct}}% higher than the theoretical value for a typical CdA/Crr. This is the sign of a sensor with a stuck offset or a missing zero-offset. Recalibrate before the next ride.",
     "pmBiasMild": "Measured power {{pct}}% above the theoretical value ({{n}} flat points). May indicate a slight calibration drift, or simply a stronger-than-average rider profile.",
     "pmBiasLow": "Measured power {{pct}}% below the theoretical value ({{n}} flat points). Sensor under-reading or strong unmodelled tailwind.",
+    "windSensTooltip": "Post-hoc: Chung VE re-run with wind_speed × 1.05. The exposed Δ shows whether CdA is robust (|Δ|<0.005, green), moderate (<0.015, amber) or fragile (red) to the Open-Meteo wind bias. ERA5 has a documented ~-0.7% mean bias and under-estimates high winds (Jourdier 2020). Replaces a blind correction with a transparent diagnostic.",
+    "windFragilityTooltip": "Sensitivity test: Chung VE re-run with wind_speed × 1.30 and × 0.70 (plausible bounds of the ERA5 bias in coastal zones, Jourdier 2020). wind_fragility = max(|Δ±30%|) classified robust < 0.02 < moderate < 0.05 ≤ fragile.",
     "windSensTitle": "Wind sensitivity",
     "windSensArrow": "+5% wind →",
     "windSensRobust": "robust",
@@ -423,7 +458,9 @@
     "rhoTitle": "Air density (ρ)",
     "rhoDesc": "Air density variation along the route. ρ drops with altitude and rises with cold. Same CdA produces less drag at low ρ (altitude). On a 0-to-1500 m ride, ρ can vary by 15% — that's why it's computed per point.",
     "mapTitle": "Route",
-    "mapDesc": "GPS trace on a basemap. Coloured by rolling CdA (see legend below the map) for a quick read of where the position held or drifted."
+    "mapDesc": "GPS trace on a basemap. Coloured by rolling CdA (see legend below the map) for a quick read of where the position held or drifted.",
+    "mapSegments": "{{count}} segments",
+    "mapNoCda": "no CdA"
   },
   "landing": {
     "badge": "Open-source · v2026.04 · MIT",
@@ -531,6 +568,23 @@
     "roadHoods": { "name": "Road, hoods", "description": "Standard hoods position" },
     "roadTops": { "name": "Road, upright", "description": "Hands on the tops, torso upright" },
     "upright": { "name": "Upright / MTB", "description": "Upright position, MTB or city-bike style" }
+  },
+  "tooltips": {
+    "derivedAeroShare": "Fraction of power spent against aerodynamic drag (the rest goes into rolling resistance). At low speed the wheel dominates; at high speed the air dominates (v² law for force, v³ for power).",
+    "gradientBreakdown": "CdA recomputed separately on the climbing (>+2%), descending (<-2%) and flat (±2%) portions. A > 0.08 m² gap between the three suggests a bias: asymmetric wind poorly captured, sensor drift at high power, or position change between climbing and descending. It's not necessarily an error — riders DO sit up on slow climbs.",
+    "heroCda": "CdA = drag coefficient × frontal area (m²). Hessian CI = 95% confidence interval based on the likelihood curvature at the optimum. Conformal CI = distribution-free interval with a formal 95% coverage guarantee on the rider's history.",
+    "solverDeltaMedian": "Median of (Chung VE CdA − wind_inverse CdA) on your past clean rides. Measures the systematic disagreement between the two solvers on YOUR dataset, which isn't captured by the Hessian CI.",
+    "priorOffExplain": "Estimate obtained by disabling the CdA prior. The wind and Crr priors stay active to keep the problem well-posed. A gap > 0.05 with the main value triggers the 'prior_dominated' status.",
+    "crrSecondary": "Crr = rolling-resistance coefficient (dimensionless). Depends on tyres, pressure, and surface. Typically 0.003-0.004 on a well-inflated road tyre on smooth tarmac, 0.005-0.007 on rough road, 0.007-0.010 on gravel.",
+    "rmseSecondary": "RMSE (root-mean-square error) between modelled and measured power. On a real ride, 15-25 W is typical; under 15 W is excellent; above 30 W there's a bias. The complementary R² depends on the ride's variance.",
+    "rhoSecondary": "Mean air density over the ride. Varies with altitude, temperature, and humidity. ~1.22 at sea level at 15 °C, ~1.05 at 1500 m.",
+    "windSecondary": "Mean wind over the ride, fetched from Open-Meteo. Direction is the bearing the wind comes from (0°=N, 90°=E, 180°=S, 270°=W). Wind is corrected to rider height (factor 0.7).",
+    "runningAvg": "Dots = per-ride CdA. Line = quality-weighted cumulative mean. The more the line stabilises, the more trustworthy the mean CdA. The first rides move the average; after 5-6 rides it converges.",
+    "evolChart": "Each point is one analysed ride. If CdA decreases over time, the rider improved their aero position (or changed equipment). Caveat: CdA also varies with conditions (wind, drafting, route). Points with R² < 0.3 are more uncertain.",
+    "whatIf": "Vary a parameter and see the impact on the ride. The model recomputes point by point with the Martin equation, keeping the route and weather identical.",
+    "positionRef": "The reference is the Bayesian prior used by the solver — not a ground truth. It represents the mean expected value for this position on this bike type, from the literature (Debraux et al. 2011) and wind-tunnel measurements.",
+    "cdaRefRanges": "Typical CdA ranges from Debraux et al. 2011 and wind-tunnel measurements. Your value is highlighted in the matching range. CdA depends on the position on the bike, the rider's morphology, and equipment (helmet, kit).",
+    "crrRefRanges": "Typical rolling-resistance coefficient ranges. Depends on the tyre (model, pressure, width), the surface, and the temperature. Low Crr = a tyre that rolls well on smooth surfaces."
   },
   "totem": {
     "headline": "Aerodynamically, you are…",

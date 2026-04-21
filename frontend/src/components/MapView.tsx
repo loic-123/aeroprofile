@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
+import { useTranslation } from "react-i18next";
 import type { ProfileData } from "../types";
 import { buildCdASegments } from "../lib/mapSegments";
 import { MapCdALegend } from "./MapCdALegend";
@@ -12,6 +13,7 @@ interface HoverState {
 }
 
 export default function MapView({ profile }: { profile: ProfileData }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<HoverState | null>(null);
 
@@ -106,9 +108,9 @@ export default function MapView({ profile }: { profile: ProfileData }) {
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold">Parcours</h3>
+        <h3 className="text-sm font-semibold">{t("charts.mapTitle")}</h3>
         <span className="text-[10px] uppercase tracking-widest text-muted font-mono">
-          {stats.count > 0 ? `${stats.count} segments` : "pas de CdA"}
+          {stats.count > 0 ? t("charts.mapSegments", { count: stats.count }) : t("charts.mapNoCda")}
         </span>
       </div>
       <div className="relative">
@@ -125,7 +127,7 @@ export default function MapView({ profile }: { profile: ProfileData }) {
             <span className="text-text">{hover.distanceKm.toFixed(1)}</span>
             <span className="text-muted ml-2">CdA </span>
             <span className={hover.cda == null ? "text-muted" : "text-accent"}>
-              {hover.cda == null ? "filtré" : hover.cda.toFixed(3)}
+              {hover.cda == null ? t("chartsLegend.cdaFiltered") : hover.cda.toFixed(3)}
             </span>
           </div>
         )}

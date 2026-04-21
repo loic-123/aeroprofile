@@ -253,7 +253,7 @@ export default function WhatIfSimulator({ result }: { result: AnalysisResult }) 
       <h3 className="text-sm font-semibold flex items-center gap-2">
         <SlidersHorizontal size={16} className="text-teal" />
         {t("whatIf.title")}
-        <InfoTooltip text="Faites varier un paramètre et voyez l'impact sur la sortie. Le modèle recalcule point par point avec l'équation de Martin, en gardant parcours et météo identiques." />
+        <InfoTooltip text={t("tooltips.whatIf")} />
       </h3>
 
       {/* Vary selector */}

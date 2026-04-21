@@ -69,7 +69,7 @@ export function ResultsDerivedMetrics({ result, massKg }: Props) {
           values={{ share: aeroShare.toFixed(0) }}
           components={{ strong: <span className="text-text font-mono" /> }}
         />
-        <InfoTooltip text="Part de la puissance qui va dans la traînée aérodynamique (le reste va dans la résistance au roulement). À basse vitesse la roue domine ; à haute vitesse l'air domine (loi en v² pour la force, v³ pour la puissance)." />
+        <InfoTooltip text={t("tooltips.derivedAeroShare")} />
       </div>
     </Card>
   );

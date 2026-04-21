@@ -362,7 +362,7 @@ export default function App() {
               narrative rather than a dashboard with a top bar. */}
           {mode !== "home" && (
             <NavTabs<Mode>
-              ariaLabel="Main navigation"
+              ariaLabel={t("app.nav.analyze")}
               layoutId="app-nav"
               iconOnlyOnMobile
               className="ml-2"
@@ -607,7 +607,7 @@ export default function App() {
                             <div>
                               <div className="text-xs text-muted uppercase tracking-wide flex items-center">
                                 {t("dashboard.meanCda", { count: goodRides.length, total: rides.length })}
-                                <InfoTooltip text="Méthode A : chaque ride est analysée séparément, puis agrégée par moyenne pondérée par 1/σ² (Hessienne) × qualité (1/nRMSE). C'est l'approche standard en méta-analyse fixed-effects." />
+                                <InfoTooltip text={t("intervals.inverseVarTooltip")} />
                               </div>
                               <div className="text-3xl font-mono font-bold text-teal mt-1">
                                 CdA = {aggCda.toFixed(3)}
@@ -635,7 +635,7 @@ export default function App() {
                                 <div>
                                   <div className="text-xs text-muted flex items-center justify-end">
                                     W/CdA
-                                    <InfoTooltip text="Puissance moyenne / CdA = capacité à aller vite sur le plat." />
+                                    <InfoTooltip text={t("intervals.flatSpeedTooltip")} />
                                   </div>
                                   <div className="text-xl font-mono text-info">
                                     {(aggPower / aggCda).toFixed(0)}
@@ -659,7 +659,7 @@ export default function App() {
                           <div className="bg-panel border border-info/40 rounded-lg p-4">
                             <div className="text-xs text-muted uppercase tracking-wide flex items-center">
                               {t("dashboard.meanCdaHierarchical")}
-                              <InfoTooltip text="Méta-analyse à effets aléatoires : chaque ride contribue son CdA_i avec son incertitude σ_i (Hessienne du fit Chung VE). L'estimateur DerSimonian–Laird agrège ensuite τ² (variance inter-rides), puis combine les CdA_i avec les poids w_i = 1/(σ_i² + τ²). Réf. DerSimonian & Laird (Controlled Clinical Trials, 1986)." />
+                              <InfoTooltip text={t("intervals.hksjTooltip")} />
                             </div>
                             {hierLoading && (
                               <div className="text-sm text-muted mt-2 flex items-center gap-2">
@@ -694,7 +694,7 @@ export default function App() {
                                 </div>
                                 <div className="ml-auto grid grid-cols-2 sm:flex gap-4 sm:gap-6 text-right">
                                   <div>
-                                    <div className="text-xs text-muted">Crr partagé</div>
+                                    <div className="text-xs text-muted">{t("intervals.sharedCrr")}</div>
                                     <div className="text-xl font-mono text-info">{hierResult.crr.toFixed(4)}</div>
                                   </div>
                                   <div>
@@ -714,10 +714,10 @@ export default function App() {
                         {/* Position + References + Derived metrics */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="bg-panel border border-border rounded-lg p-4 flex justify-center">
-                            <PositionSchematic cda={aggCda} label="Position moyenne" size={240} />
+                            <PositionSchematic cda={aggCda} label={t("intervals.avgPosition")} size={240} />
                           </div>
                           <div className="bg-panel border border-border rounded-lg p-4 md:col-span-2">
-                            <h3 className="text-sm font-semibold mb-2">Métriques dérivées (moyenne)</h3>
+                            <h3 className="text-sm font-semibold mb-2">{t("intervals.derivedAvg")}</h3>
                             <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm font-mono">
                               {[30, 35, 40, 45].map((s) => {
                                 const v = s / 3.6;
@@ -788,7 +788,7 @@ export default function App() {
                                 if (r.result.power_meter_display) {
                                   tooltip += `\nCapteur : ${r.result.power_meter_display}`;
                                   if (r.result.power_meter_quality === "low") {
-                                    tooltip += " ⚠ mono-jambe ou calibration manquante";
+                                    tooltip += t("compare.singleLegWarn");
                                   }
                                 }
                                 if (r.result.quality_status && r.result.quality_status !== "ok" && r.result.quality_reason) {
@@ -821,10 +821,10 @@ export default function App() {
                                     {(r.result.prior_adaptive_factor ?? 1) > 2.0 ? (
                                       <span className="opacity-80 text-coral" title={`prior très fortement renforcé ×${(r.result.prior_adaptive_factor ?? 1).toFixed(1)} — données peu informatives`}>⚡⚡</span>
                                     ) : (r.result.prior_adaptive_factor ?? 1) > 1.05 && (
-                                      <span className="opacity-70 text-warn" title="prior renforcé">⚡</span>
+                                      <span className="opacity-70 text-warn" title={t("compare.priorReinforcedTitle")}>⚡</span>
                                     )}
                                     {r.result.quality_status === "prior_dominated" && (
-                                      <span className="opacity-70 text-warn" title="résultat dominé par le prior">ⓘ</span>
+                                      <span className="opacity-70 text-warn" title={t("compare.priorDominatedTitle")}>ⓘ</span>
                                     )}
                                   </>
                                 )}

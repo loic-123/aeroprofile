@@ -68,7 +68,7 @@ export default function CdAEvolutionChart({ riders }: Props) {
     <div className="bg-panel border border-border rounded-lg p-4">
       <h3 className="text-sm font-semibold mb-1 flex items-center">
         {t("evolChart.title")}
-        <InfoTooltip text="Chaque point correspond à une sortie analysée. Si le CdA diminue au fil du temps, le cycliste a amélioré sa position aéro (ou a changé d'équipement). Attention : le CdA varie aussi avec les conditions (vent, drafting, parcours). Les points avec R² < 0.3 sont plus incertains." />
+        <InfoTooltip text={t("tooltips.evolChart")} />
       </h3>
       <p className="text-xs text-muted mb-3">
         {t("evolChart.subtitle")}

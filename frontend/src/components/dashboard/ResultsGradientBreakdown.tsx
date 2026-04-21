@@ -57,7 +57,7 @@ export function ResultsGradientBreakdown({ result }: Props) {
         <div>
           <h3 className="text-sm font-semibold flex items-center">
             {t("breakdown.title")}
-            <InfoTooltip text="CdA recalculé séparément sur les portions montantes (>+2%), descendantes (<−2%) et plates (±2%). Un écart > 0.08 m² entre les trois suggère un biais : vent asymétrique mal capturé, dérive du capteur à haute puissance, ou changement de position entre montée et descente. Ce n'est pas forcément une erreur — les cyclistes se redressent VRAIMENT en montée lente." />
+            <InfoTooltip text={t("tooltips.gradientBreakdown")} />
           </h3>
           <p className="text-xs text-muted mt-0.5">
             {t("breakdown.subtitle")}

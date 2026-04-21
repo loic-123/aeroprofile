@@ -847,23 +847,23 @@ function RiderRow({
                 const isBad = rd.status === "error" || isExcluded;
                 let tooltip: string | undefined;
                 if (rd.status === "error") {
-                  tooltip = `Erreur : ${rd.error || "analyse échouée"}`;
+                  tooltip = t("compare.errorPrefix", { err: rd.error || t("compare.analysisFailed") });
                 } else if (rd.status === "done" && rd.result) {
                   tooltip = `${rd.file.name}\nCdA ${rd.result.cda.toFixed(3)} • nRMSE ${(nrmse * 100).toFixed(0)}% • ±${rd.result.rmse_w.toFixed(0)}W`;
                   if (rd.result.cda_raw != null && Math.abs(rd.result.cda_raw - rd.result.cda) > 0.02) {
-                    tooltip += `\nCdA hors prior (vent+Crr régularisés) : ${rd.result.cda_raw.toFixed(3)}`;
+                    tooltip += `\n${t("compare.rawCdaLine", { value: rd.result.cda_raw.toFixed(3) })}`;
                   }
                   if ((rd.result.prior_adaptive_factor ?? 1) > 1.05) {
-                    tooltip += `\nPrior renforcé ×${(rd.result.prior_adaptive_factor ?? 1).toFixed(1)}`;
+                    tooltip += `\n${t("compare.priorReinforcedLine", { factor: (rd.result.prior_adaptive_factor ?? 1).toFixed(1) })}`;
                   }
                   if (rd.result.power_meter_display) {
-                    tooltip += `\nCapteur : ${rd.result.power_meter_display}`;
+                    tooltip += `\n${t("compare.sensorLine", { name: rd.result.power_meter_display })}`;
                     if (rd.result.power_meter_quality === "low") {
-                      tooltip += " ⚠ mono-jambe ou calibration manquante";
+                      tooltip += t("compare.singleLegWarn");
                     }
                   }
                   if (rd.result.quality_status && rd.result.quality_status !== "ok" && rd.result.quality_reason) {
-                    tooltip += `\n\n⚠ Exclue : ${rd.result.quality_reason}`;
+                    tooltip += `\n\n${t("compare.excludedReason", { reason: rd.result.quality_reason })}`;
                   }
                 }
                 return (
@@ -892,12 +892,12 @@ function RiderRow({
                       <span className="opacity-70">{rd.result.cda.toFixed(3)}</span>
                       <span className="opacity-40">{(nrmse * 100).toFixed(0)}%</span>
                       {(rd.result.prior_adaptive_factor ?? 1) > 2.0 ? (
-                        <span className="opacity-80 text-coral" title={`prior très fortement renforcé ×${(rd.result.prior_adaptive_factor ?? 1).toFixed(1)} — données peu informatives`}>⚡⚡</span>
+                        <span className="opacity-80 text-coral" title={t("compare.priorHeavilyReinforcedTitle", { factor: (rd.result.prior_adaptive_factor ?? 1).toFixed(1) })}>⚡⚡</span>
                       ) : (rd.result.prior_adaptive_factor ?? 1) > 1.05 && (
-                        <span className="opacity-70 text-warn" title="prior renforcé">⚡</span>
+                        <span className="opacity-70 text-warn" title={t("compare.priorReinforcedTitle")}>⚡</span>
                       )}
                       {rd.result.quality_status === "prior_dominated" && (
-                        <span className="opacity-70 text-warn" title="résultat dominé par le prior">ⓘ</span>
+                        <span className="opacity-70 text-warn" title={t("compare.priorDominatedTitle")}>ⓘ</span>
                       )}
                     </>
                   )}

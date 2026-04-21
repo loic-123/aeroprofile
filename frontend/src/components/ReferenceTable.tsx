@@ -6,21 +6,27 @@
 import { useTranslation } from "react-i18next";
 import InfoTooltip from "./InfoTooltip";
 
-const CDA_RANGES: { label: string; low: number; high: number; desc: string }[] = [
-  { label: "CLM pro (Superman)", low: 0.17, high: 0.20, desc: "Prolongateurs, dos plat, casque aéro" },
-  { label: "CLM amateur", low: 0.20, high: 0.25, desc: "Prolongateurs, bras tendus" },
-  { label: "Route, drops aéro", low: 0.25, high: 0.30, desc: "Drops, dos plat, bons réflexes aéro" },
-  { label: "Route, cocottes", low: 0.30, high: 0.35, desc: "Position standard sur cocottes (hoods)" },
-  { label: "Route, mains en haut", low: 0.35, high: 0.42, desc: "Buste relevé, mains sur le cintre" },
-  { label: "Position droite / VTT", low: 0.42, high: 0.55, desc: "VTT, vélo ville, position très droite" },
+interface Range {
+  keyBase: string;
+  low: number;
+  high: number;
+}
+
+const CDA_RANGES: Range[] = [
+  { keyBase: "refTable.cda.r0", low: 0.17, high: 0.20 },
+  { keyBase: "refTable.cda.r1", low: 0.20, high: 0.25 },
+  { keyBase: "refTable.cda.r2", low: 0.25, high: 0.30 },
+  { keyBase: "refTable.cda.r3", low: 0.30, high: 0.35 },
+  { keyBase: "refTable.cda.r4", low: 0.35, high: 0.42 },
+  { keyBase: "refTable.cda.r5", low: 0.42, high: 0.55 },
 ];
 
-const CRR_RANGES: { label: string; low: number; high: number; desc: string }[] = [
-  { label: "Boyaux vélodrome", low: 0.002, high: 0.003, desc: "Piste, pression max, surface lisse" },
-  { label: "Tubeless clincher, asphalte", low: 0.003, high: 0.004, desc: "GP5000 TL, Corsa, Pro One, etc." },
-  { label: "Clincher standard", low: 0.004, high: 0.006, desc: "Pneu route classique avec chambre" },
-  { label: "Asphalte dégradé", low: 0.006, high: 0.008, desc: "Route granuleuse, pavés, réparations" },
-  { label: "Gravel / pneu large", low: 0.007, high: 0.010, desc: "Pneu ≥ 35 mm, chemin stabilisé" },
+const CRR_RANGES: Range[] = [
+  { keyBase: "refTable.crr.r0", low: 0.002, high: 0.003 },
+  { keyBase: "refTable.crr.r1", low: 0.003, high: 0.004 },
+  { keyBase: "refTable.crr.r2", low: 0.004, high: 0.006 },
+  { keyBase: "refTable.crr.r3", low: 0.006, high: 0.008 },
+  { keyBase: "refTable.crr.r4", low: 0.007, high: 0.010 },
 ];
 
 function RowHighlight({
@@ -29,7 +35,7 @@ function RowHighlight({
   unit,
   fmt,
 }: {
-  ranges: typeof CDA_RANGES;
+  ranges: Range[];
   value: number;
   unit: string;
   fmt: (v: number) => string;
@@ -74,14 +80,14 @@ function RowHighlight({
             >
               <td className="py-1.5 pr-2">
                 <span className={active ? "text-teal font-semibold" : "text-text"}>
-                  {r.label}
+                  {t(`${r.keyBase}.label`)}
                 </span>
                 {active && (
                   <span className="ml-2 text-xs bg-teal/20 text-teal px-1.5 py-0.5 rounded font-mono">
                     {t("refTable.colYou", { value: fmt(value) })}
                   </span>
                 )}
-                <div className="text-xs text-muted">{r.desc}</div>
+                <div className="text-xs text-muted">{t(`${r.keyBase}.desc`)}</div>
               </td>
               <td className="py-1.5 text-right font-mono text-muted whitespace-nowrap">
                 {fmt(r.low)} – {fmt(r.high)}
@@ -114,7 +120,7 @@ export default function ReferenceTable({
       <div className="bg-panel border border-border rounded-lg p-4">
         <h3 className="text-sm font-semibold mb-1 flex items-center">
           {t("refTable.cdaTitle")}
-          <InfoTooltip text="Plages typiques de CdA issues de Debraux et al. 2011 et des mesures en soufflerie. Votre valeur est mise en évidence dans la plage correspondante. Le CdA dépend de la position sur le vélo, de la morphologie, et de l'équipement (casque, tenue)." />
+          <InfoTooltip text={t("tooltips.cdaRefRanges")} />
         </h3>
         <p className="text-xs text-muted mb-3">
           {t("refTable.cdaLead")}
@@ -130,7 +136,7 @@ export default function ReferenceTable({
       <div className="bg-panel border border-border rounded-lg p-4">
         <h3 className="text-sm font-semibold mb-1 flex items-center">
           {t("refTable.crrTitle")}
-          <InfoTooltip text="Plages typiques de coefficient de résistance au roulement. Dépend du pneu (modèle, pression, largeur), du revêtement, et de la température. Un Crr bas = pneu qui roule bien sur surface lisse." />
+          <InfoTooltip text={t("tooltips.crrRefRanges")} />
         </h3>
         <p className="text-xs text-muted mb-3">
           {t("refTable.crrLead")}

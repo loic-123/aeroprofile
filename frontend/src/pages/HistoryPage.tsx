@@ -107,10 +107,8 @@ export default function HistoryPage() {
       setImportMessage({
         kind: "ok",
         text:
-          `${res.added} analyse${res.added > 1 ? "s" : ""} ajoutée${res.added > 1 ? "s" : ""}` +
-          (res.skipped > 0
-            ? `, ${res.skipped} ignorée${res.skipped > 1 ? "s" : ""} (déjà présente${res.skipped > 1 ? "s" : ""} ou plus récente${res.skipped > 1 ? "s" : ""})`
-            : "") +
+          t("history.importAdded", { count: res.added }) +
+          (res.skipped > 0 ? t("history.importSkipped", { count: res.skipped }) : "") +
           ".",
       });
       setEntries(getHistory());
@@ -559,7 +557,7 @@ export default function HistoryPage() {
                 }}
                 className="text-info hover:text-info/80 underline"
               >
-                Réinclure les {ignoredEntries.size} analyse{ignoredEntries.size > 1 ? "s" : ""} ignorée{ignoredEntries.size > 1 ? "s" : ""}
+                {t("history.reincludeIgnored", { count: ignoredEntries.size })}
               </button>
             </>
           )}
@@ -922,7 +920,7 @@ function FilterBlocks({ athletes, sensors, bikes, nFiltered, nTotal }: FilterBlo
         accent="warn"
       />
       <p className="text-[10px] text-muted">
-        → {nFiltered} analyse{nFiltered > 1 ? "s" : ""} sélectionnée{nFiltered > 1 ? "s" : ""} sur {nTotal}
+        {t("history.filteredSelection", { count: nFiltered, total: nTotal })}
       </p>
     </div>
   );

@@ -31,7 +31,7 @@ export function ResultsSecondaryStats({ result, unreliable }: Props) {
           label={
             <span className="flex items-center">
               Crr
-              <InfoTooltip text="Crr = coefficient de résistance au roulement (sans unité). Dépend des pneus, de la pression, et du revêtement. Typiquement 0.003–0.004 sur pneu route bien gonflé et asphalte lisse, 0.005–0.007 sur route dégradée, 0.007–0.010 en gravel." />
+              <InfoTooltip text={t("tooltips.crrSecondary")} />
             </span>
           }
           value={unreliable ? "—" : result.crr.toFixed(4)}
@@ -52,7 +52,7 @@ export function ResultsSecondaryStats({ result, unreliable }: Props) {
           label={
             <span className="flex items-center">
               {t("secondary.rmseLabel")}
-              <InfoTooltip text="Erreur RMSE (root-mean-square) entre la puissance modélisée et la puissance mesurée. Sur une sortie réelle, 15-25 W est typique ; sous 15 W excellent ; au-dessus de 30 W il y a un biais. Le R² complémentaire dépend de la variance de la sortie." />
+              <InfoTooltip text={t("tooltips.rmseSecondary")} />
             </span>
           }
           value={`±${result.rmse_w.toFixed(0)}`}
@@ -68,7 +68,7 @@ export function ResultsSecondaryStats({ result, unreliable }: Props) {
           label={
             <span className="flex items-center">
               {t("secondary.rho")}
-              <InfoTooltip text="Densité de l'air moyenne sur la sortie. Varie selon l'altitude, la température et l'humidité. ~1.22 au niveau de la mer à 15°C, ~1.05 à 1500 m." />
+              <InfoTooltip text={t("tooltips.rhoSecondary")} />
             </span>
           }
           value={result.avg_rho.toFixed(3)}
@@ -83,7 +83,7 @@ export function ResultsSecondaryStats({ result, unreliable }: Props) {
           label={
             <span className="flex items-center">
               {t("secondary.windMean")}
-              <InfoTooltip text="Vent moyen sur la sortie, récupéré depuis Open-Meteo. La direction est la provenance (0°=N, 90°=E, 180°=S, 270°=O). Le vent est corrigé à hauteur du cycliste (facteur 0.7)." />
+              <InfoTooltip text={t("tooltips.windSecondary")} />
             </span>
           }
           value={(result.avg_wind_speed_ms * 3.6).toFixed(1)}

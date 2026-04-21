@@ -236,7 +236,7 @@ function WindSensitivityBanner({ delta }: { delta: number }) {
           ({label})
         </span>
       </span>
-      <InfoTooltip text="Post-hoc : Chung VE relancé avec wind_speed × 1.05. Le Δ exposé montre si le CdA est robuste (|Δ|<0.005, vert), modéré (<0.015, ambre) ou fragile (rouge) au biais vent Open-Meteo. ERA5 a un biais documenté de ~−0.7% sur la moyenne et sous-estime les vents forts (Jourdier 2020). Remplace une correction aveugle par un diagnostic transparent." />
+      <InfoTooltip text={t("diag.windSensTooltip")} />
     </div>
   );
 }
@@ -283,7 +283,7 @@ function WindFragilityBanner({
         <div className="text-sm flex-1 min-w-0">
           <div className={`font-semibold ${iconClass} flex items-center gap-2`}>
             {title}
-            <InfoTooltip text="Test de sensibilité : Chung VE relancé avec wind_speed × 1.30 et × 0.70 (bornes plausibles du biais ERA5 en zone côtière, Jourdier 2020). wind_fragility = max(|Δ±30%|) classé robust < 0,02 < moderate < 0,05 ≤ fragile." />
+            <InfoTooltip text={t("diag.windFragilityTooltip")} />
           </div>
           <p className="mt-1 text-[13px] leading-snug text-muted-strong">
             {body}

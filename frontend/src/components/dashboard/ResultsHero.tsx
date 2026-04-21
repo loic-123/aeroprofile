@@ -104,7 +104,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-primary font-semibold">
             CdA
-            <InfoTooltip text="CdA = coefficient de traînée × surface frontale (m²). IC Hessien = intervalle de confiance 95% basé sur la courbure de la vraisemblance au point optimal. IC conforme = intervalle distribution-free avec garantie formelle de couverture 95% sur l'historique du rider." />
+            <InfoTooltip text={t("tooltips.heroCda")} />
           </div>
 
           <motion.div
@@ -144,7 +144,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
                 <div className="flex items-baseline gap-3">
                   <dt className="text-muted w-32 text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1">
                     Δ solver
-                    <InfoTooltip text="Médiane de (CdA Chung VE − CdA wind_inverse) sur tes rides clean passées. Mesure le désaccord systématique entre les deux solveurs sur TON dataset, qui n'est pas capturé par l'IC Hessien." />
+                    <InfoTooltip text={t("tooltips.solverDeltaMedian")} />
                   </dt>
                   <dd className="text-text">
                     {personalSolverBias.median >= 0 ? "+" : ""}
@@ -171,7 +171,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
                 <span className="text-xs text-muted font-mono flex items-center gap-1">
                   {t("dashboard.priorOff")}
                   <span className="text-text">{raw!.toFixed(3)}</span>
-                  <InfoTooltip text="Estimation obtenue en désactivant le prior sur CdA. Les priors vent et Crr restent actifs pour garder le problème bien posé. Un écart > 0.05 avec la valeur principale déclenche le statut 'prior_dominated'." />
+                  <InfoTooltip text={t("tooltips.priorOffExplain")} />
                 </span>
               )}
             </div>

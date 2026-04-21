@@ -62,7 +62,7 @@ export default function CdARunningAvgChart({ rides, aggCda }: Props) {
     <div className="bg-panel border border-border rounded-lg p-4">
       <h3 className="text-sm font-semibold mb-1 flex items-center">
         {t("runningAvgChart.title")}
-        <InfoTooltip text="Points = CdA de chaque sortie. Ligne = moyenne cumulative pondérée par qualité. Plus la ligne se stabilise, plus le CdA moyen est fiable. Les premières sorties font bouger la moyenne ; après 5-6 rides elle converge." />
+        <InfoTooltip text={t("tooltips.runningAvg")} />
       </h3>
       <p className="text-xs text-muted mb-3">
         {t("runningAvgChart.subtitle")}

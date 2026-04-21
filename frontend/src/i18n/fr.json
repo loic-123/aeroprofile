@@ -80,7 +80,22 @@
     "crrLead": "Où se situe votre Crr par rapport aux pneus/surfaces de référence ?",
     "colPosition": "Position / type",
     "colDelta": "Δ vs vous",
-    "colYou": "← vous : {{value}}"
+    "colYou": "← vous : {{value}}",
+    "cda": {
+      "r0": { "label": "CLM pro (Superman)", "desc": "Prolongateurs, dos plat, casque aéro" },
+      "r1": { "label": "CLM amateur", "desc": "Prolongateurs, bras tendus" },
+      "r2": { "label": "Route, drops aéro", "desc": "Drops, dos plat, bons réflexes aéro" },
+      "r3": { "label": "Route, cocottes", "desc": "Position standard sur cocottes (hoods)" },
+      "r4": { "label": "Route, mains en haut", "desc": "Buste relevé, mains sur le cintre" },
+      "r5": { "label": "Position droite / VTT", "desc": "VTT, vélo ville, position très droite" }
+    },
+    "crr": {
+      "r0": { "label": "Boyaux vélodrome", "desc": "Piste, pression max, surface lisse" },
+      "r1": { "label": "Tubeless clincher, asphalte", "desc": "GP5000 TL, Corsa, Pro One, etc." },
+      "r2": { "label": "Clincher standard", "desc": "Pneu route classique avec chambre" },
+      "r3": { "label": "Asphalte dégradé", "desc": "Route granuleuse, pavés, réparations" },
+      "r4": { "label": "Gravel / pneu large", "desc": "Pneu ≥ 35 mm, chemin stabilisé" }
+    }
   },
   "fileUpload": {
     "dropAria": "Déposer ou sélectionner des fichiers .FIT / .GPX / .TCX",
@@ -250,6 +265,14 @@
     "excludeFromCharts": "Exclure des graphiques",
     "reincludeInCharts": "Réinclure dans les graphiques",
     "profile": "Profil : {{name}}",
+    "reincludeIgnored_one": "Réinclure la {{count}} analyse ignorée",
+    "reincludeIgnored_other": "Réinclure les {{count}} analyses ignorées",
+    "filteredSelection_one": "→ {{count}} analyse sélectionnée sur {{total}}",
+    "filteredSelection_other": "→ {{count}} analyses sélectionnées sur {{total}}",
+    "importAdded_one": "{{count}} analyse ajoutée",
+    "importAdded_other": "{{count}} analyses ajoutées",
+    "importSkipped_one": ", {{count}} ignorée (déjà présente ou plus récente)",
+    "importSkipped_other": ", {{count}} ignorées (déjà présentes ou plus récentes)",
     "clearConfirm": "Supprimer tout l'historique ?",
     "importFailedGen": "Import échoué.",
     "modeSingle": "Analyse",
@@ -331,7 +354,17 @@
     "mass": "Masse (kg)",
     "crrLabel": "Pneus (Crr)",
     "removeRider": "Retirer",
-    "dropFiles": "Déposer les fichiers ici"
+    "dropFiles": "Déposer les fichiers ici",
+    "analysisFailed": "analyse échouée",
+    "errorPrefix": "Erreur : {{err}}",
+    "rawCdaLine": "CdA hors prior (vent+Crr régularisés) : {{value}}",
+    "priorReinforcedLine": "Prior renforcé ×{{factor}}",
+    "sensorLine": "Capteur : {{name}}",
+    "singleLegWarn": " ⚠ mono-jambe ou calibration manquante",
+    "excludedReason": "⚠ Exclue : {{reason}}",
+    "priorDominatedTitle": "résultat dominé par le prior",
+    "priorReinforcedTitle": "prior renforcé",
+    "priorHeavilyReinforcedTitle": "prior très fortement renforcé ×{{factor}} — données peu informatives"
   },
   "header": {
     "solver": "Solveur :",
@@ -379,6 +412,8 @@
     "pmBiasHigh": "**Capteur probablement mal calibré.** Sur les portions plates pédalées ({{n}} points), la puissance mesurée est {{pct}}% plus haute que la valeur théorique pour un CdA/Crr typique. C'est le signe d'un capteur avec offset stuck ou d'un zero-offset manquant. Recalibrez avant la prochaine sortie.",
     "pmBiasMild": "Puissance mesurée {{pct}}% au-dessus de la valeur théorique ({{n}} points plats). Peut indiquer une légère dérive de calibration, ou simplement un profil plus musclé que la moyenne.",
     "pmBiasLow": "Puissance mesurée {{pct}}% sous la valeur théorique ({{n}} points plats). Capteur sous-estimé ou vent arrière important non modélisé.",
+    "windSensTooltip": "Post-hoc : Chung VE relancé avec wind_speed × 1.05. Le Δ exposé montre si le CdA est robuste (|Δ|<0.005, vert), modéré (<0.015, ambre) ou fragile (rouge) au biais vent Open-Meteo. ERA5 a un biais documenté de ~-0.7% sur la moyenne et sous-estime les vents forts (Jourdier 2020). Remplace une correction aveugle par un diagnostic transparent.",
+    "windFragilityTooltip": "Test de sensibilité : Chung VE relancé avec wind_speed × 1.30 et × 0.70 (bornes plausibles du biais ERA5 en zone côtière, Jourdier 2020). wind_fragility = max(|Δ±30%|) classé robust < 0,02 < moderate < 0,05 ≤ fragile.",
     "windSensTitle": "Sensibilité au vent",
     "windSensArrow": "+5% vent →",
     "windSensRobust": "robuste",
@@ -423,7 +458,9 @@
     "rhoTitle": "Densité de l'air (ρ)",
     "rhoDesc": "Variation de la densité de l'air au fil du parcours. ρ baisse avec l'altitude et augmente avec le froid. Même CdA produit moins de traînée à ρ bas (altitude). Sur une sortie de 0 à 1500 m, ρ peut varier de 15% — c'est pourquoi on le calcule par point.",
     "mapTitle": "Parcours",
-    "mapDesc": "Tracé GPS de la sortie sur fond de carte. Coloré selon le CdA glissant (voir la légende sous la carte) pour lire d'un coup d'œil où la position tient ou dérape."
+    "mapDesc": "Tracé GPS de la sortie sur fond de carte. Coloré selon le CdA glissant (voir la légende sous la carte) pour lire d'un coup d'œil où la position tient ou dérape.",
+    "mapSegments": "{{count}} segments",
+    "mapNoCda": "pas de CdA"
   },
   "landing": {
     "badge": "Open-source · v2026.04 · MIT",
@@ -498,16 +535,16 @@
   "about": {
     "back": "Retour à l'accueil",
     "eyebrow": "À propos",
-    "title": "AeroProfile, c'est ce qui arrive quand un triathlète s'entraîne au labo d'IA d'Imperial et ne trouve pas d'estimateur de CdA auquel il fait confiance.",
-    "p1": "Salut, je suis <name>Loïc Bouxirot</name>. AeroProfile existe parce qu'en 2024, j'ai acheté un casque aéro et passé les six mois suivants à me demander - de la manière obsessionnelle que seul un triathlète peut produire - s'il faisait vraiment quelque chose, ou si j'avais juste donné 300 € à une boîte qui vend <em>de l'espoir, en polystyrène expansé</em>.",
-    "p2": "La réponse honnête à cette question demande des problèmes inverses, de l'incertitude bayésienne, et un certain respect pour le champ de vent d'Open-Meteo. Un diagramme de Venn bizarrement spécifique. Alors j'ai écrit l'outil que je voulais voir exister - en m'appuyant sur le job (ML safety-critical à <imperial>Imperial College London</imperial>, avec des passages chez Safran, Decathlon et Ochy sur des modèles de fondation, vision par ordinateur, et pipelines LLM) et sur l'habitude du week-end (triathlon à l'avant, vents de face, opinions sur la pression des pneus).",
-    "p3": "Le solveur wind-inverse, l'agrégation hiérarchique, les tests de régression d'invariance au prior, les huit quality gates - tout vient de cette boucle biculturelle. Si ça paraît sur-ingénieré pour un outil vélo, c'est parce que tous les autres outils que j'ai trouvés étaient <em>sous</em>-ingénierés pour un outil de mesure. Je ne me suis pas mis à écrire 14 articles de méthodologie exprès. Ça s'est juste accumulé.",
-    "p4": "Le code est sur GitHub. Les bug reports avec fichier FIT joint sont en or. Les bug reports qui commencent par <em>\"je pense que ta physique est fausse\"</em> sont encore mieux, à condition de finir par un fichier FIT.",
-    "contact": "Contact",
+    "title": "AeroProfile, c'est ce que ça donne quand un triathlète qui se forme au labo d'IA d'Imperial ne trouve aucun estimateur de CdA sérieux.",
+    "p1": "Salut, moi c'est <name>Loïc Bouxirot</name>. AeroProfile est né d'une obsession : en 2024, j'achète un casque aéro à 300 €, et je passe les six mois qui suivent à me demander — avec cette rigueur légèrement maladive propre aux triathlètes — s'il sert vraiment à quelque chose, ou si je viens juste de financer <em>de l'espoir en polystyrène expansé</em>.",
+    "p2": "Répondre honnêtement à cette question demande des problèmes inverses, de l'incertitude bayésienne, et un vrai respect pour les limites du champ de vent d'Open-Meteo. Un Venn diagramme bizarrement spécifique. Alors j'ai construit l'outil qui me manquait, en croisant mon métier (ML safety-critical à <imperial>Imperial College London</imperial>, avec des passages chez Safran, Decathlon et Ochy sur du foundation model, de la computer vision et des pipelines LLM) et ma passion du week-end (triathlon en tête de course, vents de face, et trop d'avis sur la pression des pneus).",
+    "p3": "Le solveur wind-inverse, l'agrégation hiérarchique, les tests de régression sur l'invariance au prior, les huit quality gates — tout sort de cette boucle entre les deux mondes. Si ça paraît over-engineered pour un outil vélo, c'est parce que tous ceux que j'ai essayés étaient <em>under</em>-engineered pour un outil de mesure. Les 14 articles de méthodologie n'étaient pas prévus. Ils se sont juste imposés, un par un.",
+    "p4": "Le code est sur GitHub. Les bug reports avec un fichier FIT en pièce jointe sont en or. Ceux qui commencent par <em>\"je crois que ta physique est fausse\"</em> sont encore meilleurs — à condition de finir par un fichier FIT.",
+    "contact": "Me contacter",
     "ctaAnalyzeTitle": "Analyse ta sortie",
-    "ctaAnalyzeBody": "Le plus rapide pour voir ce que fait l'outil - dépose un .fit et obtiens ton CdA en ~30 secondes.",
+    "ctaAnalyzeBody": "Le plus rapide pour voir ce que fait l'outil : dépose un .fit, récupère ton CdA en une trentaine de secondes.",
     "ctaMethodsTitle": "Lis la méthodologie",
-    "ctaMethodsBody": "14 articles couvrent chaque solveur, filtre, et choix statistique dans AeroProfile."
+    "ctaMethodsBody": "14 articles couvrent chaque solveur, chaque filtre, chaque choix statistique qui tourne dans AeroProfile."
   },
   "footer": {
     "brand": "AeroProfile",
@@ -531,6 +568,23 @@
     "roadHoods": { "name": "Route, mains sur cocottes", "description": "Position standard sur cocottes" },
     "roadTops": { "name": "Route, position relevée", "description": "Mains sur le haut du cintre, buste relevé" },
     "upright": { "name": "Position droite / VTT", "description": "Position droite, type VTT ou vélo ville" }
+  },
+  "tooltips": {
+    "derivedAeroShare": "Part de la puissance qui va dans la traînée aérodynamique (le reste va dans la résistance au roulement). À basse vitesse la roue domine ; à haute vitesse l'air domine (loi en v² pour la force, v³ pour la puissance).",
+    "gradientBreakdown": "CdA recalculé séparément sur les portions montantes (>+2%), descendantes (<−2%) et plates (±2%). Un écart > 0.08 m² entre les trois suggère un biais : vent asymétrique mal capturé, dérive du capteur à haute puissance, ou changement de position entre montée et descente. Ce n'est pas forcément une erreur — les cyclistes se redressent VRAIMENT en montée lente.",
+    "heroCda": "CdA = coefficient de traînée × surface frontale (m²). IC Hessien = intervalle de confiance 95% basé sur la courbure de la vraisemblance au point optimal. IC conforme = intervalle distribution-free avec garantie formelle de couverture 95% sur l'historique du rider.",
+    "solverDeltaMedian": "Médiane de (CdA Chung VE − CdA wind_inverse) sur tes rides clean passées. Mesure le désaccord systématique entre les deux solveurs sur TON dataset, qui n'est pas capturé par l'IC Hessien.",
+    "priorOffExplain": "Estimation obtenue en désactivant le prior sur CdA. Les priors vent et Crr restent actifs pour garder le problème bien posé. Un écart > 0.05 avec la valeur principale déclenche le statut 'prior_dominated'.",
+    "crrSecondary": "Crr = coefficient de résistance au roulement (sans unité). Dépend des pneus, de la pression, et du revêtement. Typiquement 0.003–0.004 sur pneu route bien gonflé et asphalte lisse, 0.005–0.007 sur route dégradée, 0.007–0.010 en gravel.",
+    "rmseSecondary": "Erreur RMSE (root-mean-square) entre la puissance modélisée et la puissance mesurée. Sur une sortie réelle, 15-25 W est typique ; sous 15 W excellent ; au-dessus de 30 W il y a un biais. Le R² complémentaire dépend de la variance de la sortie.",
+    "rhoSecondary": "Densité de l'air moyenne sur la sortie. Varie selon l'altitude, la température et l'humidité. ~1.22 au niveau de la mer à 15°C, ~1.05 à 1500 m.",
+    "windSecondary": "Vent moyen sur la sortie, récupéré depuis Open-Meteo. La direction est la provenance (0°=N, 90°=E, 180°=S, 270°=O). Le vent est corrigé à hauteur du cycliste (facteur 0.7).",
+    "runningAvg": "Points = CdA de chaque sortie. Ligne = moyenne cumulative pondérée par qualité. Plus la ligne se stabilise, plus le CdA moyen est fiable. Les premières sorties font bouger la moyenne ; après 5-6 rides elle converge.",
+    "evolChart": "Chaque point correspond à une sortie analysée. Si le CdA diminue au fil du temps, le cycliste a amélioré sa position aéro (ou a changé d'équipement). Attention : le CdA varie aussi avec les conditions (vent, drafting, parcours). Les points avec R² < 0.3 sont plus incertains.",
+    "whatIf": "Faites varier un paramètre et voyez l'impact sur la sortie. Le modèle recalcule point par point avec l'équation de Martin, en gardant parcours et météo identiques.",
+    "positionRef": "La référence est le prior bayésien utilisé par le solveur — pas une vérité terrain. Elle représente la valeur moyenne attendue pour cette position sur ce type de vélo, issue de la littérature (Debraux et al. 2011) et des mesures soufflerie.",
+    "cdaRefRanges": "Plages typiques de CdA issues de Debraux et al. 2011 et des mesures en soufflerie. Votre valeur est mise en évidence dans la plage correspondante. Le CdA dépend de la position sur le vélo, de la morphologie, et de l'équipement (casque, tenue).",
+    "crrRefRanges": "Plages typiques de coefficient de résistance au roulement. Dépend du pneu (modèle, pression, largeur), du revêtement, et de la température. Un Crr bas = pneu qui roule bien sur surface lisse."
   },
   "totem": {
     "headline": "Aérodynamiquement, vous êtes…",

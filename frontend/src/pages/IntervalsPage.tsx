@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useTranslation, Trans } from "react-i18next";
 import { Link2, Loader2, Filter, Play, ChevronDown, ChevronRight, FileText } from "lucide-react";
 import {
   connect,
@@ -607,7 +607,7 @@ export default function IntervalsPage() {
         <div className="grid grid-cols-1 md:grid-cols-[1fr_150px_auto] gap-3 items-end">
           <div>
             <label className="block text-xs text-muted mb-1">
-              Clé API
+              {t("intervals.apiKey")}
               <InfoTooltip text={t("intervals.apiKeyTooltip")} />
             </label>
             <input
@@ -643,7 +643,11 @@ export default function IntervalsPage() {
         {connError && <p className="text-coral text-sm mt-2">{connError}</p>}
         {profile && (
           <div className="mt-3 p-3 bg-teal/10 border border-teal/30 rounded text-sm">
-            Connecté : <strong>{profile.name}</strong> • {profile.weight_kg} kg • FTP {profile.ftp} W
+            <Trans
+              i18nKey="intervals.connectedLine"
+              values={{ name: profile.name, kg: profile.weight_kg, ftp: profile.ftp }}
+              components={{ strong: <strong /> }}
+            />
           </div>
         )}
       </div>
@@ -746,7 +750,7 @@ export default function IntervalsPage() {
               />
             </button>
             <label className="text-xs text-muted">
-              Cache local {useCache ? "(activé)" : "(désactivé — re-analyse tout)"}
+              {useCache ? t("fileUpload.cacheOn") : t("fileUpload.cacheOff")}
             </label>
           </div>
 
@@ -799,12 +803,10 @@ export default function IntervalsPage() {
               ))}
             </div>
             <p className="text-[10px] text-muted mt-1 max-w-sm leading-tight">
-              Chaque sortie est aussi analysée avec Chung VE comme contrôle.
+              {t("intervals.chungFallback")}
               Quand les deux solveurs divergent sur CdA, la sortie est moins
               robuste au choix du traitement du vent. La comparaison utilise
-              en priorité les valeurs "hors prior" pour détecter les cas où
-              les deux solveurs convergent à la borne (accord artificiel).
-              Filtre désactivé par défaut.
+              {t("intervals.crossCheckHint")}
             </p>
           </div>
 
@@ -819,8 +821,7 @@ export default function IntervalsPage() {
           {showFilters && (
             <div className="mt-3 space-y-4 text-sm">
               <p className="text-xs text-muted">
-                Seules les sorties <strong>extérieures avec capteur de puissance</strong> sont
-                prises en compte (indoor et rides sans puissance sont toujours exclues).
+                <Trans i18nKey="intervals.outdoorOnly" components={{ strong: <strong /> }} />
               </p>
 
               {/* Group ride exclusion toggle */}
@@ -839,17 +840,17 @@ export default function IntervalsPage() {
                   />
                 </button>
                 <label className="text-xs text-muted">
-                  Exclure les sorties en groupe
+                  {t("intervals.excludeGroup")}
                   {excludeGroup && (
                     <span className="text-teal ml-1">
-                      (détection par mots-clés : groupe, peloton, avec, aspi, course…)
+                      {t("intervals.groupHint")}
                     </span>
                   )}
                 </label>
               </div>
               <div>
                 <label className="block text-xs text-muted mb-2">
-                  Distance : <span className="text-teal font-mono">{filters.min_distance_km}</span> – <span className="text-teal font-mono">{filters.max_distance_km}</span> km
+                  {t("intervals.distRange")} <span className="text-teal font-mono">{filters.min_distance_km}</span> – <span className="text-teal font-mono">{filters.max_distance_km}</span> km
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -877,7 +878,7 @@ export default function IntervalsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-muted mb-1">
-                    D+ max : <span className="text-teal font-mono">{filters.max_elevation_m}</span> m
+                    {t("intervals.maxElev")} <span className="text-teal font-mono">{filters.max_elevation_m}</span> m
                   </label>
                   <input type="range" min={200} max={5000} step={100}
                     value={filters.max_elevation_m}
@@ -886,7 +887,7 @@ export default function IntervalsPage() {
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">
-                    Durée min : <span className="text-teal font-mono">{Math.round(filters.min_duration_h * 60)}</span> min
+                    {t("intervals.minDuration")} <span className="text-teal font-mono">{Math.round(filters.min_duration_h * 60)}</span> min
                   </label>
                   <input type="range" min={0} max={240} step={15}
                     value={Math.round(filters.min_duration_h * 60)}
@@ -896,7 +897,7 @@ export default function IntervalsPage() {
               </div>
               <div>
                 <label className="block text-xs text-muted mb-1">
-                  Pente moyenne max : <span className="text-teal font-mono">{filters.max_elevation_per_km ?? 999}</span> m/km
+                  {t("intervals.gradeMaxLabel")} <span className="text-teal font-mono">{filters.max_elevation_per_km ?? 999}</span> m/km
                   <span className="text-[10px] text-muted ml-1">
                     ({((filters.max_elevation_per_km ?? 0) / 10).toFixed(1)}% de pente moyenne)
                   </span>
@@ -906,7 +907,7 @@ export default function IntervalsPage() {
                   onChange={(e) => setFilters({ ...filters, max_elevation_per_km: parseFloat(e.target.value) })}
                   className="w-full accent-teal" />
                 <p className="text-[10px] text-muted mt-1 leading-tight">
-                  Exclut les rides en montée : à pente forte, la traînée aéro est noyée dans la gravité et CdA devient non identifiable. 5 m/km (0.5%) = velodrome/route quasi plate ; 10 m/km (1%) = plat ondulé ; 15 m/km (1.5%) = vallonné léger.
+                  {t("intervals.gradeHint")}
                 </p>
               </div>
               {listed && (availableSensors.list.length > 0 || availableSensors.unknown > 0) && (
@@ -950,7 +951,7 @@ export default function IntervalsPage() {
                   </p>
                   {excludedByGrade > 0 && (
                     <p className="text-warn opacity-80">
-                      ⓘ {excludedByGrade} ride{excludedByGrade > 1 ? "s" : ""} exclue{excludedByGrade > 1 ? "s" : ""} par "pente moyenne max" ({filters.max_elevation_per_km} m/km) — CdA non identifiable sur dénivelé élevé.
+                      {t("intervals.excludedByGrade", { count: excludedByGrade, val: filters.max_elevation_per_km })}
                     </p>
                   )}
                   {excludedBySensor > 0 && (
@@ -971,8 +972,8 @@ export default function IntervalsPage() {
             </button>
             {listed && (
               <span className="text-sm text-muted">
-                <span className="text-teal font-mono">{allActivities.length}</span> rides vélo
-                sur <span className="font-mono">{totalCount}</span> activités
+                <span className="text-teal font-mono">{allActivities.length}</span> {t("intervals.bikeRides")}
+                {" "}{t("intervals.ofActivities", { count: totalCount })}
               </span>
             )}
           </div>
@@ -985,7 +986,7 @@ export default function IntervalsPage() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold">
               <span className="text-teal font-mono">{filteredActivities.length}</span> rides
-              retenues sur <span className="font-mono">{allActivities.length}</span> activités
+              {t("intervals.kept")} <Trans i18nKey="intervals.outOfActivities" values={{ total: allActivities.length }} components={{ strong: <span className="font-mono" /> }} />
               {filteredActivities.length === 0 && <span className="text-coral ml-2">(ajustez les filtres)</span>}
             </h3>
             <button onClick={doAnalyze} disabled={analyzing || filteredActivities.length === 0}
@@ -1099,8 +1100,8 @@ export default function IntervalsPage() {
               {(hierLoading || hierResult || hierError) && (
                 <div className="bg-panel border border-info/40 rounded-lg p-4">
                   <div className="text-xs text-muted uppercase tracking-wide flex items-center mb-2">
-                    Méthode hiérarchique (DerSimonian–Laird)
-                    <InfoTooltip text="Méta-analyse à effets aléatoires : chaque ride contribue son CdA_i avec son incertitude σ_i (Hessienne du fit Chung VE), puis l'estimateur DerSimonian–Laird combine ces estimations en agrégeant la variance inter-rides τ². Réf. DerSimonian & Laird (Controlled Clinical Trials, 1986), Higgins & Thompson (Stat. Med. 2002)." />
+                    {t("intervals.hierarchicalTitle")}
+                    <InfoTooltip text={t("dashboard.meanCdaHierarchical")} />
                     {hierResult?.hksj_applied && (
                       <span
                         className="ml-2 text-[10px] font-mono bg-info/10 text-info/80 px-1.5 py-0.5 rounded border border-info/20"
@@ -1148,7 +1149,7 @@ export default function IntervalsPage() {
                         )}
                       </div>
                       <div>
-                        <div className="text-xs text-muted">Crr partagé</div>
+                        <div className="text-xs text-muted">{t("intervals.sharedCrr")}</div>
                         <div className="text-xl font-mono text-info">{hierResult.crr.toFixed(4)}</div>
                       </div>
                       <div>
@@ -1252,10 +1253,10 @@ export default function IntervalsPage() {
                       nrmseVal = (r.result.rmse_w || 0) / Math.max(r.result.avg_power_w, 1);
                       reason = `${r.activity.name}\nCdA ${r.result.cda.toFixed(3)} • nRMSE ${(nrmseVal*100).toFixed(0)}% • ±${r.result.rmse_w.toFixed(0)}W`;
                       if (r.result.cda_raw != null && Math.abs(r.result.cda_raw - r.result.cda) > 0.02) {
-                        reason += `\nCdA hors prior (vent+Crr régularisés) : ${r.result.cda_raw.toFixed(3)}`;
+                        reason += `\n${t("intervals.rawCdaLine", { value: r.result.cda_raw.toFixed(3) })}`;
                       }
                       if ((r.result.prior_adaptive_factor ?? 1) > 1.05) {
-                        reason += `\nPrior renforcé ×${(r.result.prior_adaptive_factor ?? 1).toFixed(1)}`;
+                        reason += `\n${t("intervals.priorReinforcedLine", { factor: (r.result.prior_adaptive_factor ?? 1).toFixed(1) })}`;
                       }
                       if (r.result.power_meter_display) {
                         reason += `\nCapteur : ${r.result.power_meter_display}`;
@@ -1322,7 +1323,7 @@ export default function IntervalsPage() {
                           causes.push(r.result.quality_reason);
                         }
                         if (nrmseVal > nrmseCutoff) {
-                          causes.push(`nRMSE ${(nrmseVal*100).toFixed(0)}% > seuil ${maxNrmse}% (slider qualité)`);
+                          causes.push(t("intervals.causeNrmse", { pct: (nrmseVal*100).toFixed(0), thr: maxNrmse }));
                         }
                         if (r.result.cda < bikeBounds.minCda) {
                           causes.push(`CdA ${r.result.cda.toFixed(3)} < borne basse ${bikeBounds.minCda} (hors plage physique ${bikeBounds.label})`);

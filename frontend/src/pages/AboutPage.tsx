@@ -58,22 +58,35 @@ export default function AboutPage({
         <div className="prose prose-invert max-w-none space-y-5 text-[15px] leading-relaxed text-muted-strong">
           <p>
             Hi, I'm <span className="text-text font-medium">Loïc Bouxirot</span>.
-            Every methodological choice in this tool lives at the intersection of
-            two things: the kind of cycling I do (triathlon, an aero helmet I
-            bought in 2024 and kept wondering if it actually did anything), and
-            the kind of engineering I've been trained in — inverse problems,
-            Bayesian uncertainty, safety-critical ML at{" "}
+            AeroProfile exists because, in 2024, I bought an aero helmet and spent
+            the next six months wondering — in the unhinged, slightly obsessive
+            way only a triathlete can — whether it was actually doing anything,
+            or whether I'd just given €300 to a company that sells{" "}
+            <em>hope, in expanded polystyrene form</em>.
+          </p>
+          <p>
+            It turns out the answer to that question, honestly measured, requires
+            inverse problems, Bayesian uncertainty, and a healthy respect for
+            Open-Meteo's wind field. Which is a weirdly specific Venn diagram.
+            So I wrote the tool I wanted to exist — leaning on the day job
+            (safety-critical ML at{" "}
             <span className="text-text">Imperial College London</span>, with
-            prior work at Safran, Decathlon, and Ochy on foundation models,
-            computer vision, and LLM pipelines.
+            previous stops at Safran, Decathlon, and Ochy doing foundation
+            models, computer vision, and LLM pipelines) and the weekend habit
+            (front-pack triathlon, headwinds, opinions about tyre pressure).
           </p>
           <p>
             The wind-inverse solver, the hierarchical aggregation, the
-            prior-invariance tests, the eight quality gates — they all come
-            from that bicultural loop. If they look over-engineered for a
-            cycling tool, it's because the alternatives I found were under-
-            engineered for a measurement tool. The code is on GitHub. Bug
-            reports with a FIT file attached are gold.
+            prior-invariance regression tests, the eight quality gates — they
+            all come from that bicultural loop. If it looks over-engineered for
+            a cycling tool, it's because every other tool I found was{" "}
+            <em>under</em>-engineered for a measurement tool. I did not set out
+            to write 14 methodology articles. It just kept happening.
+          </p>
+          <p className="text-muted">
+            The code is on GitHub. Bug reports with a FIT file attached are
+            gold. Bug reports that begin with <em>"I think your physics is
+            wrong"</em> are even better, provided they end with a FIT file.
           </p>
         </div>
       </FadeIn>

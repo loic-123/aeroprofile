@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useId } from "react";
 import { Upload, Loader2, ChevronDown, ChevronRight, FileText, X } from "lucide-react";
+import { useTranslation, Trans } from "react-i18next";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
 import { Button } from "./ui";
 
@@ -41,6 +42,7 @@ export default function FileUpload({
   initialMaxNrmse,
   onSettingsChange,
 }: Props) {
+  const { t } = useTranslation();
   const [files, setFiles] = useState<File[]>([]);
   const [mass, setMass] = useState<number>(initialMass ?? 80);
   const [bikeType, setBikeType] = useState<BikeType>(initialBikeType ?? "road");
@@ -144,7 +146,7 @@ export default function FileUpload({
       <div
         role="button"
         tabIndex={0}
-        aria-label="Déposer ou sélectionner des fichiers .FIT / .GPX / .TCX"
+        aria-label={t("fileUpload.dropAria")}
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
@@ -159,11 +161,10 @@ export default function FileUpload({
       >
         <Upload className="mx-auto mb-3 text-muted" size={32} aria-hidden />
         <p className="text-muted">
-          Déposez un ou <strong>plusieurs</strong> fichiers .FIT / .GPX / .TCX
+          <Trans i18nKey="fileUpload.dropMain" components={{ strong: <strong /> }} />
         </p>
         <p className="text-muted text-xs mt-1">
-          Plusieurs sorties = résultat moyenné plus précis (les mauvaises sont
-          exclues automatiquement)
+          {t("fileUpload.dropHint")}
         </p>
         <input
           ref={inputRef}
@@ -172,12 +173,12 @@ export default function FileUpload({
           multiple
           className="hidden"
           onChange={onSelect}
-          aria-label="Sélecteur de fichiers d'activité"
+          aria-label={t("fileUpload.fileInputAria")}
         />
       </div>
 
       {files.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5 mt-3" aria-label="Fichiers sélectionnés">
+        <ul className="flex flex-wrap gap-1.5 mt-3" aria-label={t("fileUpload.selectedFiles")}>
           {files.map((f, i) => (
             <li
               key={i}
@@ -187,7 +188,7 @@ export default function FileUpload({
               <span className="truncate max-w-[180px]">{f.name.length > 30 ? f.name.slice(0, 27) + "…" : f.name}</span>
               <button
                 type="button"
-                aria-label={`Retirer ${f.name}`}
+                aria-label={t("fileUpload.removeFile", { name: f.name })}
                 onClick={(e) => {
                   e.stopPropagation();
                   removeFile(i);
@@ -202,13 +203,13 @@ export default function FileUpload({
       )}
 
       <div className="mt-6 bg-panel border border-border rounded-lg p-5 space-y-5">
-        <h3 className="text-sm font-semibold">Paramètres</h3>
+        <h3 className="text-sm font-semibold">{t("fileUpload.params")}</h3>
 
         {/* Row 1: Mass + Bike type */}
         <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4">
           <div>
             <label htmlFor={massId} className="block text-xs text-muted mb-1">
-              Masse totale (cycliste + vélo)
+              {t("fileUpload.massLabel")}
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -227,8 +228,8 @@ export default function FileUpload({
           </div>
           <div>
             <fieldset>
-              <legend className="block text-xs text-muted mb-1">Type de vélo</legend>
-              <div className="flex gap-1" role="radiogroup" aria-label="Type de vélo">
+              <legend className="block text-xs text-muted mb-1">{t("fileUpload.bikeType")}</legend>
+              <div className="flex gap-1" role="radiogroup" aria-label={t("fileUpload.bikeTypeAria")}>
                 {(Object.entries(BIKE_TYPE_CONFIG) as [BikeType, typeof BIKE_TYPE_CONFIG[BikeType]][]).map(([key, cfg]) => (
                   <button
                     key={key}
@@ -255,7 +256,7 @@ export default function FileUpload({
         <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4">
           <div>
             <label htmlFor={crrId} className="block text-xs text-muted mb-1">
-              Pneus (Crr)
+              {t("fileUpload.crrLabel")}
             </label>
             <select
               id={crrId}
@@ -267,24 +268,24 @@ export default function FileUpload({
             >
               {CRR_PRESETS.map((p) => (
                 <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
-                  {p.crr === 0 ? "Auto (estimé)" : `${p.crr.toFixed(4)} — ${p.label}`}
+                  {p.crr === 0 ? t("fileUpload.crrAuto") : `${p.crr.toFixed(4)} — ${p.label}`}
                 </option>
               ))}
             </select>
             {!crrFixed && (
               <p className="text-[10px] text-warn mt-1">
-                Fixer le Crr donne un CdA plus stable. Sélectionnez vos pneus si vous les connaissez.
+                {t("fileUpload.crrFixHint")}
               </p>
             )}
           </div>
           <div>
             <label htmlFor={positionId} className="block text-xs text-muted mb-1">
-              Position sur le vélo :
+              {t("fileUpload.positionLabel")}
               <span className="text-primary font-semibold ml-1">{POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].label}</span>
               {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior > 0 ? (
-                <span className="ml-1">(prior CdA ≈ {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior})</span>
+                <span className="ml-1">{t("fileUpload.positionPrior", { value: POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior })}</span>
               ) : (
-                <span className="ml-1">(pas de prior — estimation libre)</span>
+                <span className="ml-1">{t("fileUpload.positionNoPrior")}</span>
               )}
             </label>
             <input
@@ -322,7 +323,7 @@ export default function FileUpload({
             type="button"
             role="switch"
             aria-checked={useCache}
-            aria-label="Cache local des analyses"
+            aria-label={t("fileUpload.cacheSwitchAria")}
             onClick={() => setUseCache(!useCache)}
             className={`relative w-9 h-5 rounded-full transition-colors duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-panel ${
               useCache ? "bg-primary" : "bg-border"
@@ -336,7 +337,7 @@ export default function FileUpload({
             />
           </button>
           <label htmlFor={cacheId} className="text-xs text-muted select-none">
-            Cache local {useCache ? "(activé)" : "(désactivé — re-analyse tout)"}
+            {useCache ? t("fileUpload.cacheOn") : t("fileUpload.cacheOff")}
           </label>
         </div>
 
@@ -348,31 +349,31 @@ export default function FileUpload({
           className="flex items-center text-sm text-muted hover:text-text transition-colors"
         >
           {advanced ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
-          Options avancées
+          {t("fileUpload.advanced")}
         </button>
 
         {advanced && (
           <div id="advanced-options" className="mt-3 space-y-3 text-sm">
             <div>
               <label htmlFor={nrmseId} className="block text-xs text-muted mb-1">
-                Seuil nRMSE max : <span className="text-primary font-mono font-semibold">{maxNrmse > 95 ? "désactivé (toutes)" : `${maxNrmse}%`}</span>
+                {t("fileUpload.nrmseLabel")} <span className="text-primary font-mono font-semibold">{maxNrmse > 95 ? t("fileUpload.nrmseDisabled") : `${maxNrmse}%`}</span>
                 <span className="ml-2 text-muted">
-                  ({maxNrmse > 95 ? "aucun filtre qualité" : maxNrmse < 30 ? "très strict" : maxNrmse < 45 ? "strict" : maxNrmse < 60 ? "modéré" : "permissif"})
+                  ({maxNrmse > 95 ? t("fileUpload.nrmseQualifier.none") : maxNrmse < 30 ? t("fileUpload.nrmseQualifier.veryStrict") : maxNrmse < 45 ? t("fileUpload.nrmseQualifier.strict") : maxNrmse < 60 ? t("fileUpload.nrmseQualifier.moderate") : t("fileUpload.nrmseQualifier.permissive")})
                 </span>
               </label>
               <input id={nrmseId} type="range" min={20} max={100} step={5} value={maxNrmse}
                 onChange={(e) => setMaxNrmse(parseInt(e.target.value))}
                 className="w-full accent-primary"
-                aria-valuetext={maxNrmse > 95 ? "désactivé" : `${maxNrmse}%`}
+                aria-valuetext={maxNrmse > 95 ? t("fileUpload.nrmseDisabled") : `${maxNrmse}%`}
               />
               <div className="flex justify-between text-[10px] text-muted">
-                <span>20% (strict)</span>
-                <span>Toutes</span>
+                <span>{t("fileUpload.nrmseMin")}</span>
+                <span>{t("fileUpload.nrmseMax")}</span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor={etaId} className="block text-xs text-muted mb-1">η transmission</label>
+                <label htmlFor={etaId} className="block text-xs text-muted mb-1">{t("fileUpload.eta")}</label>
                 <input
                   id={etaId}
                   type="number"
@@ -385,7 +386,7 @@ export default function FileUpload({
                 />
               </div>
               <div>
-                <label htmlFor={windId} className="block text-xs text-muted mb-1">Facteur vent 10m→1m</label>
+                <label htmlFor={windId} className="block text-xs text-muted mb-1">{t("fileUpload.windFactor")}</label>
                 <input
                   id={windId}
                   type="number"
@@ -400,12 +401,12 @@ export default function FileUpload({
             </div>
             <div>
               <p className="text-xs text-muted mb-1">
-                Vent mesuré (optionnel, remplace Open-Meteo)
+                {t("fileUpload.manualWindHeader")}
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label htmlFor={windKmhId} className="block text-[10px] text-muted mb-0.5">
-                    Vitesse au sol (km/h)
+                    {t("fileUpload.manualWindSpeed")}
                   </label>
                   <input
                     id={windKmhId}
@@ -413,7 +414,7 @@ export default function FileUpload({
                     inputMode="decimal"
                     value={manualWindKmh}
                     onChange={(e) => setManualWindKmh(e.target.value)}
-                    placeholder="vide = API"
+                    placeholder={t("fileUpload.manualWindPlaceholder")}
                     className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
                     step={1}
                     min={0}
@@ -422,7 +423,7 @@ export default function FileUpload({
                 </div>
                 <div>
                   <label htmlFor={windDirId} className="block text-[10px] text-muted mb-0.5">
-                    Direction d'où il vient (°, 0=N 90=E)
+                    {t("fileUpload.manualWindDir")}
                   </label>
                   <input
                     id={windDirId}
@@ -430,7 +431,7 @@ export default function FileUpload({
                     inputMode="decimal"
                     value={manualWindDir}
                     onChange={(e) => setManualWindDir(e.target.value)}
-                    placeholder="vide = API"
+                    placeholder={t("fileUpload.manualWindPlaceholder")}
                     className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
                     step={5}
                     min={0}
@@ -439,7 +440,7 @@ export default function FileUpload({
                 </div>
               </div>
               <p className="text-[10px] text-muted mt-1">
-                Renseigne ces deux champs si le verdict affiche "vent fragile" ou si tu as une mesure fiable (station, Windy, Tempest). Laisse vide pour garder Open-Meteo.
+                {t("fileUpload.manualWindHint")}
               </p>
             </div>
           </div>
@@ -466,11 +467,11 @@ export default function FileUpload({
       >
         {loading
           ? files.length > 1
-            ? `Analyse en cours… (${files.length} fichiers)`
-            : "Analyse en cours…"
+            ? t("fileUpload.submittingMulti", { count: files.length })
+            : t("fileUpload.submitting")
           : files.length > 1
-            ? `Analyser ${files.length} sorties`
-            : "Analyser"}
+            ? t("fileUpload.submitMulti", { count: files.length })
+            : t("fileUpload.submit")}
       </Button>
     </div>
   );

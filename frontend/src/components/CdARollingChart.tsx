@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   LineChart,
   Line,
@@ -18,6 +19,7 @@ export default function CdARollingChart({
   profile: ProfileData;
   cdaMean: number;
 }) {
+  const { t } = useTranslation();
   const data = profile.distance_km.map((d, i) => {
     const cda = profile.cda_rolling[i];
     const valid = profile.filter_valid[i];
@@ -30,7 +32,7 @@ export default function CdARollingChart({
 
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
-      <h3 className="text-sm font-semibold mb-3">CdA glissant (10 min)</h3>
+      <h3 className="text-sm font-semibold mb-3">{t("charts.cdaRollingTitle")}</h3>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data}>
           <CartesianGrid stroke="#262633" />
@@ -49,7 +51,7 @@ export default function CdARollingChart({
             dataKey="cdaFiltered"
             stroke="#E8654A"
             dot={false}
-            name="CdA (filtré)"
+            name={t("chartsLegend.cdaFiltered")}
             strokeWidth={1}
             opacity={0.5}
             connectNulls={false}
@@ -59,7 +61,7 @@ export default function CdARollingChart({
             dataKey="cdaValid"
             stroke="#3B82F6"
             dot={false}
-            name="CdA (retenu)"
+            name={t("chartsLegend.cdaRetained")}
             connectNulls={false}
           />
         </LineChart>

@@ -206,15 +206,35 @@
     "aeroAt40": "À 40 km/h : <strong>{{share}}%</strong> de la puissance vainc l'air, le reste le roulement."
   },
   "charts": {
-    "speedPower": "Vitesse vs puissance",
-    "altitude": "Altitude réelle vs virtuelle (Chung)",
-    "cdaRolling": "CdA glissant (10 min)",
-    "cdaRollingHint": "CdA instantané estimé sur une fenêtre glissante de 10 minutes. Devrait rester relativement stable autour de la ligne horizontale (CdA moyen). Des pics ou chutes correspondent à des changements de position, du drafting, ou des zones où le modèle est peu fiable.",
+    "altitudeTitle": "Altitude réelle vs virtuelle (méthode Chung)",
+    "altitudeDesc": "Compare l'altitude GPS réelle (vert) à l'altitude « virtuelle » reconstruite en intégrant le bilan d'énergie avec le CdA/Crr estimés. Si les valeurs estimées sont correctes, les deux courbes doivent rester proches. Un écart grandissant indique un biais systématique (capteur, poids, ou vent mal estimé).",
+    "cdaRollingTitle": "CdA glissant (10 min)",
+    "cdaRollingDesc": "CdA instantané estimé sur une fenêtre glissante de 10 minutes. Devrait rester relativement stable autour de la ligne horizontale (CdA moyen). Des pics ou chutes correspondent à des changements de position, du drafting, ou des zones où le modèle est peu fiable.",
+    "powerDecompTitle": "Décomposition de la puissance",
+    "powerDecompDesc": "Ventile la puissance totale en ses composantes : aéro (force du vent apparent), roulement (frottement pneu/sol) et gravité (montées). Permet de voir quelle force domine à chaque moment et où l'amélioration aéro a le plus d'impact.",
+    "powerScatterTitle": "P_modèle vs P_mesuré",
+    "powerScatterDesc": "Chaque point compare la puissance prédite par le modèle (axe Y) à celle mesurée par le capteur (axe X). Un bon ajustement = points alignés sur la diagonale rouge. Points très dispersés = modèle imprécis sur cette sortie.",
+    "residualsTitle": "Distribution des résidus",
+    "residualsDesc": "Écart entre puissance modèle et puissance mesurée, en watts. Doit être centré sur 0 et en cloche gaussienne. Un décalage systématique (moyenne ≠ 0) suggère un biais : capteur mal calibré, poids faux, ou vent sous/surestimé.",
+    "speedPowerTitle": "Vitesse vs Puissance",
+    "speedPowerDesc": "Relation entre la vitesse au sol et la puissance mesurée. La dispersion vient du gradient, du vent et de l'accélération. Un nuage compact = conditions homogènes. Très dispersé = sortie variée (montagne, vent changeant).",
+    "energyPieTitle": "Répartition de l'énergie",
+    "energyPieDesc": "Part de l'énergie totale dépensée contre l'air (aéro), le frottement (roulement), la gravité (montées), et l'accélération. Sur le plat à 30+ km/h, l'aéro domine (~70-80%). En montagne, la gravité prend le dessus.",
+    "speedCdaTitle": "CdA glissant vs puissance",
+    "speedCdaDesc": "Relation entre le CdA instantané et la puissance mesurée. Si une forte corrélation apparaît, cela suggère un biais (capteur ou Crr mal estimé) qui dépend du régime de puissance.",
+    "windChartTitle": "Vent le long du parcours",
+    "windChartDesc": "Vitesse du vent (bleu, en km/h) et direction de provenance (rouge pointillé, en degrés : 0°=Nord, 90°=Est, 180°=Sud, 270°=Ouest) le long du parcours. Montre si le vent est resté constant ou a varié, ce qui impacte directement la qualité du modèle.",
+    "rhoTitle": "Densité de l'air (ρ)",
+    "rhoDesc": "Variation de la densité de l'air au fil du parcours. ρ baisse avec l'altitude et augmente avec le froid. Même CdA produit moins de traînée à ρ bas (altitude). Sur une sortie de 0 à 1500 m, ρ peut varier de 15% — c'est pourquoi on le calcule par point.",
+    "mapTitle": "Parcours",
+    "mapDesc": "Tracé GPS de la sortie sur fond de carte. Coloré selon le CdA glissant (voir la légende sous la carte) pour lire d'un coup d'œil où la position tient ou dérape."
+  },
+  "chartsLegend": {
     "cdaRetained": "CdA (retenu)",
     "cdaFiltered": "CdA (filtré)",
     "altReal": "Altitude réelle",
     "altVirtual": "Altitude virtuelle",
-    "filteredHint": "zones grises = segments exclus par le raffinement itératif"
+    "filteredHint": "— zones grises = segments exclus par le raffinement itératif"
   },
   "anomalies": {
     "title": "Alertes d'anomalies"

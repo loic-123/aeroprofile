@@ -206,15 +206,35 @@
     "aeroAt40": "At 40 km/h: <strong>{{share}}%</strong> of the power overcomes the air, the rest is rolling resistance."
   },
   "charts": {
-    "speedPower": "Speed vs power",
-    "altitude": "Real vs virtual altitude (Chung)",
-    "cdaRolling": "Rolling CdA (10 min)",
-    "cdaRollingHint": "Instantaneous CdA over a rolling 10-minute window. Should stay roughly flat around the horizontal line (mean CdA). Spikes or dips = position change, drafting, or zones where the model is unreliable.",
+    "altitudeTitle": "Real vs virtual altitude (Chung method)",
+    "altitudeDesc": "Compares the real GPS altitude (green) to the 'virtual' altitude rebuilt from the energy balance with the estimated CdA/Crr. If the estimates are correct, the two curves stay close. A growing gap indicates a systematic bias (sensor, weight, or wind estimated wrong).",
+    "cdaRollingTitle": "Rolling CdA (10 min)",
+    "cdaRollingDesc": "Instantaneous CdA on a rolling 10-minute window. Should stay roughly flat around the horizontal line (mean CdA). Peaks or dips = position change, drafting, or zones where the model is unreliable.",
+    "powerDecompTitle": "Power decomposition",
+    "powerDecompDesc": "Breaks down total power into components: aero (apparent wind force), rolling (tyre/ground friction) and gravity (climbs). Lets you see which force dominates at each moment and where an aero improvement would matter most.",
+    "powerScatterTitle": "P_model vs P_measured",
+    "powerScatterDesc": "Each point compares predicted power (Y axis) to measured power (X axis). Good fit = points aligned on the red diagonal. Scattered = imprecise model on this ride.",
+    "residualsTitle": "Residuals distribution",
+    "residualsDesc": "Gap between model and measured power, in watts. Should be centred on 0 and bell-shaped. A systematic offset (mean ≠ 0) suggests bias: miscalibrated sensor, wrong weight, or under/over-estimated wind.",
+    "speedPowerTitle": "Speed vs power",
+    "speedPowerDesc": "Relationship between ground speed and measured power. Scatter comes from gradient, wind, and acceleration. Compact cloud = uniform conditions. Very scattered = varied ride (mountain, changing wind).",
+    "energyPieTitle": "Energy split",
+    "energyPieDesc": "Share of total energy spent against air (aero), friction (rolling), gravity (climbs), and acceleration. On the flat above 30 km/h, aero dominates (~70-80%). In the mountains, gravity takes over.",
+    "speedCdaTitle": "Rolling CdA vs power",
+    "speedCdaDesc": "Relationship between instantaneous CdA and measured power. A strong correlation suggests a bias (sensor or Crr estimated wrong) that depends on the power regime.",
+    "windChartTitle": "Wind along the route",
+    "windChartDesc": "Wind speed (blue, km/h) and bearing (red dotted, degrees; 0°=N, 90°=E, 180°=S, 270°=W) along the route. Shows whether wind stayed constant or changed, which directly impacts model quality.",
+    "rhoTitle": "Air density (ρ)",
+    "rhoDesc": "Air density variation along the route. ρ drops with altitude and rises with cold. Same CdA produces less drag at low ρ (altitude). On a 0-to-1500 m ride, ρ can vary by 15% — that's why it's computed per point.",
+    "mapTitle": "Route",
+    "mapDesc": "GPS trace on a basemap. Coloured by rolling CdA (see legend below the map) for a quick read of where the position held or drifted."
+  },
+  "chartsLegend": {
     "cdaRetained": "CdA (retained)",
     "cdaFiltered": "CdA (filtered)",
     "altReal": "Real altitude",
     "altVirtual": "Virtual altitude",
-    "filteredHint": "grey zones = segments excluded by iterative refinement"
+    "filteredHint": "— grey zones = segments excluded by iterative refinement"
   },
   "anomalies": {
     "title": "Anomaly alerts"

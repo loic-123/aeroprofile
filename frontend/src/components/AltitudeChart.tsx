@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   LineChart,
   Line,
@@ -12,6 +13,7 @@ import {
 import type { ProfileData } from "../types";
 
 export default function AltitudeChart({ profile }: { profile: ProfileData }) {
+  const { t } = useTranslation();
   const data = profile.distance_km.map((d, i) => ({
     d,
     real: profile.altitude_real[i],
@@ -45,10 +47,10 @@ export default function AltitudeChart({ profile }: { profile: ProfileData }) {
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
       <h3 className="text-sm font-semibold mb-3">
-        Altitude réelle vs virtuelle (Chung)
+        {t("charts.altitudeTitle")}
         {veZones.length > 0 && (
           <span className="text-xs text-muted font-normal ml-2">
-            — zones grises = segments exclus par le raffinement itératif
+            {t("chartsLegend.filteredHint")}
           </span>
         )}
       </h3>
@@ -71,14 +73,14 @@ export default function AltitudeChart({ profile }: { profile: ProfileData }) {
               stroke="none"
             />
           ))}
-          <Line type="monotone" dataKey="real" stroke="#1D9E75" dot={false} name="Altitude réelle" />
+          <Line type="monotone" dataKey="real" stroke="#1D9E75" dot={false} name={t("chartsLegend.altReal")} />
           <Line
             type="monotone"
             dataKey="virtual"
             stroke="#E8654A"
             dot={false}
             strokeDasharray="4 4"
-            name="Altitude virtuelle"
+            name={t("chartsLegend.altVirtual")}
           />
         </LineChart>
       </ResponsiveContainer>

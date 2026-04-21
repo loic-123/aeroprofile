@@ -4,11 +4,13 @@
  */
 
 import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
+import { useTranslation } from "react-i18next";
 import type { ProfileData } from "../types";
 
 const COLORS = ["#1D9E75", "#3B82F6", "#E8654A", "#F59E0B"];
 
 export default function EnergyPieChart({ profile }: { profile: ProfileData }) {
+  const { t } = useTranslation();
   let aero = 0;
   let rolling = 0;
   let gravity = 0;
@@ -25,10 +27,10 @@ export default function EnergyPieChart({ profile }: { profile: ProfileData }) {
   const total = aero + rolling + gravity + accel || 1;
 
   const data = [
-    { name: "Aérodynamique", value: Math.round(aero), pct: ((aero / total) * 100).toFixed(0) },
-    { name: "Roulement", value: Math.round(rolling), pct: ((rolling / total) * 100).toFixed(0) },
-    { name: "Gravité", value: Math.round(gravity), pct: ((gravity / total) * 100).toFixed(0) },
-    { name: "Accélération", value: Math.round(accel), pct: ((accel / total) * 100).toFixed(0) },
+    { name: t("energyAero"), value: Math.round(aero), pct: ((aero / total) * 100).toFixed(0) },
+    { name: t("energyRolling"), value: Math.round(rolling), pct: ((rolling / total) * 100).toFixed(0) },
+    { name: t("energyGravity"), value: Math.round(gravity), pct: ((gravity / total) * 100).toFixed(0) },
+    { name: t("energyAccel"), value: Math.round(accel), pct: ((accel / total) * 100).toFixed(0) },
   ].filter((d) => d.value > 0);
 
   return (

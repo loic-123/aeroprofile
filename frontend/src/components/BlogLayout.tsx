@@ -32,12 +32,17 @@ export function BlogProvider({
 export function Link({
   slug,
   children,
+  className = "",
 }: {
   slug: string;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <div onClick={() => _blogCtx.go(slug)} className="cursor-pointer">
+    <div
+      onClick={() => _blogCtx.go(slug)}
+      className={`cursor-pointer ${className}`}
+    >
       {children}
     </div>
   );

@@ -260,7 +260,7 @@ function FeaturedCard({ article: a, index }: { article: Article; index: number }
       }}
       className="h-full"
     >
-      <Link slug={a.slug}>
+      <Link slug={a.slug} className="h-full block">
         <article className="group flex h-full flex-col rounded-lg border border-border bg-panel p-5 cursor-pointer transition-all duration-base hover:border-primary-border hover:bg-panel-2 hover:shadow-e2">
           <div className="flex items-center justify-between text-[10px] uppercase tracking-widest text-muted mb-4">
             <span>{a.category}</span>

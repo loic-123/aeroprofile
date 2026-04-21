@@ -16,6 +16,10 @@ interface Props {
   massKg?: number;
   bikeType?: BikeType;
   positionIdx?: number;
+  /** Callback to re-run the analysis with a user-supplied wind. Wired by
+   *  the parent (App/IntervalsPage) that still has the original file and
+   *  analysis options. Absent = hide the "Corriger le vent" button. */
+  onReanalyzeWithWind?: (manual_wind_ms: number, manual_wind_dir_deg: number) => void;
 }
 
 /**
@@ -35,7 +39,7 @@ interface Props {
  * This replaces the previous 657-line monolith; everything that was
  * here moved to one of the specialised files listed above.
  */
-export default function ResultsDashboard({ result, massKg, bikeType, positionIdx }: Props) {
+export default function ResultsDashboard({ result, massKg, bikeType, positionIdx, onReanalyzeWithWind }: Props) {
   const badFit = result.r_squared < 0.3;
   const unreliable = result.r_squared < 0;
 
@@ -43,7 +47,7 @@ export default function ResultsDashboard({ result, massKg, bikeType, positionIdx
     <div className="space-y-6">
       <ResultsHeader result={result} />
       <ResultsHero result={result} unreliable={unreliable} bikeType={bikeType} positionIdx={positionIdx} />
-      <ResultsDiagnostics result={result} unreliable={unreliable} badFit={badFit} />
+      <ResultsDiagnostics result={result} unreliable={unreliable} badFit={badFit} onReanalyzeWithWind={onReanalyzeWithWind} />
       <ResultsSecondaryStats result={result} unreliable={unreliable} />
       {!unreliable && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

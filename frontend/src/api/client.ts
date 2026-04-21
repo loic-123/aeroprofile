@@ -10,6 +10,11 @@ export interface AnalyzeParams {
   cda_prior_mean?: number;
   cda_prior_sigma?: number;
   disable_prior?: boolean;
+  // Manual wind override at rider height (m/s) + meteorological direction
+  // (degrees, 0 = wind from North, 90 = wind from East). Both must be
+  // provided for the override to take effect.
+  manual_wind_ms?: number;
+  manual_wind_dir_deg?: number;
 }
 
 export async function analyze(params: AnalyzeParams): Promise<AnalysisResult> {
@@ -26,6 +31,10 @@ export async function analyze(params: AnalyzeParams): Promise<AnalysisResult> {
     fd.append("cda_prior_mean", String(params.cda_prior_mean));
   if (params.cda_prior_sigma && params.cda_prior_sigma > 0 && !params.disable_prior)
     fd.append("cda_prior_sigma", String(params.cda_prior_sigma));
+  if (params.manual_wind_ms != null && params.manual_wind_dir_deg != null) {
+    fd.append("manual_wind_ms", String(params.manual_wind_ms));
+    fd.append("manual_wind_dir_deg", String(params.manual_wind_dir_deg));
+  }
 
   const res = await fetch("/api/analyze", { method: "POST", body: fd });
   if (!res.ok) {

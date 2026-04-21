@@ -98,6 +98,8 @@ async def analyze_endpoint(
     cda_prior_mean: float | None = Form(None),
     cda_prior_sigma: float | None = Form(None),
     disable_prior: bool = Form(False),
+    manual_wind_ms: float | None = Form(None),
+    manual_wind_dir_deg: float | None = Form(None),
 ):
     ext = Path(file.filename or "").suffix.lower()
     if ext not in (".fit", ".gpx", ".tcx"):
@@ -129,6 +131,8 @@ async def analyze_endpoint(
             bike_type=bike_type,
             cda_prior_override=(cda_prior_mean, cda_prior_sigma) if cda_prior_mean is not None else None,
             disable_prior=disable_prior,
+            manual_wind_ms=manual_wind_ms,
+            manual_wind_dir_deg=manual_wind_dir_deg,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -189,6 +193,9 @@ async def analyze_endpoint(
         solver_cross_check_delta=_f(result.solver_cross_check_delta) if result.solver_cross_check_delta is not None else None,
         solver_confidence=result.solver_confidence,
         cda_delta_wind_plus_5pct=_f(result.cda_delta_wind_plus_5pct) if result.cda_delta_wind_plus_5pct is not None else None,
+        cda_delta_wind_plus_30pct=_f(result.cda_delta_wind_plus_30pct) if result.cda_delta_wind_plus_30pct is not None else None,
+        cda_delta_wind_minus_30pct=_f(result.cda_delta_wind_minus_30pct) if result.cda_delta_wind_minus_30pct is not None else None,
+        wind_fragility=result.wind_fragility,
         gear_id=result.gear_id,
         gear_name=result.gear_name,
         ride_date=result.ride_date,

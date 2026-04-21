@@ -168,6 +168,13 @@ export interface AnalysisResult {
   // by +5%. Surfaces in ResultsDashboard so the user sees whether the
   // ride's CdA is fragile or robust to wind uncertainty.
   cda_delta_wind_plus_5pct?: number | null;
+  // Extended wind sensitivity (±30%): bounds of the plausible ERA5 bias
+  // window in coastal / strong-wind conditions. Paired with
+  // ``wind_fragility`` which is the human-readable classification:
+  // "robust" | "moderate" | "fragile" | "unknown".
+  cda_delta_wind_plus_30pct?: number | null;
+  cda_delta_wind_minus_30pct?: number | null;
+  wind_fragility?: "robust" | "moderate" | "fragile" | "unknown";
   gear_id?: string | null;
   gear_name?: string | null;
   cda_climb: number | null;

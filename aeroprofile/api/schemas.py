@@ -75,6 +75,9 @@ class AnalysisResultOut(BaseModel):
     # Chung VE pass failed. Signed value: + means stronger wind → higher
     # CdA, − means stronger wind → lower CdA.
     cda_delta_wind_plus_5pct: Optional[float] = None
+    cda_delta_wind_plus_30pct: Optional[float] = None
+    cda_delta_wind_minus_30pct: Optional[float] = None
+    wind_fragility: str = "unknown"
     gear_id: Optional[str] = None
     gear_name: Optional[str] = None
 

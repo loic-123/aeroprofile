@@ -60,7 +60,7 @@ def _solve_with_wind_inner(
     crr_fixed: float | None = None,
     segment_minutes: float = 30.0,
     min_heading_variance: float = 0.25,
-    wind_prior_sigma_ms: float = 2.0,
+    wind_prior_sigma_ms: float | None = None,
     crr_prior_mean: float = 0.0035,
     crr_prior_sigma: float = 0.0012,
     cda_prior_mean: float = 0.30,
@@ -98,6 +98,15 @@ def _solve_with_wind_inner(
     wd_api = np.asarray(valid["wind_dir_deg"].to_numpy(), dtype=float)
     u_api = -ws_api * np.sin(np.radians(wd_api))
     v_api = -ws_api * np.cos(np.radians(wd_api))
+
+    # Adaptive wind prior sigma. ERA5 (Open-Meteo's backbone) under-predicts
+    # strong winds and has larger errors in coastal/mountainous terrain
+    # (Jourdier 2020; Copernicus ASR 2025). Scale sigma with API wind
+    # magnitude so the solver has more latitude to correct when the API
+    # value is likely biased. Affine: σ = clamp(2 + 0.4·(ws−3), 2, 5).
+    if wind_prior_sigma_ms is None:
+        ws_api_mean = float(np.mean(ws_api))
+        wind_prior_sigma_ms = float(np.clip(2.0 + 0.4 * (ws_api_mean - 3.0), 2.0, 5.0))
 
     # Segment assignment
     ts = valid["timestamp"].astype("int64").to_numpy() // 1_000_000_000
@@ -321,7 +330,7 @@ def solve_with_wind(
     crr_fixed: float | None = None,
     segment_minutes: float = 30.0,
     min_heading_variance: float = 0.25,
-    wind_prior_sigma_ms: float = 2.0,
+    wind_prior_sigma_ms: float | None = None,
     crr_prior_mean: float = 0.0035,
     crr_prior_sigma: float = 0.0012,
     cda_prior_mean: float = 0.30,
@@ -352,6 +361,16 @@ def solve_with_wind(
         "wind_inverse start: prior(mean=%.3f sigma=%.3f active=%s) bounds=[%.2f,%.2f]",
         cda_prior_mean, cda_prior_sigma, prior_active, cda_lower, cda_upper,
     )
+    if wind_prior_sigma_ms is None:
+        try:
+            _ws_api_peek = float(np.mean(df["wind_speed_ms"].to_numpy()))
+            _sigma_preview = float(np.clip(2.0 + 0.4 * (_ws_api_peek - 3.0), 2.0, 5.0))
+            logger.info("  wind prior sigma=%.2f m/s (adaptive, API mean=%.2f m/s)",
+                        _sigma_preview, _ws_api_peek)
+        except Exception:
+            pass
+    else:
+        logger.info("  wind prior sigma=%.2f m/s (explicit)", wind_prior_sigma_ms)
 
     # Pass 0: MLE pur (sans prior) pour affichage "CdA brut"
     raw_cda = None

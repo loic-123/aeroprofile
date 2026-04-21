@@ -138,3 +138,36 @@ def test_wind_inverse_cda_raw_invariant_across_priors():
         f"(|Δ|={abs(raw_a - raw_b):.4f} > 0.005). The multi-start init "
         f"fix may have regressed."
     )
+
+
+def test_wind_prior_sigma_adapts_to_api_magnitude(caplog):
+    """The wind prior sigma should widen as the API wind magnitude grows.
+
+    Affine law σ = clip(2 + 0.4·(ws − 3), 2, 5):
+      ws=1 m/s → σ=2.0  (clamped low)
+      ws=5 m/s → σ=2.8
+      ws=8 m/s → σ=4.0
+      ws=20 m/s → σ=5.0 (clamped high)
+    """
+    import logging
+    import re
+
+    def _sigma_used(ws: float) -> float:
+        df = _synth_ride(wind_speed_ms=ws)
+        with caplog.at_level(logging.INFO, logger="aeroprofile.solver.wind_inverse"):
+            caplog.clear()
+            solve_with_wind(df, mass=75.0, cda_prior_mean=0.30, cda_prior_sigma=0.10,
+                            cda_lower=0.15, cda_upper=0.60, crr_fixed=0.004)
+        for rec in caplog.records:
+            m = re.search(r"wind prior sigma=([\d.]+)", rec.getMessage())
+            if m:
+                return float(m.group(1))
+        raise AssertionError("sigma log line not found")
+
+    sigma_low = _sigma_used(1.0)
+    sigma_mid = _sigma_used(5.0)
+    sigma_high = _sigma_used(20.0)
+    assert sigma_low == pytest.approx(2.0, abs=0.05)
+    assert 2.5 < sigma_mid < 3.5
+    assert sigma_high == pytest.approx(5.0, abs=0.05)
+    assert sigma_low <= sigma_mid <= sigma_high

@@ -119,6 +119,16 @@ class AnalysisResult:
     # post-hoc Chung run failed. Lets the UI show "ride robust" vs
     # "ride wind-fragile" without blindly correcting the wind.
     cda_delta_wind_plus_5pct: Optional[float] = None
+    # Extended wind sensitivity (±30%): bounds of the plausible ERA5 bias
+    # window in coastal / strong-wind conditions. ``wind_fragility`` is
+    # derived from max(|Δ+30%|, |Δ-30%|):
+    #   "robust"  : max < 0.02
+    #   "moderate": max < 0.05
+    #   "fragile" : max >= 0.05
+    #   "unknown" : post-hoc Chung runs did not converge
+    cda_delta_wind_plus_30pct: Optional[float] = None
+    cda_delta_wind_minus_30pct: Optional[float] = None
+    wind_fragility: str = "unknown"
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -342,6 +352,8 @@ async def analyze(
     power_meter_name: str | None = None,
     gear_id: str | None = None,
     gear_name: str | None = None,
+    manual_wind_ms: float | None = None,
+    manual_wind_dir_deg: float | None = None,
 ) -> AnalysisResult:
     bcfg = get_bike_config(bike_type)
     # Disable the CdA prior entirely (used in multi-ride mode where the
@@ -449,6 +461,23 @@ async def analyze(
         weather_source = "fallback_no_wind"
 
     df = pd.concat([df, wx], axis=1)
+
+    # Manual wind override: user supplies a measured wind (at rider level,
+    # meteo convention). Convert to 10 m equivalent so the downstream log-law
+    # scaling lands on the user's value. Also disables API-based uncertainty
+    # handling by flagging ``weather_source``.
+    if manual_wind_ms is not None and manual_wind_dir_deg is not None:
+        from aeroprofile.physics.wind import wind_log_law_scale as _wls
+        _scale = _wls()
+        _ws_10m = float(manual_wind_ms) / max(_scale, 1e-6)
+        df["wind_speed_ms"] = _ws_10m
+        df["wind_dir_deg"] = float(manual_wind_dir_deg) % 360.0
+        weather_source = "manual_override"
+        weather_ok = True
+        logger.info(
+            "MANUAL_WIND override: %.2f m/s rider = %.2f m/s @10m, dir=%.0f°",
+            float(manual_wind_ms), _ws_10m, float(manual_wind_dir_deg),
+        )
 
     # Air speed and density
     df["v_air"] = compute_v_air(
@@ -577,11 +606,16 @@ async def analyze(
     # halves the RMSE because the wind is fitted to the data, not taken
     # from a 10 km weather grid. Requires heading_variance > 0.25.
     logger.info("CASCADE try wind_inverse ===")
+    # When the user has supplied a measured wind, tighten the per-segment
+    # wind prior so the solver stays close to their value. Otherwise let
+    # wind_inverse pick σ adaptively from the API wind magnitude.
+    _wind_prior_sigma = 0.5 if (manual_wind_ms is not None and manual_wind_dir_deg is not None) else None
     try:
         wi = solve_with_wind(
             df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
             cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
             cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
+            wind_prior_sigma_ms=_wind_prior_sigma,
         )
         _wi_improves = (
             wi is not None
@@ -951,7 +985,8 @@ async def analyze(
                 if solver_method == "wind_inverse":
                     wi2 = solve_with_wind(df, mass=mass_kg, eta=eta, crr_fixed=effective_crr_fixed,
                                           cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
-                                          cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper)
+                                          cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
+                                          wind_prior_sigma_ms=_wind_prior_sigma)
                     if wi2 is not None and _accept_pass2(wi2["cda"], wi2.get("r_squared", float("nan")), "wind_inverse"):
                         sol = SolverResult(
                             cda=wi2["cda"], crr=wi2["crr"],
@@ -1466,31 +1501,62 @@ async def analyze(
     # lets the user see whether THIS ride's CdA is fragile or robust to
     # wind uncertainty.
     cda_delta_wind_plus_5pct: Optional[float] = None
-    try:
+    cda_delta_wind_plus_30pct: Optional[float] = None
+    cda_delta_wind_minus_30pct: Optional[float] = None
+    wind_fragility: str = "unknown"
+    from aeroprofile.physics.wind import compute_v_air as _cva
+
+    def _chung_with_wind_scale(scale: float):
+        """Run Chung VE with API wind multiplied by ``scale``. Returns CdA or None."""
         df_ws = df.copy()
-        df_ws["wind_speed_ms"] = df_ws["wind_speed_ms"] * 1.05
-        # Recompute v_air with the inflated wind
-        from aeroprofile.physics.wind import compute_v_air as _cva
+        df_ws["wind_speed_ms"] = df_ws["wind_speed_ms"] * scale
         df_ws["v_air"] = _cva(
             df_ws["v_ground"].to_numpy(),
             df_ws["bearing"].to_numpy(),
             df_ws["wind_speed_ms"].to_numpy(),
             df_ws["wind_dir_deg"].to_numpy(),
         )
-        chung_ws = solve_chung_ve(
+        res = solve_chung_ve(
             df_ws, mass=mass_kg, eta=eta,
             crr_fixed=effective_crr_fixed,
             cda_prior_mean=bcfg.cda_prior_mean, cda_prior_sigma=bcfg.cda_prior_sigma,
             cda_lower=bcfg.cda_lower, cda_upper=bcfg.cda_upper,
         )
-        if chung_ws is not None and chung_cda is not None:
-            cda_delta_wind_plus_5pct = float(chung_ws.cda - chung_cda)
-            logger.info(
-                "WIND_SENSITIVITY: CdA(wind×1.05) = %.3f vs baseline Chung %.3f → Δ=%+0.3f m²",
-                chung_ws.cda, chung_cda, cda_delta_wind_plus_5pct,
-            )
+        return float(res.cda) if res is not None else None
+
+    try:
+        cda_plus_5 = _chung_with_wind_scale(1.05)
+        if cda_plus_5 is not None and chung_cda is not None:
+            cda_delta_wind_plus_5pct = cda_plus_5 - chung_cda
+            logger.info("WIND_SENSITIVITY ×1.05: CdA=%.3f Δ=%+0.3f m²", cda_plus_5, cda_delta_wind_plus_5pct)
     except Exception as _e:
-        logger.warning("Wind sensitivity computation failed: %s", _e)
+        logger.warning("Wind sensitivity ×1.05 failed: %s", _e)
+
+    try:
+        cda_plus_30 = _chung_with_wind_scale(1.30)
+        if cda_plus_30 is not None and chung_cda is not None:
+            cda_delta_wind_plus_30pct = cda_plus_30 - chung_cda
+            logger.info("WIND_SENSITIVITY ×1.30: CdA=%.3f Δ=%+0.3f m²", cda_plus_30, cda_delta_wind_plus_30pct)
+    except Exception as _e:
+        logger.warning("Wind sensitivity ×1.30 failed: %s", _e)
+
+    try:
+        cda_minus_30 = _chung_with_wind_scale(0.70)
+        if cda_minus_30 is not None and chung_cda is not None:
+            cda_delta_wind_minus_30pct = cda_minus_30 - chung_cda
+            logger.info("WIND_SENSITIVITY ×0.70: CdA=%.3f Δ=%+0.3f m²", cda_minus_30, cda_delta_wind_minus_30pct)
+    except Exception as _e:
+        logger.warning("Wind sensitivity ×0.70 failed: %s", _e)
+
+    if cda_delta_wind_plus_30pct is not None and cda_delta_wind_minus_30pct is not None:
+        _max_delta = max(abs(cda_delta_wind_plus_30pct), abs(cda_delta_wind_minus_30pct))
+        if _max_delta < 0.02:
+            wind_fragility = "robust"
+        elif _max_delta < 0.05:
+            wind_fragility = "moderate"
+        else:
+            wind_fragility = "fragile"
+        logger.info("WIND_FRAGILITY = %s (max |Δ±30%%|=%.3f)", wind_fragility, _max_delta)
 
     # Summary stats
     filter_summary = {name: int(df[name].sum()) for name in FILTER_NAMES}
@@ -1558,6 +1624,9 @@ async def analyze(
         solver_cross_check_delta=solver_cross_check_delta,
         solver_confidence=solver_confidence,
         cda_delta_wind_plus_5pct=cda_delta_wind_plus_5pct,
+        cda_delta_wind_plus_30pct=cda_delta_wind_plus_30pct,
+        cda_delta_wind_minus_30pct=cda_delta_wind_minus_30pct,
+        wind_fragility=wind_fragility,
         gear_id=gear_id,
         gear_name=gear_name,
     )

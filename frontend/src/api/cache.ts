@@ -7,7 +7,7 @@
 import type { AnalysisResult } from "../types";
 
 const CACHE_PREFIX = "aeroprofile_cache_";
-const CACHE_VERSION = "v8";
+const CACHE_VERSION = "v9";
 
 export interface CacheOpts {
   mass_kg: number;
@@ -18,11 +18,13 @@ export interface CacheOpts {
   cda_prior_mean?: number;
   cda_prior_sigma?: number;
   disable_prior?: boolean;
+  manual_wind_ms?: number;
+  manual_wind_dir_deg?: number;
 }
 
 function fileKey(file: File, opts?: CacheOpts): string {
   const optsStr = opts
-    ? `:m${opts.mass_kg}:crr${opts.crr_fixed ?? "auto"}:eta${opts.eta ?? "def"}:wf${opts.wind_height_factor ?? "def"}:bt${opts.bike_type ?? "road"}:pm${opts.cda_prior_mean ?? "def"}:ps${opts.cda_prior_sigma ?? "def"}:dp${opts.disable_prior ? 1 : 0}`
+    ? `:m${opts.mass_kg}:crr${opts.crr_fixed ?? "auto"}:eta${opts.eta ?? "def"}:wf${opts.wind_height_factor ?? "def"}:bt${opts.bike_type ?? "road"}:pm${opts.cda_prior_mean ?? "def"}:ps${opts.cda_prior_sigma ?? "def"}:dp${opts.disable_prior ? 1 : 0}:mw${opts.manual_wind_ms ?? "none"}:md${opts.manual_wind_dir_deg ?? "none"}`
     : "";
   const raw = `${CACHE_VERSION}:${file.name}:${file.size}:${file.lastModified}${optsStr}`;
   let h = 5381;

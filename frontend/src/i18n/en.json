@@ -425,6 +425,14 @@
     "mapTitle": "Route",
     "mapDesc": "GPS trace on a basemap. Coloured by rolling CdA (see legend below the map) for a quick read of where the position held or drifted."
   },
+  "postureSchematic": {
+    "ttPro": { "name": "Pro TT (Superman)", "description": "Aerobars, flat back, pro-TT tuck" },
+    "ttAmateur": { "name": "Amateur TT", "description": "Aerobars, arms and back extended" },
+    "roadDrops": { "name": "Road, drops", "description": "Hands in the drops, moderately flat back" },
+    "roadHoods": { "name": "Road, hoods", "description": "Standard hoods position" },
+    "roadTops": { "name": "Road, upright", "description": "Hands on the tops, torso upright" },
+    "upright": { "name": "Upright / MTB", "description": "Upright position, MTB or city-bike style" }
+  },
   "totem": {
     "headline": "Aerodynamically, you are…",
     "t0": { "name": "Formula 1", "desc": "You slice through the air like a GP single-seater. Elite TT position." },

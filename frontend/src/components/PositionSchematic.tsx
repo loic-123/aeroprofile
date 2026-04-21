@@ -11,6 +11,7 @@
  */
 
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   cda: number;
@@ -19,51 +20,21 @@ interface Props {
 }
 
 interface Posture {
-  name: string;
-  description: string;
+  key: string;
   icon: string;
 }
 
 function postureFromCda(cda: number): Posture {
-  if (cda < 0.22)
-    return {
-      name: "CLM pro (Superman)",
-      description: "Prolongateurs, dos plat, position CLM pro",
-      // time trial tuck — cyclist fully horizontal
-      icon: "game-icons:cycling",
-    };
-  if (cda < 0.26)
-    return {
-      name: "CLM amateur",
-      description: "Prolongateurs, dos et bras tendus",
-      icon: "game-icons:cycling",
-    };
-  if (cda < 0.33)
-    return {
-      name: "Route, mains en bas",
-      description: "Mains en bas du cintre, dos modérément plat",
-      icon: "mdi:bike-fast",
-    };
-  if (cda < 0.39)
-    return {
-      name: "Route, mains sur cocottes",
-      description: "Position standard sur cocottes",
-      icon: "mdi:bike",
-    };
-  if (cda < 0.46)
-    return {
-      name: "Route, position relevée",
-      description: "Mains sur le haut du cintre, buste relevé",
-      icon: "fa6-solid:person-biking",
-    };
-  return {
-    name: "Position droite / VTT",
-    description: "Position droite, type VTT ou vélo ville",
-    icon: "tabler:bike",
-  };
+  if (cda < 0.22) return { key: "ttPro", icon: "game-icons:cycling" };
+  if (cda < 0.26) return { key: "ttAmateur", icon: "game-icons:cycling" };
+  if (cda < 0.33) return { key: "roadDrops", icon: "mdi:bike-fast" };
+  if (cda < 0.39) return { key: "roadHoods", icon: "mdi:bike" };
+  if (cda < 0.46) return { key: "roadTops", icon: "fa6-solid:person-biking" };
+  return { key: "upright", icon: "tabler:bike" };
 }
 
 export default function PositionSchematic({ cda, label, size = 160 }: Props) {
+  const { t } = useTranslation();
   const posture = postureFromCda(cda);
 
   // Load the iconify-icon web component once.
@@ -94,8 +65,8 @@ export default function PositionSchematic({ cda, label, size = 160 }: Props) {
       </div>
       <div className="text-center mt-2 max-w-[200px]">
         {label && <div className="text-xs text-muted">{label}</div>}
-        <div className="text-sm font-semibold">{posture.name}</div>
-        <div className="text-xs text-muted">{posture.description}</div>
+        <div className="text-sm font-semibold">{t(`postureSchematic.${posture.key}.name`)}</div>
+        <div className="text-xs text-muted">{t(`postureSchematic.${posture.key}.description`)}</div>
       </div>
     </div>
   );

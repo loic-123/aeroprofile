@@ -425,6 +425,14 @@
     "mapTitle": "Parcours",
     "mapDesc": "Tracé GPS de la sortie sur fond de carte. Coloré selon le CdA glissant (voir la légende sous la carte) pour lire d'un coup d'œil où la position tient ou dérape."
   },
+  "postureSchematic": {
+    "ttPro": { "name": "CLM pro (Superman)", "description": "Prolongateurs, dos plat, position CLM pro" },
+    "ttAmateur": { "name": "CLM amateur", "description": "Prolongateurs, dos et bras tendus" },
+    "roadDrops": { "name": "Route, mains en bas", "description": "Mains en bas du cintre, dos modérément plat" },
+    "roadHoods": { "name": "Route, mains sur cocottes", "description": "Position standard sur cocottes" },
+    "roadTops": { "name": "Route, position relevée", "description": "Mains sur le haut du cintre, buste relevé" },
+    "upright": { "name": "Position droite / VTT", "description": "Position droite, type VTT ou vélo ville" }
+  },
   "totem": {
     "headline": "Aérodynamiquement, vous êtes…",
     "t0": { "name": "Formule 1", "desc": "Vous fendez l'air comme une monoplace de GP. Position CLM d'exception." },

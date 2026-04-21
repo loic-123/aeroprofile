@@ -54,6 +54,7 @@ export default function App() {
   const [bikeType, setBikeType] = useState<BikeType>("road");
   const [lastMass, setLastMass] = useState(75);
   const [lastMaxNrmse, setLastMaxNrmse] = useState(DEFAULT_MAX_NRMSE);
+  const [lastPositionIdx, setLastPositionIdx] = useState<number | undefined>(undefined);
   const [hierResult, setHierResult] = useState<HierarchicalAnalysisResult | null>(null);
   const [hierLoading, setHierLoading] = useState(false);
   const [hierError, setHierError] = useState<string | null>(null);
@@ -92,6 +93,7 @@ export default function App() {
     const bt = opts.bikeType || "road";
     setBikeType(bt);
     setLastMass(mass_kg);
+    setLastPositionIdx(opts.positionIdx);
     const { minCda: MIN_CDA, maxCda: MAX_CDA } = BIKE_TYPE_CONFIG[bt];
     const MAX_NRMSE = opts.maxNrmse || DEFAULT_MAX_NRMSE;
     setLastMaxNrmse(MAX_NRMSE);
@@ -518,7 +520,7 @@ export default function App() {
 
                 {/* Single file → no tabs, show dashboard directly */}
                 {!isMulti && selectedResult && (
-                  <ResultsDashboard result={selectedResult} massKg={lastMass} />
+                  <ResultsDashboard result={selectedResult} massKg={lastMass} bikeType={bikeType} positionIdx={lastPositionIdx} />
                 )}
 
                 {/* Single file excluded → show warning with reason */}
@@ -849,7 +851,7 @@ export default function App() {
                             })}
                           </div>
                         </div>
-                        <ResultsDashboard result={selectedResult} massKg={lastMass} />
+                        <ResultsDashboard result={selectedResult} massKg={lastMass} bikeType={bikeType} positionIdx={lastPositionIdx} />
                       </div>
                     )}
                   </>

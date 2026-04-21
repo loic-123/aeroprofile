@@ -54,11 +54,15 @@ function RowHighlight({
         <tr className="border-b border-border text-left text-xs text-muted uppercase tracking-wide">
           <th className="py-2 pr-2">Position / type</th>
           <th className="py-2 text-right">{unit}</th>
+          <th className="py-2 text-right pl-2">Δ vs vous</th>
         </tr>
       </thead>
       <tbody>
         {ranges.map((r, i) => {
           const active = i === match;
+          const mid = (r.low + r.high) / 2;
+          const delta = mid - value;
+          const better = delta > 0;
           return (
             <tr
               key={i}
@@ -79,6 +83,13 @@ function RowHighlight({
               </td>
               <td className="py-1.5 text-right font-mono text-muted whitespace-nowrap">
                 {fmt(r.low)} – {fmt(r.high)}
+              </td>
+              <td
+                className={`py-1.5 text-right font-mono whitespace-nowrap pl-2 text-xs ${
+                  active ? "text-muted" : better ? "text-warn" : "text-accent"
+                }`}
+              >
+                {active ? "—" : `${better ? "+" : ""}${fmt(delta)}`}
               </td>
             </tr>
           );

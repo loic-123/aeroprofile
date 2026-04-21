@@ -1,4 +1,4 @@
-import type { AnalysisResult } from "../types";
+import type { AnalysisResult, BikeType } from "../types";
 import AnomalyAlerts from "./AnomalyAlerts";
 import ReferenceTable from "./ReferenceTable";
 import WhatIfSimulator from "./WhatIfSimulator";
@@ -14,6 +14,8 @@ import { ResultsCharts } from "./dashboard/ResultsCharts";
 interface Props {
   result: AnalysisResult;
   massKg?: number;
+  bikeType?: BikeType;
+  positionIdx?: number;
 }
 
 /**
@@ -33,14 +35,14 @@ interface Props {
  * This replaces the previous 657-line monolith; everything that was
  * here moved to one of the specialised files listed above.
  */
-export default function ResultsDashboard({ result, massKg }: Props) {
+export default function ResultsDashboard({ result, massKg, bikeType, positionIdx }: Props) {
   const badFit = result.r_squared < 0.3;
   const unreliable = result.r_squared < 0;
 
   return (
     <div className="space-y-6">
       <ResultsHeader result={result} />
-      <ResultsHero result={result} unreliable={unreliable} />
+      <ResultsHero result={result} unreliable={unreliable} bikeType={bikeType} positionIdx={positionIdx} />
       <ResultsDiagnostics result={result} unreliable={unreliable} badFit={badFit} />
       <ResultsSecondaryStats result={result} unreliable={unreliable} />
       {!unreliable && (

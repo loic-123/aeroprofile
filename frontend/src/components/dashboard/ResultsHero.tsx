@@ -1,17 +1,20 @@
 import { useMemo } from "react";
-import type { AnalysisResult } from "../../types";
+import type { AnalysisResult, BikeType } from "../../types";
 import { getHistory } from "../../api/history";
 import { getActiveProfile } from "../../api/profiles";
 import { conformalIntervalForCda } from "../../lib/conformal";
 import { Card, Badge } from "../ui";
 import InfoTooltip from "../InfoTooltip";
 import PositionSchematic from "../PositionSchematic";
+import { PositionDelta } from "../PositionDelta";
 import { motion } from "framer-motion";
 import { useNumberRoll } from "../../hooks/useNumberRoll";
 
 interface Props {
   result: AnalysisResult;
   unreliable: boolean;
+  bikeType?: BikeType;
+  positionIdx?: number;
 }
 
 /**
@@ -25,7 +28,7 @@ interface Props {
  * top on narrow viewports. Whole card is elevated two steps so it
  * visually stands out from the rest of the dashboard.
  */
-export function ResultsHero({ result, unreliable }: Props) {
+export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props) {
   const factor = result.prior_adaptive_factor ?? 1.0;
   const showFactor = factor > 1.05;
   const raw = result.cda_raw;
@@ -79,7 +82,11 @@ export function ResultsHero({ result, unreliable }: Props) {
     }
   }, []);
 
+  const showPositionDelta =
+    !unreliable && bikeType != null && positionIdx != null && positionIdx > 0;
+
   return (
+    <div className="space-y-4">
     <Card elevation={3} className="p-6 md:p-10 overflow-hidden relative">
       {/* Subtle iris radial glow behind the hero number */}
       <div
@@ -186,5 +193,13 @@ export function ResultsHero({ result, unreliable }: Props) {
         )}
       </div>
     </Card>
+    {showPositionDelta && (
+      <PositionDelta
+        cda={result.cda}
+        bikeType={bikeType!}
+        positionIdx={positionIdx}
+      />
+    )}
+    </div>
   );
 }

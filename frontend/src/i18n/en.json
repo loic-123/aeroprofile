@@ -191,16 +191,19 @@
   },
   "breakdown": {
     "title": "CdA by gradient regime",
-    "flat": "Flat",
-    "climb": "Climb",
-    "descent": "Descent",
-    "notEnough": "Not enough points to estimate this regime."
+    "subtitle": "Big asymmetry = sign of bias OR real position change",
+    "flat": "Flat (±2%)",
+    "climb": "Climb (>+2%)",
+    "descent": "Descent (<−2%)",
+    "flatNote": "most informative for CdA",
+    "climbNote": "often biased (gravity dominates)",
+    "descentNote": "high V_air, strong aero signal",
+    "asymmetryWarn": "{{spread}} m² spread between regimes - check that the API wind is representative of the ride."
   },
   "derived": {
-    "title": "Derived metrics (average)",
-    "watts": "W",
-    "speed": "km/h",
-    "footnote": "Watts to ride on the flat ({{mass}} kg, no wind, ρ = {{rho}})"
+    "title": "Power to ride on the flat",
+    "conditions": "{{mass}} kg · ρ = {{rho}} · no wind",
+    "aeroAt40": "At 40 km/h: <strong>{{share}}%</strong> of the power overcomes the air, the rest is rolling resistance."
   },
   "charts": {
     "speedPower": "Speed vs power",

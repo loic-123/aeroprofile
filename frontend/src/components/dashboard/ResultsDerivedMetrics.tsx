@@ -1,3 +1,4 @@
+import { useTranslation, Trans } from "react-i18next";
 import type { AnalysisResult } from "../../types";
 import { Card } from "../ui";
 import InfoTooltip from "../InfoTooltip";
@@ -13,6 +14,7 @@ interface Props {
  * session's average air density for realism.
  */
 export function ResultsDerivedMetrics({ result, massKg }: Props) {
+  const { t } = useTranslation();
   const rho = result.avg_rho;
   const cda = result.cda;
   const crr = result.crr;
@@ -38,11 +40,11 @@ export function ResultsDerivedMetrics({ result, massKg }: Props) {
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <h3 className="text-sm font-semibold flex items-center">
-            Puissance pour rouler sur le plat
+            {t("derived.title")}
             <InfoTooltip text={`Watts nécessaires pour maintenir une vitesse donnée sur le plat, sans vent, pour ${mass} kg avec votre CdA et Crr. Air à densité de votre sortie.`} />
           </h3>
           <p className="text-xs text-muted mt-0.5">
-            {mass} kg · ρ = {rho.toFixed(3)} · pas de vent
+            {t("derived.conditions", { mass, rho: rho.toFixed(3) })}
           </p>
         </div>
       </div>
@@ -62,9 +64,11 @@ export function ResultsDerivedMetrics({ result, massKg }: Props) {
         </tbody>
       </table>
       <div className="text-xs text-muted mt-3 pt-3 border-t border-border/40 flex items-center gap-1 flex-wrap">
-        À 40 km/h :{" "}
-        <span className="text-text font-mono">{aeroShare.toFixed(0)}%</span> de
-        la puissance vainc l'air, le reste le roulement.
+        <Trans
+          i18nKey="derived.aeroAt40"
+          values={{ share: aeroShare.toFixed(0) }}
+          components={{ strong: <span className="text-text font-mono" /> }}
+        />
         <InfoTooltip text="Part de la puissance qui va dans la traînée aérodynamique (le reste va dans la résistance au roulement). À basse vitesse la roue domine ; à haute vitesse l'air domine (loi en v² pour la force, v³ pour la puissance)." />
       </div>
     </Card>

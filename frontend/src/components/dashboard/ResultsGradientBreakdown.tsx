@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { AnalysisResult } from "../../types";
 import { Card, Badge } from "../ui";
 import InfoTooltip from "../InfoTooltip";
@@ -14,6 +15,7 @@ interface Props {
  * low-power climb and high-power descent.
  */
 export function ResultsGradientBreakdown({ result }: Props) {
+  const { t } = useTranslation();
   const { cda_climb, cda_descent, cda_flat } = result;
   if (cda_climb == null && cda_descent == null && cda_flat == null) return null;
 
@@ -31,21 +33,21 @@ export function ResultsGradientBreakdown({ result }: Props) {
   }[] = [
     {
       icon: <Minus size={14} aria-hidden />,
-      label: "Plat (±2%)",
+      label: t("breakdown.flat"),
       val: cda_flat,
-      note: "le plus informatif pour le CdA",
+      note: t("breakdown.flatNote"),
     },
     {
       icon: <Mountain size={14} aria-hidden />,
-      label: "Montée (>+2%)",
+      label: t("breakdown.climb"),
       val: cda_climb,
-      note: "souvent biaisé (gravité domine)",
+      note: t("breakdown.climbNote"),
     },
     {
       icon: <TrendingDown size={14} aria-hidden />,
-      label: "Descente (<−2%)",
+      label: t("breakdown.descent"),
       val: cda_descent,
-      note: "V_air élevé, fort signal aéro",
+      note: t("breakdown.descentNote"),
     },
   ];
 
@@ -54,11 +56,11 @@ export function ResultsGradientBreakdown({ result }: Props) {
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
           <h3 className="text-sm font-semibold flex items-center">
-            CdA par régime de pente
+            {t("breakdown.title")}
             <InfoTooltip text="CdA recalculé séparément sur les portions montantes (>+2%), descendantes (<−2%) et plates (±2%). Un écart > 0.08 m² entre les trois suggère un biais : vent asymétrique mal capturé, dérive du capteur à haute puissance, ou changement de position entre montée et descente. Ce n'est pas forcément une erreur — les cyclistes se redressent VRAIMENT en montée lente." />
           </h3>
           <p className="text-xs text-muted mt-0.5">
-            Grosse asymétrie = signal de biais OU changement de position réel
+            {t("breakdown.subtitle")}
           </p>
         </div>
         {asymmetric && (
@@ -85,8 +87,7 @@ export function ResultsGradientBreakdown({ result }: Props) {
         <div className="mt-3 pt-3 border-t border-border/60 text-xs text-warn flex items-start gap-2">
           <AlertTriangle size={14} className="shrink-0 mt-0.5" aria-hidden />
           <span>
-            Écart de {spread.toFixed(3)} m² entre régimes — vérifiez que le
-            vent API est représentatif de la sortie.
+            {t("breakdown.asymmetryWarn", { spread: spread.toFixed(3) })}
           </span>
         </div>
       )}

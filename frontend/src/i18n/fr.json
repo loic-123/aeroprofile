@@ -191,16 +191,19 @@
   },
   "breakdown": {
     "title": "CdA par régime de pente",
-    "flat": "Plat",
-    "climb": "Montée",
-    "descent": "Descente",
-    "notEnough": "Pas assez de points pour estimer ce régime."
+    "subtitle": "Grosse asymétrie = signal de biais OU changement de position réel",
+    "flat": "Plat (±2%)",
+    "climb": "Montée (>+2%)",
+    "descent": "Descente (<−2%)",
+    "flatNote": "le plus informatif pour le CdA",
+    "climbNote": "souvent biaisé (gravité domine)",
+    "descentNote": "V_air élevé, fort signal aéro",
+    "asymmetryWarn": "Écart de {{spread}} m² entre régimes - vérifie que le vent API est représentatif de la sortie."
   },
   "derived": {
-    "title": "Métriques dérivées (moyenne)",
-    "watts": "W",
-    "speed": "km/h",
-    "footnote": "Watts pour rouler sur le plat ({{mass}} kg, pas de vent, ρ = {{rho}})"
+    "title": "Puissance pour rouler sur le plat",
+    "conditions": "{{mass}} kg · ρ = {{rho}} · pas de vent",
+    "aeroAt40": "À 40 km/h : <strong>{{share}}%</strong> de la puissance vainc l'air, le reste le roulement."
   },
   "charts": {
     "speedPower": "Vitesse vs puissance",

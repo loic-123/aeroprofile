@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useTranslation, Trans } from "react-i18next";
 import { AlertCircle, AlertTriangle, CheckCircle2, Wind } from "lucide-react";
 import type { AnalysisResult } from "../../types";
 import { Button, Card } from "../ui";
@@ -25,6 +25,7 @@ interface Props {
  * failure first).
  */
 export function ResultsDiagnostics({ result, unreliable, badFit, onReanalyzeWithWind }: Props) {
+  const { t } = useTranslation();
   const showChungNote = result.solver_method === "chung_ve";
   const hasWindDiag =
     result.wind_fragility != null && result.wind_fragility !== "unknown";
@@ -45,23 +46,19 @@ export function ResultsDiagnostics({ result, unreliable, badFit, onReanalyzeWith
           <AlertCircle className="text-danger shrink-0" size={20} aria-hidden />
           <div className="text-sm">
             <div className="font-semibold text-danger">
-              CdA et Crr non estimables sur cette sortie (R² = {result.r_squared.toFixed(2)})
+              {t("diag.unreliableTitle", { r2: result.r_squared.toFixed(2) })}
             </div>
             <p className="mt-1 text-muted-strong">
-              Le modèle physique ne s'applique pas : il y a une ou plusieurs
-              forces non prises en compte (vent réel très différent de la météo
-              API, drafting massif, freins qui frottent, capteur défectueux…).{" "}
-              <strong className="text-text">Les valeurs ci-dessous ne sont pas fiables</strong> —
-              le solveur a trouvé le « moins mauvais » fit possible, pas une
-              mesure correcte.
+              <Trans
+                i18nKey="diag.unreliableBody1"
+                components={{ strong: <strong className="text-text" /> }}
+              />
             </p>
             <p className="mt-2 text-muted-strong">
-              Ce que vous pouvez quand même exploiter : le{" "}
-              <strong className="text-text">breakdown plat / montée / descente</strong>{" "}
-              ci-dessous (qui reste qualitativement parlant), et la{" "}
-              <strong className="text-text">direction du biais des résidus</strong>{" "}
-              dans les alertes (qui indique s'il faut chercher un capteur sur-
-              ou sous-calibré).
+              <Trans
+                i18nKey="diag.unreliableBody2"
+                components={{ strong: <strong className="text-text" /> }}
+              />
             </p>
           </div>
         </Card>
@@ -72,17 +69,13 @@ export function ResultsDiagnostics({ result, unreliable, badFit, onReanalyzeWith
           <AlertCircle className="text-danger shrink-0" size={20} aria-hidden />
           <div className="text-sm">
             <div className="font-semibold text-danger">
-              Qualité d'ajustement faible (R² = {result.r_squared.toFixed(2)})
+              {t("diag.badFitTitle", { r2: result.r_squared.toFixed(2) })}
             </div>
             <p className="mt-1 text-muted-strong">
-              Le modèle physique n'explique pas bien cette sortie. Causes
-              probables : capteur de puissance mal calibré, altitude GPS très
-              bruitée, beaucoup de drafting ou de freinages, ou sortie peu
-              adaptée (vélo à assistance, cyclocross, VTT en sous-bois).{" "}
-              <strong className="text-text">
-                Les valeurs CdA et Crr sont à prendre avec beaucoup de
-                précaution.
-              </strong>
+              <Trans
+                i18nKey="diag.badFitBody"
+                components={{ strong: <strong className="text-text" /> }}
+              />
             </p>
           </div>
         </Card>
@@ -91,7 +84,7 @@ export function ResultsDiagnostics({ result, unreliable, badFit, onReanalyzeWith
       {showChungNote && (
         <Card tone="info" elevation={0} className="p-3 text-sm">
           <div className="font-semibold text-info">
-            Méthode : Chung (Virtual Elevation)
+            {t("diag.chungTitle")}
           </div>
           {result.solver_note && (
             <p className="mt-1 text-xs text-muted-strong">
@@ -132,6 +125,7 @@ function hasPowerMeterWarning(result: AnalysisResult): boolean {
 }
 
 function PowerMeterBanner({ result }: { result: AnalysisResult }) {
+  const { t } = useTranslation();
   const quality = result.power_meter_quality;
   const display = result.power_meter_display;
   const warning = result.power_meter_warning || "";
@@ -148,9 +142,9 @@ function PowerMeterBanner({ result }: { result: AnalysisResult }) {
 
   if (!hasWarning) {
     const parts: string[] = [];
-    if (display && quality === "high") parts.push(`Capteur : ${display}`);
+    if (display && quality === "high") parts.push(t("diag.pmOkLabel", { display }));
     if (bias != null && biasN >= 60)
-      parts.push(`calibration OK (biais ×${bias.toFixed(2)})`);
+      parts.push(t("diag.pmCalibOk", { value: bias.toFixed(2) }));
     if (!parts.length) return null;
     return (
       <div className="text-[11px] text-muted font-mono flex items-center gap-1.5 opacity-80">
@@ -167,23 +161,13 @@ function PowerMeterBanner({ result }: { result: AnalysisResult }) {
   let biasMsg = "";
   if (biasHigh) {
     const pct = Math.round((bias! - 1) * 100);
-    biasMsg =
-      `**Capteur probablement mal calibré.** Sur les portions plates pédalées ` +
-      `(${biasN} points), la puissance mesurée est ${pct}% plus haute que la ` +
-      `valeur théorique pour un CdA/Crr typique. C'est le signe d'un capteur ` +
-      `avec offset stuck ou d'un zero-offset manquant. Recalibrez avant la ` +
-      `prochaine sortie.`;
+    biasMsg = t("diag.pmBiasHigh", { n: biasN, pct });
   } else if (biasMild) {
     const pct = Math.round((bias! - 1) * 100);
-    biasMsg =
-      `Puissance mesurée ${pct}% au-dessus de la valeur théorique (${biasN} ` +
-      `points plats). Peut indiquer une légère dérive de calibration, ou ` +
-      `simplement un profil plus musclé que la moyenne.`;
+    biasMsg = t("diag.pmBiasMild", { n: biasN, pct });
   } else if (biasLow) {
     const pct = Math.round((1 - bias!) * 100);
-    biasMsg =
-      `Puissance mesurée ${pct}% sous la valeur théorique (${biasN} points ` +
-      `plats). Capteur sous-estimé ou vent arrière important non modélisé.`;
+    biasMsg = t("diag.pmBiasLow", { n: biasN, pct });
   }
 
   const sensorWarn = quality && quality !== "high" ? warning : "";
@@ -205,10 +189,10 @@ function PowerMeterBanner({ result }: { result: AnalysisResult }) {
       )}
       <div className="text-sm flex-1 min-w-0">
         <div className={`font-semibold ${iconClass}`}>
-          Capteur de puissance : {display ?? "inconnu"}
+          {t("diag.pmBanner", { display: display ?? t("diag.pmUnknown") })}
           {bias != null && biasN >= 60 && (
             <span className="ml-2 text-[11px] font-mono opacity-80">
-              biais ×{bias.toFixed(2)}
+              {t("diag.pmBiasBadge", { value: bias.toFixed(2) })}
             </span>
           )}
         </div>
@@ -228,21 +212,22 @@ function PowerMeterBanner({ result }: { result: AnalysisResult }) {
 }
 
 function WindSensitivityBanner({ delta }: { delta: number }) {
+  const { t } = useTranslation();
   const abs = Math.abs(delta);
   const tone: "primary" | "warn" | "danger" =
     abs < 0.005 ? "primary" : abs < 0.015 ? "warn" : "danger";
   const toneText =
     tone === "primary" ? "text-success" : tone === "warn" ? "text-warn" : "text-danger";
   const label =
-    tone === "primary" ? "robuste" : tone === "warn" ? "modérément sensible" : "fragile";
+    tone === "primary" ? t("diag.windSensRobust") : tone === "warn" ? t("diag.windSensModerate") : t("diag.windSensFragile");
 
   return (
     <div className="bg-panel border border-border/60 rounded-lg px-4 py-2.5 text-xs flex items-center gap-3 flex-wrap">
       <span className="font-semibold text-muted uppercase tracking-wide">
-        Sensibilité au vent
+        {t("diag.windSensTitle")}
       </span>
       <span className="font-mono flex items-center gap-2">
-        <span className="text-muted">+5% wind →</span>
+        <span className="text-muted">{t("diag.windSensArrow")}</span>
         <span className={toneText}>
           Δ CdA = {delta >= 0 ? "+" : ""}
           {delta.toFixed(3)} m²

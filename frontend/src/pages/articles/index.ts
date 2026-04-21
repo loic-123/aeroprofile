@@ -10,6 +10,7 @@ import AggregationMethods from "./aggregation-methods";
 import DraftingDetection from "./drafting-detection";
 import IterativeRefinement from "./iterative-refinement";
 import WCdaMetric from "./w-cda-metric";
+import WCdaMetricEn from "./w-cda-metric.en";
 import IntervalsIntegration from "./intervals-integration";
 import PowerMeterQuality from "./power-meter-quality";
 import PriorInvariance from "./prior-invariance";
@@ -40,7 +41,7 @@ export const ARTICLES: Record<string, () => JSX.Element> = {
   "aggregation-methods": AggregationMethods,
   "drafting-detection": DraftingDetection,
   "iterative-refinement": IterativeRefinement,
-  "w-cda-metric": WCdaMetric,
+  "w-cda-metric": localized(WCdaMetric, WCdaMetricEn),
   "intervals-integration": IntervalsIntegration,
   "power-meter-quality": PowerMeterQuality,
   "prior-invariance": PriorInvariance,

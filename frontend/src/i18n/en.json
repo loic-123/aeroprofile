@@ -464,9 +464,8 @@
   },
   "landing": {
     "badge": "Open-source · v2026.04 · MIT",
-    "heroTitle1": "Estimate your",
-    "heroTitle2": "cycling",
-    "heroTitle3": "from any ride.",
+    "heroPart1": "Estimate your cycling",
+    "heroPart2": "from any ride.",
     "heroLede": "No velodrome. No protocol. No monthly fee. Drop a <fit>.fit</fit>, get a CdA with a calibrated confidence interval - and the complete methodology behind every number.",
     "ctaAnalyze": "Analyze your ride",
     "ctaMethod": "See how it works",

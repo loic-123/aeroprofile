@@ -35,11 +35,9 @@ export function LandingHero({ onCtaAnalyze, onCtaMethod }: Props) {
 
           <AnimatedBlock delay={60}>
             <h1 className="font-display text-4xl sm:text-5xl md:text-6xl leading-[1.05] text-text">
-              {t("landing.heroTitle1")}
+              {t("landing.heroPart1")} <span className="text-primary">CdA</span>
               <br />
-              {t("landing.heroTitle2")} <span className="text-primary">CdA</span>
-              <br />
-              {t("landing.heroTitle3")}
+              {t("landing.heroPart2")}
             </h1>
           </AnimatedBlock>
 

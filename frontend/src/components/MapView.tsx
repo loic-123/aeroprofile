@@ -1,17 +1,28 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import type { ProfileData } from "../types";
+import { buildCdASegments } from "../lib/mapSegments";
+import { MapCdALegend } from "./MapCdALegend";
+
+interface HoverState {
+  cda: number | null;
+  distanceKm: number;
+  x: number;
+  y: number;
+}
 
 export default function MapView({ profile }: { profile: ProfileData }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<HoverState | null>(null);
+
+  const { collection, stats } = useMemo(
+    () => buildCdASegments(profile),
+    [profile],
+  );
 
   useEffect(() => {
     if (!ref.current) return;
-    const coords: [number, number][] = [];
-    for (let i = 0; i < profile.lat.length; i++) {
-      coords.push([profile.lon[i], profile.lat[i]]);
-    }
-    if (coords.length === 0) return;
+    if (collection.features.length === 0) return;
 
     const lats = profile.lat;
     const lons = profile.lon;
@@ -28,30 +39,98 @@ export default function MapView({ profile }: { profile: ProfileData }) {
     });
 
     map.on("load", () => {
-      map.addSource("route", {
+      map.addSource("route-cda", {
         type: "geojson",
-        data: {
-          type: "Feature",
-          properties: {},
-          geometry: { type: "LineString", coordinates: coords },
+        data: collection as any,
+      });
+
+      // Filtered / invalid segments — drawn in muted grey under the coloured
+      // segments so the route still reads as a continuous shape.
+      map.addLayer({
+        id: "route-invalid",
+        type: "line",
+        source: "route-cda",
+        filter: ["!=", ["get", "valid"], true],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#3F3F46", "line-width": 2, "line-opacity": 0.6 },
+      });
+
+      // Valid segments coloured by rolling CdA on a p10/p50/p90 gradient.
+      map.addLayer({
+        id: "route-cda",
+        type: "line",
+        source: "route-cda",
+        filter: ["==", ["get", "valid"], true],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-width": 3.5,
+          "line-color": [
+            "interpolate",
+            ["linear"],
+            ["get", "cda"],
+            stats.q10,
+            "#10B981",
+            stats.median,
+            "#F59E0B",
+            stats.q90,
+            "#EF4444",
+          ],
         },
       });
-      map.addLayer({
-        id: "route",
-        type: "line",
-        source: "route",
-        layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#1D9E75", "line-width": 3 },
+
+      map.on("mousemove", ["route-cda", "route-invalid"], (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        map.getCanvas().style.cursor = "crosshair";
+        const props = f.properties as { cda: number | null; distance_km: number };
+        setHover({
+          cda: props.cda,
+          distanceKm: props.distance_km,
+          x: e.point.x,
+          y: e.point.y,
+        });
+      });
+      map.on("mouseleave", "route-cda", () => {
+        map.getCanvas().style.cursor = "";
+        setHover(null);
+      });
+      map.on("mouseleave", "route-invalid", () => {
+        map.getCanvas().style.cursor = "";
+        setHover(null);
       });
     });
 
     return () => map.remove();
-  }, [profile]);
+  }, [collection, stats, profile]);
 
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
-      <h3 className="text-sm font-semibold mb-3">Parcours</h3>
-      <div ref={ref} className="w-full h-96 rounded overflow-hidden" />
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold">Parcours</h3>
+        <span className="text-[10px] uppercase tracking-widest text-muted font-mono">
+          {stats.count > 0 ? `${stats.count} segments` : "pas de CdA"}
+        </span>
+      </div>
+      <div className="relative">
+        <div ref={ref} className="w-full h-80 md:h-96 rounded overflow-hidden" />
+        {hover && (
+          <div
+            className="pointer-events-none absolute bg-bg/95 border border-border rounded px-2 py-1 text-xs font-mono shadow-e2 whitespace-nowrap"
+            style={{
+              left: Math.min(hover.x + 12, 320),
+              top: Math.max(hover.y - 30, 4),
+            }}
+          >
+            <span className="text-muted">km </span>
+            <span className="text-text">{hover.distanceKm.toFixed(1)}</span>
+            <span className="text-muted ml-2">CdA </span>
+            <span className={hover.cda == null ? "text-muted" : "text-accent"}>
+              {hover.cda == null ? "filtré" : hover.cda.toFixed(3)}
+            </span>
+          </div>
+        )}
+      </div>
+      <MapCdALegend stats={stats} />
     </div>
   );
 }

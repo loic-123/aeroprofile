@@ -55,6 +55,7 @@ export default function AboutPage({
               i18nKey="about.p1"
               components={{
                 name: <span className="text-text font-medium" />,
+                imperial: <span className="text-text" />,
                 em: <em />,
               }}
             />
@@ -63,6 +64,7 @@ export default function AboutPage({
             <Trans
               i18nKey="about.p2"
               components={{
+                name: <span className="text-text font-medium" />,
                 imperial: <span className="text-text" />,
                 em: <em />,
               }}
@@ -71,13 +73,21 @@ export default function AboutPage({
           <p>
             <Trans
               i18nKey="about.p3"
-              components={{ em: <em /> }}
+              components={{
+                name: <span className="text-text font-medium" />,
+                imperial: <span className="text-text" />,
+                em: <em />,
+              }}
             />
           </p>
           <p className="text-muted">
             <Trans
               i18nKey="about.p4"
-              components={{ em: <em /> }}
+              components={{
+                name: <span className="text-text font-medium" />,
+                imperial: <span className="text-text" />,
+                em: <em />,
+              }}
             />
           </p>
         </div>

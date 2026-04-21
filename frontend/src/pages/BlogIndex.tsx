@@ -1,6 +1,7 @@
 import { Link } from "../components/BlogLayout";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
 
 type Category =
@@ -12,8 +13,6 @@ type Category =
 
 interface Article {
   slug: string;
-  title: string;
-  desc: string;
   tags: string[];
   category: Category;
   readMin: number;
@@ -21,121 +20,20 @@ interface Article {
 }
 
 const ARTICLES: Article[] = [
-  {
-    slug: "power-equation",
-    title: "L'équation de puissance en cyclisme : Martin et al. (1998)",
-    desc: "Comment 4 forces physiques (aéro, roulement, gravité, accélération) déterminent la puissance que vous devez produire. La base de tout.",
-    tags: ["physique", "fondamentaux"],
-    category: "Fundamentals",
-    readMin: 6,
-  },
-  {
-    slug: "cda-what-is-it",
-    title: "CdA : qu'est-ce que c'est et pourquoi c'est important ?",
-    desc: "Le coefficient de traînée aérodynamique expliqué simplement. Comment il varie selon votre position, votre équipement, et pourquoi 0.01 de CdA fait une vraie différence.",
-    tags: ["aéro", "fondamentaux"],
-    category: "Fundamentals",
-    readMin: 5,
-  },
-  {
-    slug: "wind-correction",
-    title: "Correction du vent : de l'API météo au wind-inverse",
-    desc: "Le vent est la plus grosse source d'erreur. Comment on le corrige : API Open-Meteo, tuilage spatial, profil logarithmique 10m→1m, et estimation inverse depuis vos données.",
-    tags: ["vent", "météo", "avancé"],
-    category: "Algorithms",
-    readMin: 12,
-    featured: true,
-  },
-  {
-    slug: "solvers",
-    title: "Les 3 solveurs d'AeroProfile : Martin LS, Chung VE, Wind-Inverse",
-    desc: "Pourquoi un seul solveur ne suffit pas, et comment AeroProfile choisit automatiquement la meilleure méthode pour chaque sortie.",
-    tags: ["solveur", "algorithme"],
-    category: "Algorithms",
-    readMin: 10,
-  },
-  {
-    slug: "filters",
-    title: "Filtrage des données : comment on sépare le signal du bruit",
-    desc: "13 filtres, du freinage au drafting, et pourquoi chaque point exclu rend le résultat plus fiable.",
-    tags: ["filtrage", "qualité"],
-    category: "Algorithms",
-    readMin: 8,
-  },
-  {
-    slug: "iterative-refinement",
-    title: "Raffinement itératif : n'utiliser que les points où le modèle fonctionne",
-    desc: "Deux passes automatiques : résoudre, identifier les zones de divergence altitude réelle/virtuelle, exclure, re-résoudre. Comme Golden Cheetah, mais automatisé.",
-    tags: ["solveur", "avancé"],
-    category: "Algorithms",
-    readMin: 7,
-  },
-  {
-    slug: "drafting-detection",
-    title: "Détection du drafting : quand rouler en groupe fausse le CdA",
-    desc: "Pourquoi le CdA apparent chute de 30-40% dans un peloton, comment on le détecte, et ce qu'on peut quand même apprendre.",
-    tags: ["drafting", "groupe"],
-    category: "Algorithms",
-    readMin: 6,
-  },
-  {
-    slug: "yaw-angle",
-    title: "L'angle de yaw : pourquoi le vent de côté change votre CdA",
-    desc: "Quand le vent arrive en biais, votre traînée augmente. Comment on corrige pour reporter un CdA 'soufflerie'.",
-    tags: ["aéro", "avancé"],
-    category: "Diagnostics",
-    readMin: 6,
-  },
-  {
-    slug: "bayesian-priors",
-    title: "Priors bayésiens : comment stabiliser le solveur",
-    desc: "Quand les données sont insuffisantes, un prior doux empêche le solveur de diverger. Explication intuitive et mathématique. Inclut le piège du prior en multi-rides.",
-    tags: ["statistiques", "avancé"],
-    category: "Statistics",
-    readMin: 10,
-  },
-  {
-    slug: "aggregation-methods",
-    title: "Méthodes d'agrégation multi-rides : inverse-variance vs hiérarchique",
-    desc: "Comment AeroProfile combine N rides en un seul CdA représentatif : moyenne pondérée par la précision (méthode A) et méta-analyse hiérarchique DerSimonian–Laird (méthode hiérarchique).",
-    tags: ["statistiques", "multi-rides", "avancé"],
-    category: "Statistics",
-    readMin: 10,
-    featured: true,
-  },
-  {
-    slug: "prior-invariance",
-    title: "L'invariance au prior : pourquoi votre choix de position ne devrait pas bouger le CdA agrégé",
-    desc: "Le test de cohérence le plus puissant en méta-analyse : relancer la même analyse avec deux priors différents. Quand l'invariance casse, c'est presque toujours un bug de convergence - et l'histoire d'un fix sur un dataset 4iiii mono-jambe bruité.",
-    tags: ["statistiques", "diagnostic", "avancé"],
-    category: "Statistics",
-    readMin: 8,
-    featured: true,
-  },
-  {
-    slug: "power-meter-quality",
-    title: "Le capteur de puissance : la source d'erreur que le solveur ne peut pas corriger",
-    desc: "Pourquoi les capteurs mono-jambe (4iiii, Stages left) donnent un CdA 2× plus variable, et comment AeroProfile détecte un biais de calibration indépendamment du solveur.",
-    tags: ["capteur", "calibration", "diagnostic"],
-    category: "Diagnostics",
-    readMin: 7,
-  },
-  {
-    slug: "w-cda-metric",
-    title: "W/CdA : la métrique des rouleurs (l'analogue du W/kg)",
-    desc: "La puissance rapportée à la traînée aéro détermine votre vitesse sur le plat. Tableau de correspondance W/CdA → km/h.",
-    tags: ["aéro", "fondamentaux"],
-    category: "Tools",
-    readMin: 5,
-  },
-  {
-    slug: "intervals-integration",
-    title: "Intégration Intervals.icu : analyser un an de sorties en un clic",
-    desc: "Connectez votre compte, filtrez vos rides, et obtenez un CdA moyen pondéré sur des dizaines de sorties. Les 4 niveaux de filtrage expliqués.",
-    tags: ["intégration", "workflow"],
-    category: "Tools",
-    readMin: 4,
-  },
+  { slug: "power-equation", tags: ["physique", "fondamentaux"], category: "Fundamentals", readMin: 6 },
+  { slug: "cda-what-is-it", tags: ["aéro", "fondamentaux"], category: "Fundamentals", readMin: 5 },
+  { slug: "wind-correction", tags: ["vent", "météo", "avancé"], category: "Algorithms", readMin: 12, featured: true },
+  { slug: "solvers", tags: ["solveur", "algorithme"], category: "Algorithms", readMin: 10 },
+  { slug: "filters", tags: ["filtrage", "qualité"], category: "Algorithms", readMin: 8 },
+  { slug: "iterative-refinement", tags: ["solveur", "avancé"], category: "Algorithms", readMin: 7 },
+  { slug: "drafting-detection", tags: ["drafting", "groupe"], category: "Algorithms", readMin: 6 },
+  { slug: "yaw-angle", tags: ["aéro", "avancé"], category: "Diagnostics", readMin: 6 },
+  { slug: "bayesian-priors", tags: ["statistiques", "avancé"], category: "Statistics", readMin: 10 },
+  { slug: "aggregation-methods", tags: ["statistiques", "multi-rides", "avancé"], category: "Statistics", readMin: 10, featured: true },
+  { slug: "prior-invariance", tags: ["statistiques", "diagnostic", "avancé"], category: "Statistics", readMin: 8, featured: true },
+  { slug: "power-meter-quality", tags: ["capteur", "calibration", "diagnostic"], category: "Diagnostics", readMin: 7 },
+  { slug: "w-cda-metric", tags: ["aéro", "fondamentaux"], category: "Tools", readMin: 5 },
+  { slug: "intervals-integration", tags: ["intégration", "workflow"], category: "Tools", readMin: 4 },
 ];
 
 const CATEGORY_ORDER: Category[] = [
@@ -146,15 +44,8 @@ const CATEGORY_ORDER: Category[] = [
   "Tools",
 ];
 
-const CATEGORY_DESCRIPTIONS: Record<Category, string> = {
-  Fundamentals: "The physics and vocabulary every reader should start with.",
-  Algorithms: "Solvers, filters, and the pipeline architecture.",
-  Statistics: "Priors, meta-analysis, and the regression tests that guard them.",
-  Diagnostics: "What to inspect when a number looks wrong.",
-  Tools: "Workflows and practical references.",
-};
-
 export default function BlogIndex() {
+  const { t } = useTranslation();
   const featured = ARTICLES.filter((a) => a.featured);
   const byCategory: Record<Category, Article[]> = {
     Fundamentals: [],
@@ -215,7 +106,7 @@ export default function BlogIndex() {
                   {cat}
                 </h2>
                 <p className="text-xs text-muted mt-0.5">
-                  {CATEGORY_DESCRIPTIONS[cat]}
+                  {t(`blogIndex.categoryDesc.${cat}`)}
                 </p>
               </header>
               <ul className="divide-y divide-border/40">
@@ -225,10 +116,10 @@ export default function BlogIndex() {
                       <div className="group py-3 flex items-start justify-between gap-6 transition-colors hover:bg-panel/40 -mx-2 px-2 rounded">
                         <div className="min-w-0">
                           <div className="text-sm text-text font-medium leading-snug group-hover:text-primary transition-colors">
-                            {a.title}
+                            {t(`blogIndex.articles.${a.slug}.title`)}
                           </div>
                           <p className="text-xs text-muted mt-1 leading-relaxed line-clamp-2">
-                            {a.desc}
+                            {t(`blogIndex.articles.${a.slug}.desc`)}
                           </p>
                         </div>
                         <div className="shrink-0 text-[10px] font-mono text-muted whitespace-nowrap pt-1">
@@ -248,6 +139,7 @@ export default function BlogIndex() {
 }
 
 function FeaturedCard({ article: a, index }: { article: Article; index: number }) {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -267,14 +159,14 @@ function FeaturedCard({ article: a, index }: { article: Article; index: number }
             <span className="font-mono">{a.readMin} min</span>
           </div>
           <h3 className="text-base font-semibold text-text leading-snug mb-2 group-hover:text-primary transition-colors">
-            {a.title}
+            {t(`blogIndex.articles.${a.slug}.title`)}
           </h3>
           <p className="text-xs text-muted-strong leading-relaxed line-clamp-3">
-            {a.desc}
+            {t(`blogIndex.articles.${a.slug}.desc`)}
           </p>
           <div className="flex gap-1.5 mt-auto pt-4 flex-wrap">
-            {a.tags.map((t) => (
-              <TagPill key={t}>{t}</TagPill>
+            {a.tags.map((tag) => (
+              <TagPill key={tag}>{t(`blogIndex.tags.${tag}`, { defaultValue: tag })}</TagPill>
             ))}
           </div>
         </article>

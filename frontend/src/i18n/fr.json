@@ -378,6 +378,94 @@
     "legendVReal": "V réelle",
     "legendVSim": "V simulée"
   },
+  "blogIndex": {
+    "categoryDesc": {
+      "Fundamentals": "La physique et le vocabulaire par lesquels chaque lecteur devrait commencer.",
+      "Algorithms": "Solveurs, filtres et architecture du pipeline.",
+      "Statistics": "Priors, méta-analyse et les tests de régression qui les gardent.",
+      "Diagnostics": "Ce qu'il faut inspecter quand un chiffre semble faux.",
+      "Tools": "Workflows et références pratiques."
+    },
+    "articles": {
+      "power-equation": {
+        "title": "L'équation de puissance en cyclisme : Martin et al. (1998)",
+        "desc": "Comment 4 forces physiques (aéro, roulement, gravité, accélération) déterminent la puissance que vous devez produire. La base de tout."
+      },
+      "cda-what-is-it": {
+        "title": "CdA : qu'est-ce que c'est et pourquoi c'est important ?",
+        "desc": "Le coefficient de traînée aérodynamique expliqué simplement. Comment il varie selon votre position, votre équipement, et pourquoi 0.01 de CdA fait une vraie différence."
+      },
+      "wind-correction": {
+        "title": "Correction du vent : de l'API météo au wind-inverse",
+        "desc": "Le vent est la plus grosse source d'erreur. Comment on le corrige : API Open-Meteo, tuilage spatial, profil logarithmique 10m→1m, et estimation inverse depuis vos données."
+      },
+      "solvers": {
+        "title": "Les 3 solveurs d'AeroProfile : Martin LS, Chung VE, Wind-Inverse",
+        "desc": "Pourquoi un seul solveur ne suffit pas, et comment AeroProfile choisit automatiquement la meilleure méthode pour chaque sortie."
+      },
+      "filters": {
+        "title": "Filtrage des données : comment on sépare le signal du bruit",
+        "desc": "13 filtres, du freinage au drafting, et pourquoi chaque point exclu rend le résultat plus fiable."
+      },
+      "iterative-refinement": {
+        "title": "Raffinement itératif : n'utiliser que les points où le modèle fonctionne",
+        "desc": "Deux passes automatiques : résoudre, identifier les zones de divergence altitude réelle/virtuelle, exclure, re-résoudre. Comme Golden Cheetah, mais automatisé."
+      },
+      "drafting-detection": {
+        "title": "Détection du drafting : quand rouler en groupe fausse le CdA",
+        "desc": "Pourquoi le CdA apparent chute de 30-40% dans un peloton, comment on le détecte, et ce qu'on peut quand même apprendre."
+      },
+      "yaw-angle": {
+        "title": "L'angle de yaw : pourquoi le vent de côté change votre CdA",
+        "desc": "Quand le vent arrive en biais, votre traînée augmente. Comment on corrige pour reporter un CdA 'soufflerie'."
+      },
+      "bayesian-priors": {
+        "title": "Priors bayésiens : comment stabiliser le solveur",
+        "desc": "Quand les données sont insuffisantes, un prior doux empêche le solveur de diverger. Explication intuitive et mathématique. Inclut le piège du prior en multi-rides."
+      },
+      "aggregation-methods": {
+        "title": "Méthodes d'agrégation multi-rides : inverse-variance vs hiérarchique",
+        "desc": "Comment AeroProfile combine N rides en un seul CdA représentatif : moyenne pondérée par la précision (méthode A) et méta-analyse hiérarchique DerSimonian-Laird (méthode hiérarchique)."
+      },
+      "prior-invariance": {
+        "title": "L'invariance au prior : pourquoi votre choix de position ne devrait pas bouger le CdA agrégé",
+        "desc": "Le test de cohérence le plus puissant en méta-analyse : relancer la même analyse avec deux priors différents. Quand l'invariance casse, c'est presque toujours un bug de convergence - et l'histoire d'un fix sur un dataset 4iiii mono-jambe bruité."
+      },
+      "power-meter-quality": {
+        "title": "Le capteur de puissance : la source d'erreur que le solveur ne peut pas corriger",
+        "desc": "Pourquoi les capteurs mono-jambe (4iiii, Stages left) donnent un CdA 2× plus variable, et comment AeroProfile détecte un biais de calibration indépendamment du solveur."
+      },
+      "w-cda-metric": {
+        "title": "W/CdA : la métrique des rouleurs (l'analogue du W/kg)",
+        "desc": "La puissance rapportée à la traînée aéro détermine votre vitesse sur le plat. Tableau de correspondance W/CdA → km/h."
+      },
+      "intervals-integration": {
+        "title": "Intégration Intervals.icu : analyser un an de sorties en un clic",
+        "desc": "Connectez votre compte, filtrez vos rides, et obtenez un CdA moyen pondéré sur des dizaines de sorties. Les 4 niveaux de filtrage expliqués."
+      }
+    },
+    "tags": {
+      "physique": "physique",
+      "fondamentaux": "fondamentaux",
+      "aéro": "aéro",
+      "vent": "vent",
+      "météo": "météo",
+      "avancé": "avancé",
+      "solveur": "solveur",
+      "algorithme": "algorithme",
+      "filtrage": "filtrage",
+      "qualité": "qualité",
+      "drafting": "drafting",
+      "groupe": "groupe",
+      "statistiques": "statistiques",
+      "multi-rides": "multi-rides",
+      "diagnostic": "diagnostic",
+      "capteur": "capteur",
+      "calibration": "calibration",
+      "intégration": "intégration",
+      "workflow": "workflow"
+    }
+  },
   "profile": {
     "label": "Profil :",
     "activeTooltip": "Profil actif - cliquez pour recharger ses paramètres",

@@ -378,6 +378,94 @@
     "legendVReal": "Real V",
     "legendVSim": "Simulated V"
   },
+  "blogIndex": {
+    "categoryDesc": {
+      "Fundamentals": "The physics and vocabulary every reader should start with.",
+      "Algorithms": "Solvers, filters, and the pipeline architecture.",
+      "Statistics": "Priors, meta-analysis, and the regression tests that guard them.",
+      "Diagnostics": "What to inspect when a number looks wrong.",
+      "Tools": "Workflows and practical references."
+    },
+    "articles": {
+      "power-equation": {
+        "title": "The cycling power equation: Martin et al. (1998)",
+        "desc": "How 4 physical forces (aero, rolling, gravity, acceleration) determine the power you have to produce. The foundation of everything."
+      },
+      "cda-what-is-it": {
+        "title": "CdA: what is it and why does it matter?",
+        "desc": "The aerodynamic drag coefficient explained simply. How it varies with your position, your equipment, and why 0.01 of CdA makes a real difference."
+      },
+      "wind-correction": {
+        "title": "Wind correction: from the weather API to wind-inverse",
+        "desc": "Wind is the biggest source of error. How we correct it: Open-Meteo API, spatial tiling, 10 m → 1 m log profile, and inverse estimation from your data."
+      },
+      "solvers": {
+        "title": "The 3 AeroProfile solvers: Martin LS, Chung VE, Wind-Inverse",
+        "desc": "Why a single solver isn't enough, and how AeroProfile automatically picks the best method for each ride."
+      },
+      "filters": {
+        "title": "Data filtering: how we separate signal from noise",
+        "desc": "13 filters, from braking to drafting, and why every excluded point makes the result more reliable."
+      },
+      "iterative-refinement": {
+        "title": "Iterative refinement: only use the points where the model works",
+        "desc": "Two automatic passes: solve, flag zones where real / virtual altitude diverge, exclude, re-solve. Like Golden Cheetah, but automated."
+      },
+      "drafting-detection": {
+        "title": "Drafting detection: when riding in a group fools the CdA",
+        "desc": "Why apparent CdA drops 30-40% in a peloton, how we detect it, and what we can still learn."
+      },
+      "yaw-angle": {
+        "title": "Yaw angle: why crosswinds change your CdA",
+        "desc": "When the wind hits sideways, your drag rises. How we correct to report a 'wind-tunnel' CdA."
+      },
+      "bayesian-priors": {
+        "title": "Bayesian priors: how to stabilise the solver",
+        "desc": "When data is insufficient, a soft prior stops the solver from diverging. Intuitive and mathematical explanation. Includes the multi-ride prior trap."
+      },
+      "aggregation-methods": {
+        "title": "Multi-ride aggregation: inverse-variance vs hierarchical",
+        "desc": "How AeroProfile combines N rides into a single representative CdA: precision-weighted mean (method A) and DerSimonian-Laird hierarchical meta-analysis."
+      },
+      "prior-invariance": {
+        "title": "Prior invariance: why your position choice should not move the aggregated CdA",
+        "desc": "The most powerful consistency test in meta-analysis: rerun the same analysis with two different priors. When invariance breaks it's almost always a convergence bug - and the story of a fix on a noisy 4iiii single-leg dataset."
+      },
+      "power-meter-quality": {
+        "title": "The power meter: the error source the solver cannot correct",
+        "desc": "Why single-leg sensors (4iiii, Stages left) give a 2× more variable CdA, and how AeroProfile detects a calibration bias independently of the solver."
+      },
+      "w-cda-metric": {
+        "title": "W/CdA: the rouleur's metric (the W/kg for flat terrain)",
+        "desc": "Power over aero drag determines your flat-terrain speed. W/CdA → km/h lookup table included."
+      },
+      "intervals-integration": {
+        "title": "Intervals.icu integration: analyse a year of rides in one click",
+        "desc": "Connect your account, filter your rides, and get a weighted-average CdA over dozens of rides. The 4 filtering levels explained."
+      }
+    },
+    "tags": {
+      "physique": "physics",
+      "fondamentaux": "fundamentals",
+      "aéro": "aero",
+      "vent": "wind",
+      "météo": "weather",
+      "avancé": "advanced",
+      "solveur": "solver",
+      "algorithme": "algorithm",
+      "filtrage": "filtering",
+      "qualité": "quality",
+      "drafting": "drafting",
+      "groupe": "group",
+      "statistiques": "statistics",
+      "multi-rides": "multi-rides",
+      "diagnostic": "diagnostic",
+      "capteur": "sensor",
+      "calibration": "calibration",
+      "intégration": "integration",
+      "workflow": "workflow"
+    }
+  },
   "profile": {
     "label": "Profile:",
     "activeTooltip": "Active profile - click to reload its settings",

@@ -18,7 +18,9 @@ import { Bike } from "lucide-react";
  */
 export default function AnalysisLoading() {
   const { t } = useTranslation();
-  // i18n array of strings — facts.1, facts.2, ... Read them in sequence.
+  // i18n array of strings — facts.1, facts.2, ..., shown in random order
+  // so a user who waits through several analyses doesn't see the exact
+  // same 1-2-3-4 cadence every time.
   const facts = [
     t("loading.facts.1"),
     t("loading.facts.2"),
@@ -29,14 +31,24 @@ export default function AnalysisLoading() {
     t("loading.facts.7"),
     t("loading.facts.8"),
   ];
-  const [factIdx, setFactIdx] = useState(0);
+  const n = facts.length;
+  // Start on a random fact so two consecutive analyses don't both
+  // greet the user with the same opener.
+  const [factIdx, setFactIdx] = useState(() => Math.floor(Math.random() * n));
 
   useEffect(() => {
     const id = setInterval(() => {
-      setFactIdx((i) => (i + 1) % facts.length);
+      setFactIdx((prev) => {
+        if (n <= 1) return prev;
+        // Pick a random next index different from the current one, so we
+        // never show the same fact twice in a row — even randomly.
+        let next = Math.floor(Math.random() * (n - 1));
+        if (next >= prev) next += 1;
+        return next;
+      });
     }, 9000);
     return () => clearInterval(id);
-  }, [facts.length]);
+  }, [n]);
 
   return (
     <div className="flex flex-col items-center py-12 px-4 gap-8">

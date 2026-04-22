@@ -20,6 +20,7 @@ import ProfilePicker from "../components/ProfilePicker";
 import type { AnalysisResult, HierarchicalAnalysisResult } from "../types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, isHardFailure, type BikeType } from "../types";
 import InfoTooltip from "../components/InfoTooltip";
+import { FormSection } from "../components/FormSection";
 import CdATotem from "../components/CdATotem";
 import CdARunningAvgChart from "../components/CdARunningAvgChart";
 import CdAEvolutionChart from "../components/CdAEvolutionChart";
@@ -603,8 +604,10 @@ export default function IntervalsPage() {
 
       {/* Connection */}
       <div className="bg-panel border border-border rounded-lg p-5">
-        <h3 className="text-sm font-semibold mb-3">{t("intervals.connection")}</h3>
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_150px_auto] gap-3 items-end">
+        <FormSection
+          title={t("formSections.connection.title")}
+          description={t("formSections.connection.desc")}
+        >
           <div>
             <label className="block text-xs text-muted mb-1">
               {t("intervals.apiKey")}
@@ -628,55 +631,45 @@ export default function IntervalsPage() {
               value={athleteId}
               onChange={(e) => setAthleteId(e.target.value)}
               placeholder="0"
-              className="w-full bg-bg border border-border rounded px-3 py-2 font-mono text-sm focus:outline-none focus:border-teal"
+              className="w-full max-w-[200px] bg-bg border border-border rounded px-3 py-2 font-mono text-sm focus:outline-none focus:border-teal"
             />
           </div>
           <button
             onClick={doConnect}
             disabled={connecting || !apiKey}
-            className="px-4 py-2 bg-teal hover:bg-teal/90 disabled:opacity-40 text-white rounded font-semibold text-sm flex items-center gap-2"
+            className="px-4 py-2 bg-teal hover:bg-teal/90 disabled:opacity-40 text-white rounded font-semibold text-sm flex items-center gap-2 w-fit"
           >
             {connecting ? <Loader2 className="animate-spin" size={14} /> : <Link2 size={14} />}
             Connecter
           </button>
-        </div>
-        {connError && <p className="text-coral text-sm mt-2">{connError}</p>}
-        {profile && (
-          <div className="mt-3 p-3 bg-teal/10 border border-teal/30 rounded text-sm">
-            <Trans
-              i18nKey="intervals.connectedLine"
-              values={{ name: profile.name, kg: profile.weight_kg, ftp: profile.ftp }}
-              components={{ strong: <strong /> }}
-            />
-          </div>
-        )}
+          {connError && <p className="text-coral text-sm">{connError}</p>}
+          {profile && (
+            <div className="p-3 bg-teal/10 border border-teal/30 rounded text-sm">
+              <Trans
+                i18nKey="intervals.connectedLine"
+                values={{ name: profile.name, kg: profile.weight_kg, ftp: profile.ftp }}
+                components={{ strong: <strong /> }}
+              />
+            </div>
+          )}
+        </FormSection>
       </div>
 
       {/* Filters + date range */}
       {profile && (
-        <div className="bg-panel border border-border rounded-lg p-5">
-          <h3 className="text-sm font-semibold mb-3">{t("intervals.params")}</h3>
-
-          {/* Row 1: Dates */}
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <label className="block text-xs text-muted mb-1">{t("intervals.dateFrom")}</label>
-              <input type="date" value={oldest} onChange={(e) => setOldest(e.target.value)}
-                className="w-full bg-bg border border-border rounded px-2 py-1.5 font-mono" />
-            </div>
-            <div>
-              <label className="block text-xs text-muted mb-1">{t("intervals.dateTo")}</label>
-              <input type="date" value={newest} onChange={(e) => setNewest(e.target.value)}
-                className="w-full bg-bg border border-border rounded px-2 py-1.5 font-mono" />
-            </div>
-          </div>
-
-          {/* Row 2: Mass + Bike type */}
-          <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-3 mt-3 text-sm">
+        <div className="bg-panel border border-border rounded-lg p-5 space-y-7">
+          {/* Section 1: Profile (mass, bike, position) */}
+          <FormSection
+            title={t("formSections.profile.title")}
+            description={t("formSections.profile.desc")}
+          >
             <div>
               <label className="block text-xs text-muted mb-1">{t("intervals.totalMass")}</label>
-              <input type="number" value={mass} onChange={(e) => setMass(parseFloat(e.target.value) || 75)}
-                className="w-full bg-bg border border-border rounded px-2 py-1.5 font-mono" min={30} max={200} step={0.1} />
+              <div className="flex items-center gap-2 max-w-[240px]">
+                <input type="number" value={mass} onChange={(e) => setMass(parseFloat(e.target.value) || 75)}
+                  className="w-full bg-bg border border-border rounded px-3 py-2 font-mono" min={30} max={200} step={0.1} />
+                <span className="text-muted text-sm">kg</span>
+              </div>
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">{t("intervals.bikeType")}</label>
@@ -690,28 +683,6 @@ export default function IntervalsPage() {
                   </button>
                 ))}
               </div>
-            </div>
-          </div>
-
-          {/* Row 3: Crr + Position */}
-          <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-3 mt-3 text-sm">
-            <div>
-              <label className="block text-xs text-muted mb-1">{t("intervals.crrLabel")}</label>
-              <select value={crrFixed} onChange={(e) => setCrrFixed(e.target.value)}
-                className={`w-full bg-bg border rounded px-2 py-1.5 font-mono text-xs ${
-                  !crrFixed ? "border-orange-500/50" : "border-border"
-                }`}>
-                {CRR_PRESETS.map((p) => (
-                  <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
-                    {p.crr === 0 ? t("fileUpload.crrAuto") : `${p.crr.toFixed(4)} — ${p.label}`}
-                  </option>
-                ))}
-              </select>
-              {!crrFixed && (
-                <p className="text-[10px] text-orange-400 mt-0.5">
-                  Fixer le Crr donne un CdA plus stable.
-                </p>
-              )}
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">
@@ -733,9 +704,58 @@ export default function IntervalsPage() {
                 ))}
               </div>
             </div>
-          </div>
+          </FormSection>
 
-          <div className="flex items-center gap-2 mt-3">
+          {/* Section 2: Tires */}
+          <FormSection
+            title={t("formSections.tires.title")}
+            description={t("formSections.tires.desc")}
+          >
+            <div>
+              <label className="block text-xs text-muted mb-1">{t("intervals.crrLabel")}</label>
+              <select value={crrFixed} onChange={(e) => setCrrFixed(e.target.value)}
+                className={`w-full bg-bg border rounded px-2 py-1.5 font-mono text-xs ${
+                  !crrFixed ? "border-orange-500/50" : "border-border"
+                }`}>
+                {CRR_PRESETS.map((p) => (
+                  <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
+                    {p.crr === 0 ? t("fileUpload.crrAuto") : `${p.crr.toFixed(4)} — ${p.label}`}
+                  </option>
+                ))}
+              </select>
+              {!crrFixed && (
+                <p className="text-[10px] text-orange-400 mt-0.5">
+                  Fixer le Crr donne un CdA plus stable.
+                </p>
+              )}
+            </div>
+          </FormSection>
+
+          {/* Section 3: Ride window */}
+          <FormSection
+            title={t("formSections.rides.title")}
+            description={t("formSections.rides.desc")}
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm max-w-lg">
+              <div>
+                <label className="block text-xs text-muted mb-1">{t("intervals.dateFrom")}</label>
+                <input type="date" value={oldest} onChange={(e) => setOldest(e.target.value)}
+                  className="w-full bg-bg border border-border rounded px-2 py-1.5 font-mono" />
+              </div>
+              <div>
+                <label className="block text-xs text-muted mb-1">{t("intervals.dateTo")}</label>
+                <input type="date" value={newest} onChange={(e) => setNewest(e.target.value)}
+                  className="w-full bg-bg border border-border rounded px-2 py-1.5 font-mono" />
+              </div>
+            </div>
+          </FormSection>
+
+          {/* Section 4: Advanced (cache + thresholds) */}
+          <FormSection
+            title={t("formSections.advanced.title")}
+            description={t("formSections.advanced.desc")}
+          >
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setUseCache(!useCache)}
@@ -755,7 +775,7 @@ export default function IntervalsPage() {
           </div>
 
           {/* nRMSE threshold slider */}
-          <div className="mt-3">
+          <div>
             <label className="block text-xs text-muted mb-1">
               {t("intervals.qualityThresholdLabel")} <span className="text-teal font-mono font-semibold">{maxNrmse > 95 ? t("intervals.qualityDisabled") : `${maxNrmse}%`}</span>
               <span className="ml-2">
@@ -772,7 +792,7 @@ export default function IntervalsPage() {
           </div>
 
           {/* Solver confidence threshold (P3) */}
-          <div className="mt-3">
+          <div>
             <label className="block text-xs text-muted mb-1">
               {t("intervals.solverConfLabel")}{" "}
               <span className="text-teal font-mono font-semibold">
@@ -963,8 +983,9 @@ export default function IntervalsPage() {
               )}
             </div>
           )}
+          </FormSection>
 
-          <div className="flex items-center gap-3 mt-4">
+          <div className="flex items-center gap-3 pt-2">
             <button onClick={doList} disabled={listing}
               className="px-4 py-2 border border-border rounded hover:border-muted text-sm flex items-center gap-2">
               {listing ? <Loader2 className="animate-spin" size={14} /> : <Filter size={14} />}

@@ -3,6 +3,7 @@ import { Upload, Loader2, ChevronDown, ChevronRight, FileText, X } from "lucide-
 import { useTranslation, Trans } from "react-i18next";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
 import { Button } from "./ui";
+import { FormSection } from "./FormSection";
 
 interface Props {
   onAnalyze: (
@@ -202,16 +203,17 @@ export default function FileUpload({
         </ul>
       )}
 
-      <div className="mt-6 bg-panel border border-border rounded-lg p-5 space-y-5">
-        <h3 className="text-sm font-semibold">{t("fileUpload.params")}</h3>
-
-        {/* Row 1: Mass + Bike type */}
-        <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4">
+      <div className="mt-6 bg-panel border border-border rounded-lg p-5 space-y-7">
+        {/* Section 1: Rider profile (mass, bike, position) */}
+        <FormSection
+          title={t("formSections.profile.title")}
+          description={t("formSections.profile.desc")}
+        >
           <div>
             <label htmlFor={massId} className="block text-xs text-muted mb-1">
               {t("fileUpload.massLabel")}
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 max-w-[240px]">
               <input
                 id={massId}
                 type="number"
@@ -250,34 +252,6 @@ export default function FileUpload({
               </div>
             </fieldset>
           </div>
-        </div>
-
-        {/* Row 2: Crr preset + Position slider */}
-        <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4">
-          <div>
-            <label htmlFor={crrId} className="block text-xs text-muted mb-1">
-              {t("fileUpload.crrLabel")}
-            </label>
-            <select
-              id={crrId}
-              value={crrFixed}
-              onChange={(e) => setCrrFixed(e.target.value)}
-              className={`w-full bg-bg border rounded px-2 py-2 font-mono text-sm ${
-                !crrFixed ? "border-warn/50" : "border-border"
-              }`}
-            >
-              {CRR_PRESETS.map((p) => (
-                <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
-                  {p.crr === 0 ? t("fileUpload.crrAuto") : `${p.crr.toFixed(4)} — ${p.label}`}
-                </option>
-              ))}
-            </select>
-            {!crrFixed && (
-              <p className="text-[10px] text-warn mt-1">
-                {t("fileUpload.crrFixHint")}
-              </p>
-            )}
-          </div>
           <div>
             <label htmlFor={positionId} className="block text-xs text-muted mb-1">
               {t("fileUpload.positionLabel")}
@@ -314,64 +288,98 @@ export default function FileUpload({
               ))}
             </div>
           </div>
-        </div>
+        </FormSection>
 
-        {/* Cache toggle — visible */}
-        <div className="flex items-center gap-2">
-          <button
-            id={cacheId}
-            type="button"
-            role="switch"
-            aria-checked={useCache}
-            aria-label={t("fileUpload.cacheSwitchAria")}
-            onClick={() => setUseCache(!useCache)}
-            className={`relative w-9 h-5 rounded-full transition-colors duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-panel ${
-              useCache ? "bg-primary" : "bg-border"
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-base ${
-                useCache ? "translate-x-4" : ""
-              }`}
-              aria-hidden
-            />
-          </button>
-          <label htmlFor={cacheId} className="text-xs text-muted select-none">
-            {useCache ? t("fileUpload.cacheOn") : t("fileUpload.cacheOff")}
-          </label>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setAdvanced(!advanced)}
-          aria-expanded={advanced}
-          aria-controls="advanced-options"
-          className="flex items-center text-sm text-muted hover:text-text transition-colors"
+        {/* Section 2: Tires */}
+        <FormSection
+          title={t("formSections.tires.title")}
+          description={t("formSections.tires.desc")}
         >
-          {advanced ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
-          {t("fileUpload.advanced")}
-        </button>
+          <div>
+            <label htmlFor={crrId} className="block text-xs text-muted mb-1">
+              {t("fileUpload.crrLabel")}
+            </label>
+            <select
+              id={crrId}
+              value={crrFixed}
+              onChange={(e) => setCrrFixed(e.target.value)}
+              className={`w-full bg-bg border rounded px-2 py-2 font-mono text-sm ${
+                !crrFixed ? "border-warn/50" : "border-border"
+              }`}
+            >
+              {CRR_PRESETS.map((p) => (
+                <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
+                  {p.crr === 0 ? t("fileUpload.crrAuto") : `${p.crr.toFixed(4)} — ${p.label}`}
+                </option>
+              ))}
+            </select>
+            {!crrFixed && (
+              <p className="text-[10px] text-warn mt-1">
+                {t("fileUpload.crrFixHint")}
+              </p>
+            )}
+          </div>
+        </FormSection>
 
-        {advanced && (
-          <div id="advanced-options" className="mt-3 space-y-3 text-sm">
-            <div>
-              <label htmlFor={nrmseId} className="block text-xs text-muted mb-1">
-                {t("fileUpload.nrmseLabel")} <span className="text-primary font-mono font-semibold">{maxNrmse > 95 ? t("fileUpload.nrmseDisabled") : `${maxNrmse}%`}</span>
-                <span className="ml-2 text-muted">
-                  ({maxNrmse > 95 ? t("fileUpload.nrmseQualifier.none") : maxNrmse < 30 ? t("fileUpload.nrmseQualifier.veryStrict") : maxNrmse < 45 ? t("fileUpload.nrmseQualifier.strict") : maxNrmse < 60 ? t("fileUpload.nrmseQualifier.moderate") : t("fileUpload.nrmseQualifier.permissive")})
-                </span>
-              </label>
-              <input id={nrmseId} type="range" min={20} max={100} step={5} value={maxNrmse}
-                onChange={(e) => setMaxNrmse(parseInt(e.target.value))}
-                className="w-full accent-primary"
-                aria-valuetext={maxNrmse > 95 ? t("fileUpload.nrmseDisabled") : `${maxNrmse}%`}
+        {/* Section 3: Cache toggle + advanced options */}
+        <FormSection
+          title={t("formSections.advanced.title")}
+          description={t("formSections.advanced.desc")}
+        >
+          <div className="flex items-center gap-2">
+            <button
+              id={cacheId}
+              type="button"
+              role="switch"
+              aria-checked={useCache}
+              aria-label={t("fileUpload.cacheSwitchAria")}
+              onClick={() => setUseCache(!useCache)}
+              className={`relative w-9 h-5 rounded-full transition-colors duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-panel ${
+                useCache ? "bg-primary" : "bg-border"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-base ${
+                  useCache ? "translate-x-4" : ""
+                }`}
+                aria-hidden
               />
-              <div className="flex justify-between text-[10px] text-muted">
-                <span>{t("fileUpload.nrmseMin")}</span>
-                <span>{t("fileUpload.nrmseMax")}</span>
+            </button>
+            <label htmlFor={cacheId} className="text-xs text-muted select-none">
+              {useCache ? t("fileUpload.cacheOn") : t("fileUpload.cacheOff")}
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setAdvanced(!advanced)}
+            aria-expanded={advanced}
+            aria-controls="advanced-options"
+            className="flex items-center text-sm text-muted hover:text-text transition-colors"
+          >
+            {advanced ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
+            {t("fileUpload.advanced")}
+          </button>
+
+          {advanced && (
+            <div id="advanced-options" className="mt-3 space-y-4 text-sm">
+              <div>
+                <label htmlFor={nrmseId} className="block text-xs text-muted mb-1">
+                  {t("fileUpload.nrmseLabel")} <span className="text-primary font-mono font-semibold">{maxNrmse > 95 ? t("fileUpload.nrmseDisabled") : `${maxNrmse}%`}</span>
+                  <span className="ml-2 text-muted">
+                    ({maxNrmse > 95 ? t("fileUpload.nrmseQualifier.none") : maxNrmse < 30 ? t("fileUpload.nrmseQualifier.veryStrict") : maxNrmse < 45 ? t("fileUpload.nrmseQualifier.strict") : maxNrmse < 60 ? t("fileUpload.nrmseQualifier.moderate") : t("fileUpload.nrmseQualifier.permissive")})
+                  </span>
+                </label>
+                <input id={nrmseId} type="range" min={20} max={100} step={5} value={maxNrmse}
+                  onChange={(e) => setMaxNrmse(parseInt(e.target.value))}
+                  className="w-full accent-primary"
+                  aria-valuetext={maxNrmse > 95 ? t("fileUpload.nrmseDisabled") : `${maxNrmse}%`}
+                />
+                <div className="flex justify-between text-[10px] text-muted">
+                  <span>{t("fileUpload.nrmseMin")}</span>
+                  <span>{t("fileUpload.nrmseMax")}</span>
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor={etaId} className="block text-xs text-muted mb-1">{t("fileUpload.eta")}</label>
                 <input
@@ -379,7 +387,7 @@ export default function FileUpload({
                   type="number"
                   value={eta}
                   onChange={(e) => setEta(parseFloat(e.target.value))}
-                  className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
+                  className="w-full max-w-[200px] bg-bg border border-border rounded px-2 py-1 font-mono"
                   step={0.001}
                   min={0.9}
                   max={1.0}
@@ -392,59 +400,59 @@ export default function FileUpload({
                   type="number"
                   value={windFactor}
                   onChange={(e) => setWindFactor(parseFloat(e.target.value))}
-                  className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
+                  className="w-full max-w-[200px] bg-bg border border-border rounded px-2 py-1 font-mono"
                   step={0.05}
                   min={0.3}
                   max={1.0}
                 />
               </div>
-            </div>
-            <div>
-              <p className="text-xs text-muted mb-1">
-                {t("fileUpload.manualWindHeader")}
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor={windKmhId} className="block text-[10px] text-muted mb-0.5">
-                    {t("fileUpload.manualWindSpeed")}
-                  </label>
-                  <input
-                    id={windKmhId}
-                    type="number"
-                    inputMode="decimal"
-                    value={manualWindKmh}
-                    onChange={(e) => setManualWindKmh(e.target.value)}
-                    placeholder={t("fileUpload.manualWindPlaceholder")}
-                    className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
-                    step={1}
-                    min={0}
-                    max={150}
-                  />
+              <div>
+                <p className="text-xs text-muted mb-1">
+                  {t("fileUpload.manualWindHeader")}
+                </p>
+                <div className="space-y-2">
+                  <div>
+                    <label htmlFor={windKmhId} className="block text-[10px] text-muted mb-0.5">
+                      {t("fileUpload.manualWindSpeed")}
+                    </label>
+                    <input
+                      id={windKmhId}
+                      type="number"
+                      inputMode="decimal"
+                      value={manualWindKmh}
+                      onChange={(e) => setManualWindKmh(e.target.value)}
+                      placeholder={t("fileUpload.manualWindPlaceholder")}
+                      className="w-full max-w-[200px] bg-bg border border-border rounded px-2 py-1 font-mono"
+                      step={1}
+                      min={0}
+                      max={150}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor={windDirId} className="block text-[10px] text-muted mb-0.5">
+                      {t("fileUpload.manualWindDir")}
+                    </label>
+                    <input
+                      id={windDirId}
+                      type="number"
+                      inputMode="decimal"
+                      value={manualWindDir}
+                      onChange={(e) => setManualWindDir(e.target.value)}
+                      placeholder={t("fileUpload.manualWindPlaceholder")}
+                      className="w-full max-w-[200px] bg-bg border border-border rounded px-2 py-1 font-mono"
+                      step={5}
+                      min={0}
+                      max={360}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor={windDirId} className="block text-[10px] text-muted mb-0.5">
-                    {t("fileUpload.manualWindDir")}
-                  </label>
-                  <input
-                    id={windDirId}
-                    type="number"
-                    inputMode="decimal"
-                    value={manualWindDir}
-                    onChange={(e) => setManualWindDir(e.target.value)}
-                    placeholder={t("fileUpload.manualWindPlaceholder")}
-                    className="w-full bg-bg border border-border rounded px-2 py-1 font-mono"
-                    step={5}
-                    min={0}
-                    max={360}
-                  />
-                </div>
+                <p className="text-[10px] text-muted mt-1">
+                  {t("fileUpload.manualWindHint")}
+                </p>
               </div>
-              <p className="text-[10px] text-muted mt-1">
-                {t("fileUpload.manualWindHint")}
-              </p>
             </div>
-          </div>
-        )}
+          )}
+        </FormSection>
       </div>
 
       {error && (

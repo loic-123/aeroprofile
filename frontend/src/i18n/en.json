@@ -98,6 +98,32 @@
       "r4": { "label": "Gravel / wide tyre", "desc": "Tyre ≥ 35 mm, compacted trail" }
     }
   },
+  "formSections": {
+    "profile": {
+      "title": "Your profile",
+      "desc": "Rider weight, bike type and riding position. Usually already filled by your active profile."
+    },
+    "tires": {
+      "title": "Your tyres",
+      "desc": "Fixing Crr improves CdA precision. Pick the preset closest to your setup."
+    },
+    "ride": {
+      "title": "Your ride",
+      "desc": "Drop one or several .FIT / .GPX / .TCX files. Multiple rides = more reliable result."
+    },
+    "rides": {
+      "title": "Your Intervals rides",
+      "desc": "Pick the date window then list your rides. Fine-grained filters live in advanced options."
+    },
+    "connection": {
+      "title": "Intervals.icu connection",
+      "desc": "Your API key stays in this browser — nothing is sent to our servers beyond the proxied calls to intervals.icu."
+    },
+    "advanced": {
+      "title": "Advanced options",
+      "desc": "Drivetrain efficiency, wind factor, quality threshold. Leave at defaults if unsure."
+    }
+  },
   "fileUpload": {
     "dropAria": "Drop or select .FIT / .GPX / .TCX files",
     "dropMain": "Drop one or <strong>several</strong> .FIT / .GPX / .TCX files",

@@ -98,6 +98,32 @@
       "r4": { "label": "Gravel / pneu large", "desc": "Pneu ≥ 35 mm, chemin stabilisé" }
     }
   },
+  "formSections": {
+    "profile": {
+      "title": "Ton profil",
+      "desc": "Taille, vélo et position sur le vélo. Souvent déjà rempli par ton profil actif."
+    },
+    "tires": {
+      "title": "Tes pneus",
+      "desc": "Le Crr fixe fait gagner en précision sur le CdA. Choisis le preset qui ressemble le plus à ton montage."
+    },
+    "ride": {
+      "title": "Ta sortie",
+      "desc": "Dépose un ou plusieurs fichiers .FIT / .GPX / .TCX. Plusieurs sorties = résultat plus fiable."
+    },
+    "rides": {
+      "title": "Tes sorties Intervals",
+      "desc": "Choisis la fenêtre de dates puis liste tes sorties. Les filtres fins sont dans les options avancées."
+    },
+    "connection": {
+      "title": "Connexion Intervals.icu",
+      "desc": "Ta clé API reste dans ce navigateur, rien n'est envoyé à nos serveurs au-delà des appels proxifiés vers intervals.icu."
+    },
+    "advanced": {
+      "title": "Options avancées",
+      "desc": "Rendement de transmission, facteur vent, seuil de qualité. Laisse ces valeurs par défaut si tu ne sais pas."
+    }
+  },
   "fileUpload": {
     "dropAria": "Déposer ou sélectionner des fichiers .FIT / .GPX / .TCX",
     "dropMain": "Déposez un ou <strong>plusieurs</strong> fichiers .FIT / .GPX / .TCX",

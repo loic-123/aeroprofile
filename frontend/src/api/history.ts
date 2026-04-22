@@ -154,6 +154,21 @@ export function getHistory(): HistoryEntry[] {
   }
 }
 
+/** Custom event the in-app code dispatches whenever the history is
+ *  mutated. Pages that display the history (HistoryPage) listen to it
+ *  to re-read localStorage in real time — needed because the page is
+ *  mounted permanently (display:none toggle) and never gets the React
+ *  remount that would otherwise refresh ``useState(() => getHistory())``. */
+export const HISTORY_CHANGED_EVENT = "aeroprofile:history-changed";
+
+function _emitChange(): void {
+  try {
+    window.dispatchEvent(new CustomEvent(HISTORY_CHANGED_EVENT));
+  } catch {
+    /* SSR / very old browser — ignore */
+  }
+}
+
 export function saveToHistory(entry: HistoryEntry): void {
   try {
     const existing = getHistory();
@@ -164,6 +179,7 @@ export function saveToHistory(entry: HistoryEntry): void {
   } catch {
     // localStorage full — silently ignore
   }
+  _emitChange();
 }
 
 export function deleteFromHistory(id: string): void {
@@ -171,12 +187,14 @@ export function deleteFromHistory(id: string): void {
     const existing = getHistory().filter((e) => e.id !== id);
     localStorage.setItem(LS_KEY, JSON.stringify(existing));
   } catch {}
+  _emitChange();
 }
 
 export function clearHistory(): void {
   try {
     localStorage.removeItem(LS_KEY);
   } catch {}
+  _emitChange();
 }
 
 /** Serialise the whole local history to a JSON Blob so the user can

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useTranslation, Trans } from "react-i18next";
 import { Clock, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, Download, Upload, Info, History } from "lucide-react";
 import {
@@ -9,6 +9,7 @@ import {
   setIgnoredEntryIds,
   exportHistoryBlob,
   importHistoryFromText,
+  HISTORY_CHANGED_EVENT,
   type HistoryEntry,
 } from "../api/history";
 import { PageHeader, Button, Card, EmptyState } from "../components/ui";
@@ -29,6 +30,18 @@ export default function HistoryPage() {
   const { t } = useTranslation();
   const [entries, setEntries] = useState(() => getHistory());
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // The page is mounted permanently in App.tsx (display:none toggle so
+  // tab switches don't lose state). That means useState(() => getHistory())
+  // only runs once on first mount — when an analysis finishes on the
+  // Intervals or Analyse tab, we need to refresh the entries here. Listen
+  // for the custom history-changed event dispatched by saveToHistory /
+  // deleteFromHistory / clearHistory so the list updates in real time.
+  useEffect(() => {
+    const refresh = () => setEntries(getHistory());
+    window.addEventListener(HISTORY_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(HISTORY_CHANGED_EVENT, refresh);
+  }, []);
   // Multi-select filter sets. Null-sentinel "__unknown__" is used for entries
   // missing the corresponding label. An empty Set() means "not yet initialised"
   // — on first render we auto-select everything so the user sees all their

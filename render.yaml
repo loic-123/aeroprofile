@@ -7,7 +7,13 @@ services:
     buildCommand: |
       pip install -e .
       cd frontend && npm install && npm run build
-    startCommand: uvicorn aeroprofile.api.app:app --host 0.0.0.0 --port $PORT
+    # Bind uvicorn to the port Render advertises via $PORT. Using `sh -c`
+    # ensures the shell expands the variable at runtime (some Render
+    # runtimes skip shell expansion when startCommand is a bare exec).
+    startCommand: sh -c 'uvicorn aeroprofile.api.app:app --host 0.0.0.0 --port ${PORT:-10000}'
+    # Render scans for open ports on the service; declare it explicitly
+    # so the scan matches immediately instead of walking the full range.
+    healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.3
@@ -17,3 +23,5 @@ services:
         value: "3"
       - key: AEROPROFILE_TILE_KM
         value: "15"
+      - key: PORT
+        value: "10000"

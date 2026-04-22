@@ -29,7 +29,21 @@ export default function InfoTooltip({ text }: { text: string }) {
       {open && (
         <span
           role="tooltip"
-          className="absolute z-50 left-1/2 -translate-x-1/2 top-full mt-2 w-72 bg-bg border border-border rounded-md p-3 text-xs text-text shadow-xl font-sans leading-relaxed normal-case tracking-normal"
+          // Reset every inherited typography knob — the tooltip must look
+          // identical wherever it's rendered, whether the parent label is
+          // uppercase text-[10px] font-mono (Δ solver) or a sentence-case
+          // text-sm banner title. Fixed 12 px, sans-serif, normal weight
+          // and case, standard line-height and tracking.
+          className="absolute z-50 left-1/2 -translate-x-1/2 top-full mt-2 w-72 bg-bg border border-border rounded-md p-3 shadow-xl text-text"
+          style={{
+            fontSize: "12px",
+            lineHeight: 1.5,
+            fontFamily: '"Inter", ui-sans-serif, system-ui, sans-serif',
+            fontWeight: 400,
+            letterSpacing: "normal",
+            textTransform: "none",
+            fontVariant: "normal",
+          }}
         >
           {text}
         </span>

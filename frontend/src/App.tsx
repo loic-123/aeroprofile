@@ -351,15 +351,13 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // Helper that resets ride state when switching modes — avoids
-  // showing stale results from a previous analysis when returning
-  // to /analyze from another tab.
+  // Switch top-level mode. We deliberately do NOT reset the ride state
+  // here — a user who analyses a ride, taps "Why a prior?" to read the
+  // methodology, then comes back to the Analyse tab expects to see their
+  // results again, not a blank upload form. The only explicit reset is
+  // the "← Nouvelle analyse" button on the results page.
   const changeMode = (v: Mode) => {
     setMode(v);
-    if (v === "single" || v === "compare") {
-      setRides([]);
-      setError(null);
-    }
     if (v === "blog") setBlogSlug(null);
     // Sync URL for destination pages so Share/Bookmark work.
     const dest = v === "privacy" ? "/privacy" : v === "about" ? "/about" : "/";
@@ -485,10 +483,11 @@ export default function App() {
           />
         ) : mode === "privacy" ? (
           <PrivacyPage onGotoHome={() => changeMode("home")} />
-        ) : mode === "history" ? (
-          <HistoryPage />
-        ) : mode === "intervals" ? (
-          <IntervalsPage />
+        ) : mode === "history" || mode === "intervals" ? (
+          // Rendered below outside AnimatePresence so state survives tab
+          // switches. Placeholder here keeps the motion.div from wrapping
+          // a heavy component that would remount on every mode change.
+          <div aria-hidden />
         ) : mode === "blog" ? (
           blogSlug && ARTICLES[blogSlug] ? (
             (() => { const Comp = ARTICLES[blogSlug]; return <Comp />; })()
@@ -915,6 +914,16 @@ export default function App() {
         )}
           </motion.div>
         </AnimatePresence>
+
+        {/* Mount these once and toggle visibility so their local state
+            (Intervals rides analysed, History filters, etc.) survives
+            when the user drops into /blog or /about and comes back. */}
+        <div hidden={mode !== "intervals"}>
+          <IntervalsPage />
+        </div>
+        <div hidden={mode !== "history"}>
+          <HistoryPage />
+        </div>
         </BlogProvider>
       </main>
       <Footer

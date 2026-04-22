@@ -1019,7 +1019,7 @@ export default function IntervalsPage() {
         <div className="bg-panel border border-border rounded-lg p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold">
-              <span className="text-teal font-mono">{filteredActivities.length}</span> rides
+              <span className="text-teal font-mono">{filteredActivities.length}</span> rides{" "}
               {t("intervals.kept")} <Trans i18nKey="intervals.outOfActivities" values={{ total: allActivities.length }} components={{ strong: <span className="font-mono" /> }} />
               {filteredActivities.length === 0 && <span className="text-coral ml-2">(ajustez les filtres)</span>}
             </h3>

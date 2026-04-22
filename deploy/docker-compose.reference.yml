@@ -20,6 +20,21 @@ services:
     image: aeroprofile:latest
     container_name: aeroprofile
     restart: unless-stopped
+    # Resource ceilings for a shared KVM 2 VPS (2 vCPU / 8 GB RAM).
+    # aeroprofile can burst to 1.5 vCPU during a heavy batch but the
+    # remaining 0.5 vCPU is always left for Traefik / n8n / NocoDB so
+    # the rest of the stack never goes dark when the solver is busy.
+    # 1.5 GB of RAM is ~3x the observed peak — Docker will OOM-kill
+    # this container alone if it ever leaks, never a sibling.
+    # Under docker-compose v2 `deploy.resources` is honoured at runtime
+    # (unlike Swarm-only keys); stick to this syntax.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1536m
+        reservations:
+          memory: 256m
     ports:
       - "127.0.0.1:8001:8001"
     volumes:

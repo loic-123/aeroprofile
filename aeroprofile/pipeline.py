@@ -1550,13 +1550,29 @@ async def analyze(
 
     if cda_delta_wind_plus_30pct is not None and cda_delta_wind_minus_30pct is not None:
         _max_delta = max(abs(cda_delta_wind_plus_30pct), abs(cda_delta_wind_minus_30pct))
-        if _max_delta < 0.02:
-            wind_fragility = "robust"
-        elif _max_delta < 0.05:
+        # Hybrid classifier: ERA5 bias grows with wind magnitude (Jourdier
+        # 2020). A high ΔCdA on a low-wind ride means the ride is
+        # STRUCTURALLY wind-sensitive (flat, headwind/tailwind loop), but
+        # the API itself is probably not far off — calling that "fragile"
+        # is UX noise. "fragile" reserved for rides where BOTH the
+        # sensitivity is high AND the API wind is large enough that ERA5
+        # bias plausibly matters (≥ 4 m/s at 10 m).
+        try:
+            _api_ws_mean = float(df["wind_speed_ms"].mean())
+        except Exception:
+            _api_ws_mean = 0.0
+        _fragile = _max_delta >= 0.05 and _api_ws_mean >= 4.0
+        _moderate = _max_delta >= 0.025
+        if _fragile:
+            wind_fragility = "fragile"
+        elif _moderate:
             wind_fragility = "moderate"
         else:
-            wind_fragility = "fragile"
-        logger.info("WIND_FRAGILITY = %s (max |Δ±30%%|=%.3f)", wind_fragility, _max_delta)
+            wind_fragility = "robust"
+        logger.info(
+            "WIND_FRAGILITY = %s (max |Δ±30%%|=%.3f, API wind=%.2f m/s)",
+            wind_fragility, _max_delta, _api_ws_mean,
+        )
 
     # Summary stats
     filter_summary = {name: int(df[name].sum()) for name in FILTER_NAMES}

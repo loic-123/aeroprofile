@@ -883,7 +883,7 @@
   },
   "profile": {
     "label": "Profile:",
-    "activeTooltip": "Active profile - click to reload its settings",
+    "activeTooltip": "Active profile",
     "activateTooltip": "Activate this profile",
     "delete": "Delete this profile",
     "deleteConfirm": "Delete this profile?",
@@ -891,12 +891,8 @@
     "newTooltip": "Create a new profile with the current form settings",
     "namePlaceholder": "Profile name",
     "add": "Add",
-    "reload": "Reload",
-    "reloadTooltip": "Reload the settings saved in the active profile",
-    "save": "Save",
-    "saved": "Saved!",
-    "saveTooltip": "Save the current form settings into the active profile",
-    "helpUpload": "Saves the mass, bike, position, and Crr. Reloading a profile pre-fills the form fields.",
-    "helpIntervals": "Saves the Intervals credentials, mass, bike, position, and filters. Reloading a profile pre-fills all these fields."
+    "autoSaved": "Saved automatically",
+    "helpUpload": "Your choices (mass, bike, position, Crr, thresholds) are saved automatically into the active profile. To manage multiple setups, create a new profile from the current form.",
+    "helpIntervals": "Your choices (Intervals credentials, mass, bike, position, filters, dates, sensors) are saved automatically into the active profile. To manage multiple setups, create a new profile from the current state."
   }
 }

@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { User, Plus, Trash2, Save, Download } from "lucide-react";
+import { User, Plus, Trash2, Check } from "lucide-react";
 import {
   getProfiles,
   getActiveProfile,
   setActiveProfile,
   addProfile,
   deleteProfile,
-  saveProfileSettings,
   type LocalProfile,
   type ProfileSettings,
 } from "../api/profiles";
@@ -38,7 +37,6 @@ export default function ProfilePicker({
   const [active, setActive] = useState<LocalProfile>(() => getActiveProfile());
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
-  const [savedFlash, setSavedFlash] = useState(false);
 
   const refresh = () => {
     setProfiles(getProfiles());
@@ -71,18 +69,6 @@ export default function ProfilePicker({
       deleteProfile(key);
       refresh();
     }
-  };
-
-  const onSaveToActive = () => {
-    saveProfileSettings(currentSettings);
-    refresh();
-    setSavedFlash(true);
-    setTimeout(() => setSavedFlash(false), 1500);
-  };
-
-  const onLoadActive = () => {
-    const active = getActiveProfile();
-    if (active.settings) onLoad(active.settings);
   };
 
   const helpText =
@@ -153,25 +139,9 @@ export default function ProfilePicker({
             <Plus size={11} /> {t("profile.new")}
           </button>
         )}
-        <div className="flex items-center gap-1 ml-auto">
-          <button
-            onClick={onLoadActive}
-            className="text-[10px] px-2 py-1 rounded border border-border text-muted hover:border-info hover:text-info flex items-center gap-1"
-            title={t("profile.reloadTooltip")}
-          >
-            <Download size={10} /> {t("profile.reload")}
-          </button>
-          <button
-            onClick={onSaveToActive}
-            className={`text-[10px] px-2 py-1 rounded border flex items-center gap-1 transition ${
-              savedFlash
-                ? "border-teal text-teal bg-teal/10"
-                : "border-border text-muted hover:border-teal hover:text-teal"
-            }`}
-            title={t("profile.saveTooltip")}
-          >
-            <Save size={10} /> {savedFlash ? t("profile.saved") : t("profile.save")}
-          </button>
+        <div className="flex items-center gap-1.5 ml-auto text-[10px] text-muted">
+          <Check size={11} className="text-success" aria-hidden />
+          <span>{t("profile.autoSaved")}</span>
         </div>
       </div>
       <p className="text-[10px] text-muted mt-2 opacity-70">{helpText}</p>

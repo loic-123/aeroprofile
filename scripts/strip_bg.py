@@ -110,6 +110,42 @@ def _feather_edges(alpha: np.ndarray, radius: int = 1) -> np.ndarray:
     return out
 
 
+def _remove_sparkle_watermark(arr: np.ndarray) -> int:
+    """Erase Nano Banana's 4-point sparkle watermark that sits in the
+    bottom-right corner of generated images.
+
+    Strategy: any connected component of opaque pixels that (a) is small
+    enough to not be part of the subject (< 15k px on a 2048² canvas) AND
+    (b) is entirely contained in the bottom-right quadrant, with its
+    bounding box anchored at least 1.8× image-width away from top-left,
+    is considered the watermark and erased. The main subject component
+    is always ≥ 1M pixels so the threshold is safe.
+
+    Returns the number of pixels erased.
+    """
+    from scipy import ndimage
+    h, w = arr.shape[:2]
+    alpha = arr[..., 3] > 128
+    lab, n = ndimage.label(alpha)
+    if n == 0:
+        return 0
+    sizes = ndimage.sum(alpha, lab, range(1, n + 1))
+    size_threshold = 15000  # px; typical sparkle ~3300, subject ~1.2M
+    erased = 0
+    # Only consider small components anchored in the bottom-right quadrant.
+    # The sparkle sits around (y, x) ≈ (0.92·h, 0.92·w).
+    br_y_min = int(h * 0.85)
+    br_x_min = int(w * 0.85)
+    for i, s in enumerate(sizes, start=1):
+        if s >= size_threshold:
+            continue
+        ys, xs = np.where(lab == i)
+        if ys.min() >= br_y_min and xs.min() >= br_x_min:
+            arr[lab == i, 3] = 0
+            erased += int(s)
+    return erased
+
+
 def strip(path: Path, tolerance: int, feather: int, dry_run: bool) -> None:
     im = Image.open(path).convert("RGBA")
     arr = np.array(im)
@@ -124,6 +160,12 @@ def strip(path: Path, tolerance: int, feather: int, dry_run: bool) -> None:
     print(f"  tolerance={tolerance}  kept {kept_frac * 100:.1f}% of pixels (subject)")
 
     arr[bg_mask, 3] = 0
+
+    # Strip Gemini sparkle watermark in bottom-right corner
+    erased = _remove_sparkle_watermark(arr)
+    if erased > 0:
+        print(f"  removed sparkle watermark: {erased} px")
+
     arr[..., 3] = _feather_edges(arr[..., 3], radius=feather)
 
     if dry_run:

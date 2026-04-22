@@ -16,7 +16,7 @@ import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, isHardFailure, type BikeTyp
 import { Wind, Users, User, FileText, Loader2, BookOpen, Link2, TrendingUp } from "lucide-react";
 import { saveToHistory, type HistoryEntry } from "./api/history";
 import { weightedAggregate, type AggregationInput } from "./lib/aggregate";
-import { getActiveProfile, type ProfileSettings } from "./api/profiles";
+import { getActiveProfile, saveProfileSettings, type ProfileSettings } from "./api/profiles";
 import HistoryPage from "./pages/HistoryPage";
 import LandingPage from "./pages/LandingPage";
 import AboutPage from "./pages/AboutPage";
@@ -92,6 +92,22 @@ export default function App() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [mode, blogSlug]);
+
+  // Auto-persist the upload form state into the active profile whenever
+  // it changes. Debounced 500 ms so slider scrubs don't spam
+  // localStorage. Mirrors the equivalent effect inside IntervalsPage —
+  // together they make every parameter the user touches sticky across
+  // sessions without needing the explicit "Save to profile" button.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      try {
+        saveProfileSettings(uploadFormSettings);
+      } catch {
+        /* ignore localStorage quota / disabled */
+      }
+    }, 500);
+    return () => clearTimeout(id);
+  }, [uploadFormSettings]);
 
   const onUploadProfileLoad = (s: ProfileSettings) => {
     setUploadInitialSettings(s);

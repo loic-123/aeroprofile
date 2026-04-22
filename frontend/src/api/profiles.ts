@@ -32,10 +32,26 @@ export interface ProfileSettings {
   positionIdx?: number;         // index in POSITION_PRESETS_BY_BIKE[bikeType]
   crrFixed?: number | null;     // null = auto
   maxNrmse?: number;            // percent (e.g. 45)
+  // Whether the local analysis cache is on. Persisted so a user who
+  // disables the cache once (e.g. to force a re-analysis with a fresh
+  // algorithm) keeps it off on the next session.
+  useCache?: boolean;
   // Intervals-specific
   intervalsApiKey?: string;
   intervalsAthleteId?: string;
   intervalsFilters?: IntervalsFilterPayload;
+  // Date window for the Intervals rides list. ISO YYYY-MM-DD. Defaults
+  // to "1 year ago → today" when missing.
+  intervalsOldest?: string;
+  intervalsNewest?: string;
+  // Minimum solver cross-check confidence to keep a ride in the
+  // aggregate. "off" | "medium" | "high".
+  minConfidence?: "off" | "medium" | "high";
+  // Per-activity power-meter inclusion set. Array of sensor keys the
+  // user wants to keep (including the synthetic "__unknown__" bucket).
+  // Empty array means "first visit, seed with everything" — the page
+  // rewrites the field as soon as the activity list loads.
+  sensorFilter?: string[];
 }
 
 export interface LocalProfile {

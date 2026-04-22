@@ -15,7 +15,7 @@ import {
 import { getCachedInterval, setCacheInterval, type CacheOpts } from "../api/cache";
 import { saveToHistory } from "../api/history";
 import { weightedAggregate } from "../lib/aggregate";
-import { getActiveProfile, type ProfileSettings } from "../api/profiles";
+import { getActiveProfile, saveProfileSettings, type ProfileSettings } from "../api/profiles";
 import ProfilePicker from "../components/ProfilePicker";
 import type { AnalysisResult, HierarchicalAnalysisResult } from "../types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, isHardFailure, type BikeType } from "../types";
@@ -63,11 +63,14 @@ export default function IntervalsPage() {
 
   // Filters
   const [oldest, setOldest] = useState(() => {
+    if (initialSettings.intervalsOldest) return initialSettings.intervalsOldest;
     const d = new Date();
     d.setFullYear(d.getFullYear() - 1);
     return d.toISOString().slice(0, 10);
   });
-  const [newest, setNewest] = useState(() => new Date().toISOString().slice(0, 10));
+  const [newest, setNewest] = useState(
+    () => initialSettings.intervalsNewest ?? new Date().toISOString().slice(0, 10),
+  );
   const [filters, setFilters] = useState<RideFilters>(() => {
     const f = initialSettings.intervalsFilters;
     if (!f) return { ...DEFAULT_FILTERS };
@@ -86,12 +89,14 @@ export default function IntervalsPage() {
     initialSettings.crrFixed != null ? String(initialSettings.crrFixed) : "0.0032",
   );
   const [positionIdx, setPositionIdx] = useState(initialSettings.positionIdx ?? 2);
-  const [useCache, setUseCache] = useState(true);
+  const [useCache, setUseCache] = useState(initialSettings.useCache ?? true);
   const [maxNrmse, setMaxNrmse] = useState(initialSettings.maxNrmse ?? 45);
   // P3 — minimum solver agreement. "off" keeps everything (default),
   // "medium" excludes low-confidence rides (|Δ chung−wind| ≥ 0.05),
   // "high" excludes both low and medium (keeps only |Δ| < 0.02).
-  const [minConfidence, setMinConfidence] = useState<"off" | "medium" | "high">("off");
+  const [minConfidence, setMinConfidence] = useState<"off" | "medium" | "high">(
+    initialSettings.minConfidence ?? "off",
+  );
 
   const handleBikeType = (bt: BikeType) => {
     setBikeType(bt);
@@ -178,9 +183,14 @@ export default function IntervalsPage() {
   );
   // Pre-analysis sensor filter: lets the user exclude candidate rides
   // by their power meter before the expensive analysis loop. Initialises
-  // empty (= "all"); first populated when the activity list loads.
-  const [sensorFilter, setSensorFilter] = useState<Set<string>>(new Set());
-  const [sensorFilterInitialised, setSensorFilterInitialised] = useState(false);
+  // from the saved profile if one exists; otherwise empty (= "all")
+  // until the activity list loads and the seed-everything logic fires.
+  const [sensorFilter, setSensorFilter] = useState<Set<string>>(
+    () => new Set(initialSettings.sensorFilter ?? []),
+  );
+  const [sensorFilterInitialised, setSensorFilterInitialised] = useState(
+    (initialSettings.sensorFilter?.length ?? 0) > 0,
+  );
 
   // Base filter — everything except the D+/km grade ratio and the sensor filter
   const passesBaseFilters = (a: typeof allActivities[number]) => {
@@ -566,8 +576,12 @@ export default function IntervalsPage() {
     positionIdx,
     crrFixed: crrFixed && crrFixed !== "" ? parseFloat(crrFixed.replace(",", ".")) : null,
     maxNrmse,
+    useCache,
+    minConfidence,
     intervalsApiKey: apiKey,
     intervalsAthleteId: athleteId,
+    intervalsOldest: oldest,
+    intervalsNewest: newest,
     intervalsFilters: {
       minDistanceKm: filters.min_distance_km,
       maxDistanceKm: filters.max_distance_km,
@@ -576,6 +590,7 @@ export default function IntervalsPage() {
       minDurationH: filters.min_duration_h,
       excludeGroup,
     },
+    sensorFilter: Array.from(sensorFilter),
   });
 
   const applySettings = (s: ProfileSettings) => {
@@ -585,8 +600,12 @@ export default function IntervalsPage() {
     if (s.crrFixed != null) setCrrFixed(String(s.crrFixed));
     else if (s.crrFixed === null) setCrrFixed("");
     if (s.maxNrmse != null) setMaxNrmse(s.maxNrmse);
+    if (s.useCache != null) setUseCache(s.useCache);
+    if (s.minConfidence != null) setMinConfidence(s.minConfidence);
     if (s.intervalsApiKey != null) setApiKey(s.intervalsApiKey);
     if (s.intervalsAthleteId != null) setAthleteId(s.intervalsAthleteId);
+    if (s.intervalsOldest != null) setOldest(s.intervalsOldest);
+    if (s.intervalsNewest != null) setNewest(s.intervalsNewest);
     if (s.intervalsFilters) {
       setFilters({
         min_distance_km: s.intervalsFilters.minDistanceKm ?? filters.min_distance_km,
@@ -597,10 +616,34 @@ export default function IntervalsPage() {
       });
       if (s.intervalsFilters.excludeGroup != null) setExcludeGroup(s.intervalsFilters.excludeGroup);
     }
+    if (s.sensorFilter != null) {
+      setSensorFilter(new Set(s.sensorFilter));
+      setSensorFilterInitialised(s.sensorFilter.length > 0);
+    }
     // Reset the connected profile so the user re-clicks "Se connecter" with
     // the (potentially new) credentials.
     setProfile(null);
   };
+
+  // Auto-persist every form field into the active profile whenever it
+  // changes. Debounced 500 ms so scrubbing a slider doesn't write to
+  // localStorage 50 times in a row. Runs after every keyed piece of
+  // state that matters on return to this tab.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      try {
+        saveProfileSettings(currentSettings());
+      } catch {
+        /* localStorage quota exceeded, disabled, etc — nothing to do */
+      }
+    }, 500);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    mass, bikeType, positionIdx, crrFixed, maxNrmse, useCache, minConfidence,
+    apiKey, athleteId, oldest, newest,
+    filters, excludeGroup, sensorFilter,
+  ]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">

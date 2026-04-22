@@ -908,25 +908,14 @@ export default function IntervalsPage() {
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-muted mb-1">
-                    {t("intervals.maxElev")} <span className="text-teal font-mono">{filters.max_elevation_m}</span> m
-                  </label>
-                  <input type="range" min={200} max={5000} step={100}
-                    value={filters.max_elevation_m}
-                    onChange={(e) => setFilters({ ...filters, max_elevation_m: parseFloat(e.target.value) })}
-                    className="w-full accent-teal" />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted mb-1">
-                    {t("intervals.minDuration")} <span className="text-teal font-mono">{Math.round(filters.min_duration_h * 60)}</span> min
-                  </label>
-                  <input type="range" min={0} max={240} step={15}
-                    value={Math.round(filters.min_duration_h * 60)}
-                    onChange={(e) => setFilters({ ...filters, min_duration_h: parseFloat(e.target.value) / 60 })}
-                    className="w-full accent-teal" />
-                </div>
+              <div>
+                <label className="block text-xs text-muted mb-1">
+                  {t("intervals.minDuration")} <span className="text-teal font-mono">{Math.round(filters.min_duration_h * 60)}</span> min
+                </label>
+                <input type="range" min={0} max={240} step={15}
+                  value={Math.round(filters.min_duration_h * 60)}
+                  onChange={(e) => setFilters({ ...filters, min_duration_h: parseFloat(e.target.value) / 60 })}
+                  className="w-full accent-teal max-w-sm" />
               </div>
               <div>
                 <label className="block text-xs text-muted mb-1">

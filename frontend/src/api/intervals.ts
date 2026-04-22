@@ -37,9 +37,14 @@ export interface RideFilters {
 }
 
 export const DEFAULT_FILTERS: RideFilters = {
-  min_distance_km: 30,
+  min_distance_km: 20,
   max_distance_km: 500,
-  max_elevation_m: 2000,
+  // Absolute D+ cap kept at a practically unreachable value — the UI no
+  // longer exposes it as a control because ``max_elevation_per_km`` is a
+  // better physical proxy (a 400 km loop with 5000 m D+ = 12 m/km is a
+  // perfectly flat CdA ride, while 60 km with 2000 m D+ = 33 m/km is a
+  // climb). The field stays in the schema for backward compatibility.
+  max_elevation_m: 99999,
   min_duration_h: 1.0,
   max_elevation_per_km: 10,  // 10 m/km = 1% average grade
 };

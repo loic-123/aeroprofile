@@ -146,15 +146,44 @@ def _remove_sparkle_watermark(arr: np.ndarray) -> int:
     return erased
 
 
+def _global_color_mask(arr: np.ndarray, seeds: list[tuple[int, int, int]],
+                       tolerance: int) -> np.ndarray:
+    """Mark every pixel whose RGB is within ``tolerance`` of ANY seed color
+    as background — not just pixels reachable from the image border.
+
+    This is what cleans the interior cavities (gaps between wheel spokes,
+    between legs and frame, inside the helmet strap, etc.) that a pure
+    border-seeded flood fill leaves opaque because they are topologically
+    surrounded by the subject.
+
+    Safe for these illustrations because the subject palette (cream
+    #E8E6F0 + teal #1D9E75) is far from the background palette
+    (dark navy / charcoal / light grey) — they don't share near-enough
+    colors to confuse the classifier.
+    """
+    rgb = arr[..., :3].astype(np.int16)
+    mask = np.zeros(arr.shape[:2], dtype=bool)
+    for seed in seeds:
+        s = np.array(seed, dtype=np.int16)
+        near = np.max(np.abs(rgb - s), axis=2) <= tolerance
+        mask |= near
+    return mask
+
+
 def strip(path: Path, tolerance: int, feather: int, dry_run: bool) -> None:
     im = Image.open(path).convert("RGBA")
     arr = np.array(im)
     seeds = _corner_palette(arr)
     print(f"{path.name}: corner seeds = {seeds}")
 
+    # Pass 1: border-seeded flood fill catches the outer frame.
     bg_mask = np.zeros(arr.shape[:2], dtype=bool)
     for seed in seeds:
         bg_mask |= _flood_transparent(arr, seed, tolerance)
+
+    # Pass 2: global color match catches interior cavities (wheel gaps,
+    # between-legs, helmet interior) that flood fill can't reach.
+    bg_mask |= _global_color_mask(arr, seeds, tolerance)
 
     kept_frac = 1.0 - float(bg_mask.mean())
     print(f"  tolerance={tolerance}  kept {kept_frac * 100:.1f}% of pixels (subject)")

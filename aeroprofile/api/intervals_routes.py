@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import tempfile
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
+
+# Serialise CPU-heavy single-ride analyses so a burst of batch requests
+# can't pin the event loop to the point Docker's healthcheck starves and
+# Traefik evicts the backend (root cause of the "first ~20 rides succeed,
+# then every subsequent one 404s" pattern). A single-permit semaphore is
+# a blunt but effective tool — the frontend already serialises per user,
+# this guards against overlap across parallel users too.
+_ANALYZE_SEMAPHORE = asyncio.Semaphore(1)
+# Per-ride timeout. A healthy wind_inverse + hierarchical combo on a long
+# ride is ~20-30 s; 90 s is the emergency ceiling. If we hit this the
+# frontend retry will kick in.
+_RIDE_TIMEOUT_S = 90.0
 
 from fastapi import APIRouter, Form, HTTPException, Query
 from pydantic import BaseModel
@@ -279,18 +292,28 @@ async def analyze_ride(
         tmp_path = Path(tmp.name)
 
     try:
-        result = await analyze(
-            tmp_path,
-            mass_kg=mass_kg,
-            crr_fixed=crr_fixed,
-            eta=eta,
-            bike_type=bike_type,
-            cda_prior_override=(cda_prior_mean, cda_prior_sigma) if cda_prior_mean is not None else None,
-            disable_prior=disable_prior,
-            power_meter_name=pm_name,
-            gear_id=gear_id,
-            gear_name=gear_name,
-        )
+        # Serialise + timeout the heavy path so a parallel client can't
+        # saturate the CPU and starve the Docker healthcheck.
+        async with _ANALYZE_SEMAPHORE:
+            result = await asyncio.wait_for(
+                analyze(
+                    tmp_path,
+                    mass_kg=mass_kg,
+                    crr_fixed=crr_fixed,
+                    eta=eta,
+                    bike_type=bike_type,
+                    cda_prior_override=(cda_prior_mean, cda_prior_sigma) if cda_prior_mean is not None else None,
+                    disable_prior=disable_prior,
+                    power_meter_name=pm_name,
+                    gear_id=gear_id,
+                    gear_name=gear_name,
+                ),
+                timeout=_RIDE_TIMEOUT_S,
+            )
+    except asyncio.TimeoutError:
+        # Return 503 so the frontend retry kicks in instead of marking
+        # the ride as definitively failed.
+        raise HTTPException(status_code=503, detail="Analyse trop longue, réessaie dans quelques secondes.")
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:

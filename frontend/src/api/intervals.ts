@@ -97,6 +97,18 @@ export async function logAnalysisSession(payload: Record<string, unknown>): Prom
   }
 }
 
+// HTTP statuses that indicate a transient server / proxy issue where
+// the ride itself is fine — worth retrying a couple of times with
+// backoff rather than reporting `err` to the user. Covers the 404 that
+// Traefik returns when the backend is briefly evicted (unhealthy), the
+// 503 we emit ourselves on analysis timeout, and the 502/504 that
+// appear when the reverse proxy times out on a slow upstream.
+const RETRY_STATUSES = new Set([404, 500, 502, 503, 504]);
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function analyzeRide(
   apiKey: string,
   athleteId: string,
@@ -118,12 +130,37 @@ export async function analyzeRide(
   if (disablePrior) fd.append("disable_prior", "true");
   if (cdaPriorMean && cdaPriorMean > 0 && !disablePrior) fd.append("cda_prior_mean", String(cdaPriorMean));
   if (cdaPriorSigma && cdaPriorSigma > 0 && !disablePrior) fd.append("cda_prior_sigma", String(cdaPriorSigma));
-  const res = await fetch(`${API}/analyze-ride`, { method: "POST", body: fd });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+
+  // Up to 3 attempts: if the backend is momentarily overloaded or Traefik
+  // has just evicted an unhealthy container, a 2-4 s pause is enough for
+  // the healthcheck to go green again. A true 404 (activity purged by
+  // Intervals) will persist through all 3 attempts and still surface.
+  const MAX_ATTEMPTS = 3;
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(`${API}/analyze-ride`, { method: "POST", body: fd });
+      if (res.ok) return res.json();
+      // 422 = client error (bad file, bad params): never worth retrying.
+      if (res.status === 422 || !RETRY_STATUSES.has(res.status)) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      // Transient server/proxy error — read the detail for the final
+      // error message but keep retrying.
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      lastErr = new Error(err.detail || `HTTP ${res.status}`);
+    } catch (e) {
+      // Network error (TypeError from fetch) — also transient, retry.
+      lastErr = e instanceof Error ? e : new Error(String(e));
+    }
+    if (attempt < MAX_ATTEMPTS - 1) {
+      // Backoff: 1.5 s, then 3 s. Enough for a container restart cycle
+      // without keeping the user staring at a spinner forever.
+      await sleep(1500 * (attempt + 1));
+    }
   }
-  return res.json();
+  throw lastErr ?? new Error("Analyse échouée après plusieurs tentatives");
 }
 
 export async function analyzeBatchIntervals(

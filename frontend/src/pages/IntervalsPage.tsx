@@ -799,15 +799,15 @@ export default function IntervalsPage() {
                 {minConfidence === "off" ? t("intervals.solverConfOff") : minConfidence === "medium" ? t("intervals.solverConfMedium") : t("intervals.solverConfHigh")}
               </span>
             </label>
-            <div className="flex gap-1.5 max-w-sm">
+            <div className="flex gap-1.5">
               {(["off", "medium", "high"] as const).map((v) => (
                 <button
                   key={v}
                   type="button"
                   onClick={() => setMinConfidence(v)}
-                  className={`flex-1 px-2 py-1 text-xs font-mono rounded border transition ${
+                  className={`flex-1 px-3 py-1.5 text-sm rounded border transition ${
                     minConfidence === v
-                      ? "bg-teal/20 border-teal text-teal"
+                      ? "bg-teal/20 border-teal text-teal font-semibold"
                       : "bg-panel border-border text-muted hover:border-teal/50"
                   }`}
                   title={
@@ -822,7 +822,7 @@ export default function IntervalsPage() {
                 </button>
               ))}
             </div>
-            <p className="text-[10px] text-muted mt-1 max-w-sm leading-tight">
+            <p className="text-[10px] text-muted mt-1 leading-tight">
               {t("intervals.chungFallback")}
               Quand les deux solveurs divergent sur CdA, la sortie est moins
               robuste au choix du traitement du vent. La comparaison utilise

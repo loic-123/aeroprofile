@@ -34,7 +34,7 @@ export default function AnalysisLoading() {
   useEffect(() => {
     const id = setInterval(() => {
       setFactIdx((i) => (i + 1) % facts.length);
-    }, 5000);
+    }, 9000);
     return () => clearInterval(id);
   }, [facts.length]);
 

@@ -3,6 +3,7 @@
     "brand": "AeroProfile",
     "nav": {
       "analyze": "Analyse",
+      "progress": "Progression",
       "intervals": "Intervals",
       "methods": "Méthodes",
       "about": "À propos",
@@ -245,7 +246,7 @@
     "stillAnalyzing": "Analyse {{done}} / {{total}}…"
   },
   "history": {
-    "title": "Historique des analyses",
+    "title": "Progression",
     "subtitle_one": "{{count}} analyse sauvegardée",
     "subtitle_other": "{{count}} analyses sauvegardées",
     "empty": "Aucune analyse dans l'historique",

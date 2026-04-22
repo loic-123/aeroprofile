@@ -12,7 +12,7 @@ import { analyze, analyzeBatch } from "./api/client";
 import { getCached, setCache, type CacheOpts } from "./api/cache";
 import type { AnalysisResult, HierarchicalAnalysisResult } from "./types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, isHardFailure, type BikeType } from "./types";
-import { Wind, Users, User, FileText, Loader2, BookOpen, Link2, Clock } from "lucide-react";
+import { Wind, Users, User, FileText, Loader2, BookOpen, Link2, TrendingUp } from "lucide-react";
 import { saveToHistory, type HistoryEntry } from "./api/history";
 import { weightedAggregate, type AggregationInput } from "./lib/aggregate";
 import { getActiveProfile, type ProfileSettings } from "./api/profiles";
@@ -399,6 +399,7 @@ export default function App() {
               }}
               items={[
                 { value: "analyze" as Mode, label: t("app.nav.analyze"), icon: <User size={14} aria-hidden /> },
+                { value: "history", label: t("app.nav.progress"), icon: <TrendingUp size={14} aria-hidden /> },
                 { value: "intervals", label: t("app.nav.intervals"), icon: <Link2 size={14} aria-hidden /> },
                 { value: "blog", label: t("app.nav.methods"), icon: <BookOpen size={14} aria-hidden /> },
                 { value: "about", label: t("app.nav.about"), icon: <User size={14} aria-hidden /> },
@@ -408,18 +409,11 @@ export default function App() {
 
           <div className="flex-1" />
 
-          {/* Utility icons: history + github. History is a personal
-              archive (localStorage), not a primary feature — it lives
-              as a discreet icon in the top-right. */}
+          {/* Utility icons: language + github. Progression moved to the
+              primary NavTabs (renamed from "Historique") — it's not just a
+              list of past analyses, it contains the stability chart,
+              sensor bias histogram and per-ride filters. */}
           <LanguageToggle />
-          <button
-            onClick={() => changeMode("history")}
-            aria-label={t("app.nav.history")}
-            title={t("app.nav.history")}
-            className="p-2 rounded text-muted hover:text-text hover:bg-panel transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
-          >
-            <Clock size={16} aria-hidden />
-          </button>
           <a
             href="https://github.com/loic-123/aeroprofile"
             target="_blank"

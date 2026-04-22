@@ -7,7 +7,32 @@ import FilterSummary from "./FilterSummary";
 // MapView pulls in maplibre-gl (~200 KB gzipped). Lazy-load so the
 // critical dashboard render doesn't pay for it on users who never
 // scroll to the map area.
-const MapView = lazy(() => import("./MapView"));
+//
+// Dynamic imports with Vite-hashed filenames break when the user's tab
+// was opened against an OLD index.js (hash A) but a new deploy has
+// replaced the MapView chunk with hash B — the browser then gets a
+// 404 that React can't catch (the rejection happens outside any
+// ErrorBoundary tree), which freezes the whole app into a black
+// screen. The wrapper below catches those specific chunk-load
+// rejections and triggers a one-time hard reload so the user ends up
+// with the fresh bundle instead of a dead page.
+const MapView = lazy(() =>
+  import("./MapView").catch((err: Error) => {
+    const msg = err?.message ?? "";
+    const isChunkLoad =
+      msg.includes("Failed to fetch dynamically imported module") ||
+      msg.includes("Importing a module script failed") ||
+      msg.includes("error loading dynamically imported module") ||
+      (err.name === "ChunkLoadError");
+    if (isChunkLoad && !sessionStorage.getItem("chunkReloadAttempted")) {
+      sessionStorage.setItem("chunkReloadAttempted", "1");
+      window.location.reload();
+    }
+    // Rethrow so the Suspense fallback / ErrorBoundary surfaces it to
+    // the user if the reload loop protection already fired once.
+    throw err;
+  }),
+);
 import { ResultsHeader } from "./dashboard/ResultsHeader";
 import { ResultsHero } from "./dashboard/ResultsHero";
 import { ResultsSecondaryStats } from "./dashboard/ResultsSecondaryStats";

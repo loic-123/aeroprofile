@@ -534,16 +534,16 @@
   "about": {
     "back": "Retour",
     "eyebrow": "À propos",
-    "title": "Un casque aéro à 300 €, et plus aucune certitude. C'est comme ça que ça a commencé.",
-    "p1": "Moi c'est <name>Loïc</name>. Le jour, je fais de la recherche en IA à <imperial>Imperial College London</imperial>. La nuit aussi, mais sur un vélo — triathlon longue distance, avec l'obsession de la seconde qui va bien.",
-    "p2": "En 2024, j'achète un casque aéro. Très joli. Assez cher. Je voudrais juste savoir s'il me fait gagner quelque chose, ou si je viens de payer pour <em>l'idée</em> d'aller plus vite. Je cherche un outil pour trancher. Tous ceux que je trouve demandent un vélodrome, un protocole, ou un capteur à 600 balles.",
-    "p3": "Alors j'ai codé le mien. AeroProfile lit une de tes sorties et te sort un CdA avec une vraie barre d'erreur. Derrière : un solveur qui estime le vent en même temps que la traînée, de la méta-analyse quand tu accumules plusieurs rides, et pas mal de garde-fous pour te dire quand une sortie ne vaut rien. Tout est documenté dans 14 articles de méthodo, que je n'avais pas prévu d'écrire au départ.",
-    "p4": "C'est open source, sur GitHub. Si tu trouves un bug, envoie-moi le fichier FIT concerné et on règle ça. Les messages qui commencent par <em>« ta physique est fausse »</em> sont particulièrement bienvenus — tant qu'ils finissent par un FIT en pièce jointe.",
+    "title": "Salut.",
+    "p1": "<name>Loïc</name>, triathlète du dimanche et chercheur en IA à <imperial>Imperial College London</imperial> le reste de la semaine. J'aime trop pédaler et encore plus gratter des secondes.",
+    "p2": "Il y a deux ans, je me suis offert un casque aéro. Il a l'air rapide. Il a surtout l'air cher. Mais est-ce qu'il va vraiment plus vite ? Impossible de savoir sans vélodrome ni matos à quatre chiffres. Ça m'a un peu énervé.",
+    "p3": "AeroProfile, c'est ma réponse. Tu donnes une sortie, il te dit ton CdA, avec les bonnes barres d'erreur et sans qu'il ait fallu t'habiller comme un cosmonaute. Dedans il y a pas mal de choses (solveur de vent, méta-analyse, garde-fous en tout genre), toutes racontées dans les articles de méthodo.",
+    "p4": "Tout est sur GitHub, tout est gratuit. Si quelque chose casse, un petit mail avec le FIT qui pose problème et je regarde. Les <em>« tu es sûr de ta physique ? »</em> sont les bienvenus, à condition qu'un FIT suive.",
     "contact": "Me contacter",
-    "ctaAnalyzeTitle": "Analyser une sortie",
-    "ctaAnalyzeBody": "Dépose un fichier .fit, récupère ton CdA en une trentaine de secondes.",
-    "ctaMethodsTitle": "Voir la méthodologie",
-    "ctaMethodsBody": "14 articles expliquent chaque solveur, chaque filtre et chaque choix statistique utilisés dans l'outil."
+    "ctaAnalyzeTitle": "Tester avec ma sortie",
+    "ctaAnalyzeBody": "Un fichier .fit, trente secondes, un CdA.",
+    "ctaMethodsTitle": "Voir la méthodo",
+    "ctaMethodsBody": "Les 14 articles qui expliquent ce qui se passe dans la boîte noire."
   },
   "footer": {
     "brand": "AeroProfile",

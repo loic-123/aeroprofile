@@ -8,7 +8,6 @@ import PowerDecomposition from "../PowerDecomposition";
 import PowerScatter from "../PowerScatter";
 import ResidualsHistogram from "../ResidualsHistogram";
 import SpeedCdAScatter from "../SpeedCdAScatter";
-import MapView from "../MapView";
 import WindChart from "../WindChart";
 import SpeedPowerChart from "../SpeedPowerChart";
 import EnergyPieChart from "../EnergyPieChart";
@@ -150,13 +149,6 @@ export function ResultsCharts({ result }: Props) {
         </ChartCard>
       </div>
 
-      <ChartCard
-        index={10}
-        title={t("charts.mapTitle")}
-        description={t("charts.mapDesc")}
-      >
-        <MapView profile={result.profile} />
-      </ChartCard>
     </div>
   );
 }

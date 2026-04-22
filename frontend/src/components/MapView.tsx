@@ -106,15 +106,15 @@ export default function MapView({ profile }: { profile: ProfileData }) {
   }, [collection, stats, profile]);
 
   return (
-    <div className="bg-panel border border-border rounded-lg p-4">
+    <div className="bg-panel border border-border rounded-lg p-4 h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold">{t("charts.mapTitle")}</h3>
         <span className="text-[10px] uppercase tracking-widest text-muted font-mono">
           {stats.count > 0 ? t("charts.mapSegments", { count: stats.count }) : t("charts.mapNoCda")}
         </span>
       </div>
-      <div className="relative">
-        <div ref={ref} className="w-full h-80 md:h-96 rounded overflow-hidden" />
+      <div className="relative flex-1 min-h-[320px]">
+        <div ref={ref} className="w-full h-full min-h-[320px] rounded overflow-hidden" />
         {hover && (
           <div
             className="pointer-events-none absolute bg-bg/95 border border-border rounded px-2 py-1 text-xs font-mono shadow-e2 whitespace-nowrap"

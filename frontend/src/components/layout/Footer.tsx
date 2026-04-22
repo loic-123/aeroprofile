@@ -1,12 +1,13 @@
-import { Github, Mail, BookOpen, User } from "lucide-react";
+import { Github, Mail, BookOpen, User, Shield } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface Props {
   onGotoMethods: () => void;
   onGotoAbout: () => void;
+  onGotoPrivacy?: () => void;
 }
 
-export function Footer({ onGotoMethods, onGotoAbout }: Props) {
+export function Footer({ onGotoMethods, onGotoAbout, onGotoPrivacy }: Props) {
   const { t } = useTranslation();
   return (
     <footer className="border-t border-border/60 mt-20">
@@ -47,6 +48,15 @@ export function Footer({ onGotoMethods, onGotoAbout }: Props) {
             <User size={14} aria-hidden />
             {t("footer.about")}
           </button>
+          {onGotoPrivacy && (
+            <button
+              onClick={onGotoPrivacy}
+              className="inline-flex items-center gap-1.5 text-muted hover:text-text transition-colors"
+            >
+              <Shield size={14} aria-hidden />
+              {t("footer.privacy")}
+            </button>
+          )}
           <a
             href="mailto:loic.bouxirot@gmail.com"
             className="inline-flex items-center gap-1.5 text-muted hover:text-text transition-colors"

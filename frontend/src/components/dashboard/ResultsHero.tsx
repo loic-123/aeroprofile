@@ -88,8 +88,8 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
     !unreliable && bikeType != null && positionIdx != null && positionIdx > 0;
 
   return (
-    <div className="space-y-4">
-    <Card elevation={3} className="p-6 md:p-10 overflow-hidden relative">
+    <div className="space-y-4 h-full flex flex-col">
+    <Card elevation={3} className="p-6 md:p-10 overflow-hidden relative flex-1 flex flex-col justify-center">
       {/* Subtle iris radial glow behind the hero number */}
       <div
         className="pointer-events-none absolute -top-20 -left-10 h-[360px] w-[360px] rounded-full opacity-50 blur-3xl"

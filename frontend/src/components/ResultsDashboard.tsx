@@ -3,6 +3,7 @@ import AnomalyAlerts from "./AnomalyAlerts";
 import ReferenceTable from "./ReferenceTable";
 import WhatIfSimulator from "./WhatIfSimulator";
 import FilterSummary from "./FilterSummary";
+import MapView from "./MapView";
 import { ResultsHeader } from "./dashboard/ResultsHeader";
 import { ResultsHero } from "./dashboard/ResultsHero";
 import { ResultsSecondaryStats } from "./dashboard/ResultsSecondaryStats";
@@ -43,10 +44,21 @@ export default function ResultsDashboard({ result, massKg, bikeType, positionIdx
   const badFit = result.r_squared < 0.3;
   const unreliable = result.r_squared < 0;
 
+  const hasRoute = result.profile?.lat?.length > 0 && result.profile?.lon?.length > 0;
+
   return (
     <div className="space-y-6">
       <ResultsHeader result={result} />
-      <ResultsHero result={result} unreliable={unreliable} bikeType={bikeType} positionIdx={positionIdx} />
+      {hasRoute && !unreliable ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+          <ResultsHero result={result} unreliable={unreliable} bikeType={bikeType} positionIdx={positionIdx} />
+          <div className="min-h-[340px] lg:min-h-0">
+            <MapView profile={result.profile} />
+          </div>
+        </div>
+      ) : (
+        <ResultsHero result={result} unreliable={unreliable} bikeType={bikeType} positionIdx={positionIdx} />
+      )}
       <ResultsDiagnostics result={result} unreliable={unreliable} badFit={badFit} onReanalyzeWithWind={onReanalyzeWithWind} />
       <ResultsSecondaryStats result={result} unreliable={unreliable} />
       {!unreliable && (

@@ -214,6 +214,70 @@ V_{w}^{(j)} &\sim \mathcal{N}\!\left(V_{w,\text{API}}^{(j)},\; (2\;\text{m/s})^2
           <Tex>{String.raw`\chi^2`}</Tex> residual stabilizes.
         </P>
       </Section>
+
+      <Section title="Layer 4: adaptive prior and sensitivity test (April 2026)">
+        <P>
+          A fixed{" "}
+          <Tex>{String.raw`\sigma = 2\;\text{m/s}`}</Tex> prior works fine
+          when Open-Meteo is reasonably accurate. But the ERA5 bias (the
+          reanalysis backing Open-Meteo) is documented as{" "}
+          <strong>growing with wind magnitude</strong>, especially in coastal
+          and hilly terrain (Jourdier 2020; Copernicus ASR 2025). AeroProfile
+          now uses an adaptive <Tex>{String.raw`\sigma`}</Tex> driven by the
+          API wind speed:
+        </P>
+        <Formula>{String.raw`\sigma_{\text{wind}}(V_{\text{API}}) = \mathrm{clamp}\!\left(2 + 0.4\,(V_{\text{API}} - 3),\; 2,\; 5\right)\;\text{m/s}`}</Formula>
+        <P>
+          At low wind (<Tex>{String.raw`\leq 3\;\text{m/s}`}</Tex>) the prior
+          stays tight (σ = 2). At high wind (
+          <Tex>{String.raw`\geq 8\;\text{m/s}`}</Tex>), the solver has more
+          room to depart from the API value (σ = 5), reflecting that this is
+          where the API is most likely off.
+        </P>
+        <P>
+          In parallel, a <strong>±30% sensitivity test</strong> runs in
+          post-processing: Chung VE is rerun with API wind × 1.30 then × 0.70
+          (the plausible bounds of ERA5 bias in coastal zones), and the
+          resulting spread on <Tex>{String.raw`C_dA`}</Tex> is measured. The
+          ride is classified:
+        </P>
+        <Formula>{String.raw`\text{fragility} = \begin{cases}
+\text{fragile} & \text{if } \max|\Delta C_dA| \geq 0.05 \text{ and } V_{\text{API}} \geq 4\;\text{m/s} \\
+\text{moderate} & \text{if } \max|\Delta C_dA| \geq 0.025 \\
+\text{robust}   & \text{otherwise}
+\end{cases}`}</Formula>
+        <P>
+          The hybrid criterion (spread AND strong wind) avoids false
+          positives on flat rides with light wind: a{" "}
+          <Tex>{String.raw`C_dA`}</Tex> that is structurally wind-sensitive
+          is not necessarily driven by a wrong API wind when the API itself
+          is reporting a small value.
+        </P>
+      </Section>
+
+      <Section title="Layer 5: user-supplied measured wind">
+        <P>
+          Final line of defense: when the "fragile" flag fires, the user can
+          enter a measured wind speed and direction directly in the UI
+          (nearest weather station, Windy, Weatherflow Tempest, felt
+          estimate). The value is at rider height and back-converted to the
+          10 m equivalent via the log-law so it stays compatible with the
+          rest of the pipeline:
+        </P>
+        <Formula>{String.raw`V_{10,\text{manual}} = \frac{V_{\text{rider}}}{\alpha(z_0)},\qquad \alpha(0.03) \approx 0.65`}</Formula>
+        <P>
+          In this mode the solver prior is tightly anchored (
+          <Tex>{String.raw`\sigma = 0.5\;\text{m/s}`}</Tex>) around the
+          user's value, while still allowing margin for local gusts.
+        </P>
+        <Note>
+          This cascade (API → log-law → wind-inverse → adaptive prior →
+          sensitivity test → manual entry) is deliberately progressive:
+          each layer handles a rarer scenario than the previous one, and
+          none is mandatory. A rider can always back out (disable manual
+          entry) if the result surprises them.
+        </Note>
+      </Section>
     </Article>
   );
 }

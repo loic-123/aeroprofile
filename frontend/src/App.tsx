@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import FileUpload from "./components/FileUpload";
+import AnalysisLoading from "./components/AnalysisLoading";
 import ProfilePicker from "./components/ProfilePicker";
 import ResultsDashboard from "./components/ResultsDashboard";
 import CompareMode from "./components/CompareMode";
@@ -18,6 +19,7 @@ import { getActiveProfile, type ProfileSettings } from "./api/profiles";
 import HistoryPage from "./pages/HistoryPage";
 import LandingPage from "./pages/LandingPage";
 import AboutPage from "./pages/AboutPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import { Footer } from "./components/layout/Footer";
 import InfoTooltip from "./components/InfoTooltip";
 import { NavTabs } from "./components/ui";
@@ -32,7 +34,7 @@ import TabSwitcher from "./components/TabSwitcher";
 import ReferenceTable from "./components/ReferenceTable";
 import PositionSchematic from "./components/PositionSchematic";
 
-type Mode = "home" | "single" | "compare" | "intervals" | "blog" | "history" | "about";
+type Mode = "home" | "single" | "compare" | "intervals" | "blog" | "history" | "about" | "privacy";
 
 const DEFAULT_MAX_NRMSE = 0.45;
 
@@ -331,6 +333,24 @@ export default function App() {
 
   const selectedResult = rides[selectedIdx]?.result || null;
 
+  // Minimal URL routing: read the pathname at mount so deep links like
+  // /privacy hit the right view, and sync the URL when mode changes.
+  // Only dedicated "destination" modes (privacy, about) get a pathname;
+  // everything else stays on "/" to keep the existing behavior.
+  useEffect(() => {
+    const path = window.location.pathname.replace(/\/$/, "");
+    if (path === "/privacy") setMode("privacy");
+    else if (path === "/about") setMode("about");
+    const onPop = () => {
+      const p = window.location.pathname.replace(/\/$/, "");
+      if (p === "/privacy") setMode("privacy");
+      else if (p === "/about") setMode("about");
+      else setMode("home");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   // Helper that resets ride state when switching modes — avoids
   // showing stale results from a previous analysis when returning
   // to /analyze from another tab.
@@ -341,6 +361,11 @@ export default function App() {
       setError(null);
     }
     if (v === "blog") setBlogSlug(null);
+    // Sync URL for destination pages so Share/Bookmark work.
+    const dest = v === "privacy" ? "/privacy" : v === "about" ? "/about" : "/";
+    if (window.location.pathname !== dest) {
+      window.history.pushState({}, "", dest);
+    }
   };
 
   return (
@@ -450,6 +475,8 @@ export default function App() {
               setMode("blog");
             }}
           />
+        ) : mode === "privacy" ? (
+          <PrivacyPage onGotoHome={() => changeMode("home")} />
         ) : mode === "history" ? (
           <HistoryPage />
         ) : mode === "intervals" ? (
@@ -496,12 +523,7 @@ export default function App() {
               </>
             )}
 
-            {loading && !hasResults && (
-              <div className="text-center py-12">
-                <Loader2 className="animate-spin mx-auto text-teal" size={32} />
-                <p className="text-muted mt-3">{t("app.loading.analyzing")}</p>
-              </div>
-            )}
+            {loading && !hasResults && <AnalysisLoading />}
 
             {hasResults && (
               <>
@@ -894,6 +916,7 @@ export default function App() {
           setMode("blog");
         }}
         onGotoAbout={() => changeMode("about")}
+        onGotoPrivacy={() => changeMode("privacy")}
       />
     </div>
   );

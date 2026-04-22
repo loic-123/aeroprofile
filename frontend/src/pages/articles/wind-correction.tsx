@@ -222,6 +222,72 @@ V_{w}^{(j)} &\sim \mathcal{N}\!\left(V_{w,\text{API}}^{(j)},\; (2\;\text{m/s})^2
           <Tex>{String.raw`\chi^2`}</Tex>.
         </P>
       </Section>
+
+      <Section title="Couche 4 : prior adaptatif et test de sensibilité (avril 2026)">
+        <P>
+          Le prior gaussien à{" "}
+          <Tex>{String.raw`\sigma = 2\;\text{m/s}`}</Tex> suffit quand
+          Open-Meteo est raisonnablement juste. Mais le biais d'ERA5 (la
+          réanalyse qui alimente Open-Meteo) est documenté comme{" "}
+          <strong>croissant avec la vitesse du vent</strong>, surtout en zones
+          côtières et de relief (Jourdier 2020 ; Copernicus ASR 2025).
+          AeroProfile utilise donc maintenant un <Tex>{String.raw`\sigma`}</Tex>{" "}
+          adaptatif selon l'intensité annoncée par l'API :
+        </P>
+        <Formula>{String.raw`\sigma_{\text{vent}}(V_{\text{API}}) = \mathrm{clamp}\!\left(2 + 0{,}4\,(V_{\text{API}} - 3),\; 2,\; 5\right)\;\text{m/s}`}</Formula>
+        <P>
+          À vent faible (<Tex>{String.raw`\leq 3\;\text{m/s}`}</Tex>), le prior
+          reste serré (σ = 2). À vent fort (<Tex>{String.raw`\geq 8\;\text{m/s}`}</Tex>),
+          le solveur a plus de latitude pour s'éloigner de la valeur API
+          (σ = 5), reflétant le fait que c'est là qu'elle est la plus
+          suspecte.
+        </P>
+        <P>
+          En parallèle, un <strong>test de sensibilité ±30%</strong> tourne en
+          post-traitement : on relance Chung VE avec le vent API multiplié par
+          1,30 puis par 0,70 (les bornes plausibles du biais ERA5 en zone
+          côtière), et on mesure l'écart sur le{" "}
+          <Tex>{String.raw`C_dA`}</Tex>. Le ride est classé :
+        </P>
+        <Formula>{String.raw`\text{fragility} = \begin{cases}
+\text{fragile}  & \text{si } \max|\Delta C_dA| \geq 0{,}05 \text{ et } V_{\text{API}} \geq 4\;\text{m/s} \\
+\text{modéré}   & \text{si } \max|\Delta C_dA| \geq 0{,}025 \\
+\text{robuste}  & \text{sinon}
+\end{cases}`}</Formula>
+        <P>
+          Le critère hybride (écart ET vent fort) évite le faux positif sur
+          les rides plates avec petit vent : un{" "}
+          <Tex>{String.raw`C_dA`}</Tex> structurellement sensible au vent
+          n'est pas forcément piloté par un mauvais vent API si l'API annonce
+          déjà une valeur faible.
+        </P>
+      </Section>
+
+      <Section title="Couche 5 : vent mesuré saisi par l'utilisateur">
+        <P>
+          Dernière ligne de défense : quand le drapeau "fragile" s'affiche,
+          l'utilisateur peut saisir une vitesse et une direction mesurées
+          (station Météo-France, Windy, Weatherflow Tempest, ressenti vélo)
+          directement dans l'UI. Le vent saisi est au niveau du cycliste,
+          back-converti en valeur 10 m via la loi logarithmique pour rester
+          compatible avec le reste du pipeline :
+        </P>
+        <Formula>{String.raw`V_{10,\text{manuel}} = \frac{V_{\text{rider}}}{\alpha(z_0)},\qquad \alpha(0{,}03) \approx 0{,}65`}</Formula>
+        <P>
+          Dans ce mode, le prior du solveur est fortement resserré
+          (<Tex>{String.raw`\sigma = 0{,}5\;\text{m/s}`}</Tex>) pour ancrer le
+          résultat autour de la valeur saisie, tout en laissant marge pour
+          des bourrasques locales.
+        </P>
+        <Note>
+          Cette cascade (API → log-law → wind-inverse → prior adaptatif →
+          test de sensibilité → saisie manuelle) est volontairement
+          progressive : chaque couche gère un cas plus rare que la
+          précédente, et aucune n'est imposée. Un cycliste peut toujours
+          revenir en arrière (désactiver la saisie manuelle) si le résultat
+          le surprend.
+        </Note>
+      </Section>
     </Article>
   );
 }

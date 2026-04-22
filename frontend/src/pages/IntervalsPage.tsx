@@ -27,6 +27,7 @@ import CdARunningAvgChart from "../components/CdARunningAvgChart";
 import CdAEvolutionChart from "../components/CdAEvolutionChart";
 import ResultsDashboard from "../components/ResultsDashboard";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { RidePicker } from "../components/RidePicker";
 import TabSwitcher from "../components/TabSwitcher";
 import ReferenceTable from "../components/ReferenceTable";
 import PositionSchematic from "../components/PositionSchematic";
@@ -1540,23 +1541,20 @@ export default function IntervalsPage() {
                 <span className="text-muted">{t("intervals.detail")}</span>
                 <span className="font-mono text-teal">{rides[selectedIdx]?.activity?.name}</span>
                 <span className="text-muted text-xs">({rides[selectedIdx]?.activity?.start_date})</span>
-                <div className="flex gap-1 ml-auto">
-                  {rides.filter((r) => !r.excluded && r.result).map((r) => {
-                    const realIdx = rides.indexOf(r);
-                    return (
-                      <button
-                        key={realIdx}
-                        onClick={() => setSelectedIdx(realIdx)}
-                        className={`text-xs px-2 py-0.5 rounded font-mono ${
-                          realIdx === selectedIdx
-                            ? "bg-teal text-white"
-                            : "bg-panel border border-border text-muted hover:text-text"
-                        }`}
-                      >
-                        {r.activity.start_date}
-                      </button>
-                    );
-                  })}
+                <div className="ml-auto">
+                  <RidePicker
+                    entries={rides
+                      .map((r, i) => ({ ride: r, index: i }))
+                      .filter(({ ride }) => !ride.excluded && ride.result)
+                      .map(({ ride, index }) => ({
+                        index,
+                        date: ride.activity.start_date,
+                        name: ride.activity.name,
+                        cda: ride.result?.cda,
+                      }))}
+                    selectedIndex={selectedIdx}
+                    onSelect={setSelectedIdx}
+                  />
                 </div>
               </div>
               <ErrorBoundary

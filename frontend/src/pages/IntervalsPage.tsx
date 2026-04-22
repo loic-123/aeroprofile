@@ -657,7 +657,7 @@ export default function IntervalsPage() {
 
       {/* Filters + date range */}
       {profile && (
-        <div className="bg-panel border border-border rounded-lg p-5 space-y-7">
+        <div className="bg-panel border border-border rounded-lg p-5 sm:p-6">
           {/* Section 1: Profile (mass, bike, position) */}
           <FormSection
             title={t("formSections.profile.title")}

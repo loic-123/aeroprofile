@@ -20,14 +20,14 @@ interface Props {
  */
 export function FormSection({ title, description, children, action }: Props) {
   return (
-    <section className="space-y-3">
+    <section className="space-y-4 pt-6 mt-6 border-t border-border/60 first:border-t-0 first:pt-0 first:mt-0">
       <div className="flex items-baseline justify-between gap-3">
         <div>
-          <h4 className="text-[10px] uppercase tracking-widest text-muted font-semibold">
+          <h4 className="text-xs uppercase tracking-widest text-text font-semibold">
             {title}
           </h4>
           {description && (
-            <p className="text-xs text-muted-strong mt-0.5 leading-snug">
+            <p className="text-xs text-muted mt-1 leading-snug">
               {description}
             </p>
           )}

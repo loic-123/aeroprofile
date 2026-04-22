@@ -203,7 +203,7 @@ export default function FileUpload({
         </ul>
       )}
 
-      <div className="mt-6 bg-panel border border-border rounded-lg p-5 space-y-7">
+      <div className="mt-6 bg-panel border border-border rounded-lg p-5 sm:p-6">
         {/* Section 1: Rider profile (mass, bike, position) */}
         <FormSection
           title={t("formSections.profile.title")}

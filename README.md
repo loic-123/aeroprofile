@@ -6,7 +6,7 @@
 
 [🚀 Try the live demo](https://aeroprofile.cc) · [📖 Methodology articles](https://aeroprofile.cc/#blog) · [🐛 Report an issue](https://github.com/loic-123/aeroprofile/issues)
 
-[![tests](https://img.shields.io/badge/tests-32%20passing-brightgreen)](tests/) [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml) [![stack](https://img.shields.io/badge/stack-FastAPI%20%2B%20React-orange)](#stack)
+[![tests](https://img.shields.io/badge/tests-32%20passing-brightgreen)](tests/) [![license](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE) [![python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml) [![stack](https://img.shields.io/badge/stack-FastAPI%20%2B%20React-orange)](#stack)
 
 </div>
 
@@ -194,7 +194,9 @@ If AeroProfile saves you a trip to the wind tunnel, star the repo ⭐ or drop a 
 
 ## License
 
-MIT — do whatever you want, just don't strip the attribution. If you build a commercial product on top, a credit link back to this repo is appreciated.
+**AGPL-3.0-or-later.** Free to use, modify, and redistribute for any purpose, including commercial — as long as derivative works (including SaaS / hosted services exposing AeroProfile's code over a network) are also released under AGPL-3.0 and publish their source.
+
+If you want to integrate AeroProfile into a closed-source commercial product, or you don't want the AGPL copyleft obligations, reach out for a dual-license agreement: [loic.bouxirot@gmail.com](mailto:loic.bouxirot@gmail.com).
 
 ---
 

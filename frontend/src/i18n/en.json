@@ -464,7 +464,7 @@
     "mapNoCda": "no CdA"
   },
   "landing": {
-    "badge": "Open-source · v2026.04 · MIT",
+    "badge": "Open-source · v2026.04 · AGPL-3.0",
     "heroPart1": "Estimate your cycling",
     "heroPart2": "from any ride.",
     "heroLede": "No velodrome. No protocol. No monthly fee. Drop a <fit>.fit</fit>, get a CdA with a calibrated confidence interval - and the complete methodology behind every number.",
@@ -548,7 +548,7 @@
   },
   "footer": {
     "brand": "AeroProfile",
-    "tagline": "Open-source CdA estimator for cyclists. Built by Loïc Bouxirot. MIT licensed. Your ride data stays in your browser - nothing is stored on any server.",
+    "tagline": "Open-source CdA estimator for cyclists. Built by Loïc Bouxirot. AGPL-3.0 licensed. Your ride data stays in your browser - nothing is stored on any server.",
     "version": "v2026.04 · made in France",
     "nav": "Footer",
     "methods": "Methods",

@@ -10,7 +10,7 @@
 
 ### Qu'est-ce que AeroProfile ?
 
-AeroProfile est un outil **open-source** (licence MIT) qui calcule le **coefficient de traînée aérodynamique (CdA)** et la **résistance au roulement (Crr)** d'un cycliste à partir d'un fichier d'activité contenant des données de puissance (capteur de puissance obligatoire).
+AeroProfile est un outil **open-source** (licence AGPL-3.0-or-later) qui calcule le **coefficient de traînée aérodynamique (CdA)** et la **résistance au roulement (Crr)** d'un cycliste à partir d'un fichier d'activité contenant des données de puissance (capteur de puissance obligatoire).
 
 Formats supportés : **.FIT**, **.GPX** (avec extension power), **.TCX** — c'est-à-dire tous les formats courants qui transportent des données de puissance cyclisme.
 
@@ -45,7 +45,7 @@ Cyclistes avec capteur de puissance qui veulent :
 - **Parsing** : fitparse (FIT), gpxpy (GPX), lxml (TCX)
 - **Optimisation** : scipy.optimize.least_squares
 - **CLI** : click
-- **Licence** : MIT
+- **Licence** : AGPL-3.0-or-later
 - **Nom** : `aeroprofile`
 
 ### Arborescence
@@ -53,7 +53,7 @@ Cyclistes avec capteur de puissance qui veulent :
 ```
 aeroprofile/
 ├── README.md
-├── LICENSE                         # MIT
+├── LICENSE                         # AGPL-3.0-or-later
 ├── pyproject.toml
 ├── requirements.txt
 │

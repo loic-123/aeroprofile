@@ -7,12 +7,12 @@ name = "aeroprofile"
 version = "0.1.0"
 description = "Compute cyclist CdA and Crr from power-meter activity files with automatic wind correction."
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "AGPL-3.0-or-later" }
 requires-python = ">=3.11"
 authors = [{ name = "AeroProfile Contributors" }]
 keywords = ["cycling", "aerodynamics", "cda", "crr", "power-meter", "fit", "gpx", "tcx"]
 classifiers = [
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Physics",
 ]

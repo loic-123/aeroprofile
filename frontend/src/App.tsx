@@ -400,17 +400,26 @@ export default function App() {
                 { value: "history", label: t("app.nav.progress"), icon: <TrendingUp size={14} aria-hidden /> },
                 { value: "intervals", label: t("app.nav.intervals"), icon: <Link2 size={14} aria-hidden /> },
                 { value: "blog", label: t("app.nav.methods"), icon: <BookOpen size={14} aria-hidden /> },
-                { value: "about", label: t("app.nav.about"), icon: <User size={14} aria-hidden /> },
               ]}
             />
           )}
 
           <div className="flex-1" />
 
-          {/* Utility icons: language + github. Progression moved to the
-              primary NavTabs (renamed from "Historique") — it's not just a
-              list of past analyses, it contains the stability chart,
-              sensor bias histogram and per-ride filters. */}
+          {/* Utility zone: About + language + github. About lives here
+              (not in the primary NavTabs) because it's a destination
+              about the author / project, not a feature tab. Progression
+              moved to the primary NavTabs (renamed from "Historique") —
+              it's not just a list of past analyses, it contains the
+              stability chart, sensor bias histogram and per-ride filters. */}
+          <button
+            onClick={() => changeMode("about")}
+            aria-label={t("app.nav.about")}
+            title={t("app.nav.about")}
+            className="p-2 rounded text-muted hover:text-text hover:bg-panel transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+          >
+            <User size={16} aria-hidden />
+          </button>
           <LanguageToggle />
           <a
             href="https://github.com/loic-123/aeroprofile"

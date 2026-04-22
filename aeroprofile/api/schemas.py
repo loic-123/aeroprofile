@@ -78,6 +78,8 @@ class AnalysisResultOut(BaseModel):
     cda_delta_wind_plus_30pct: Optional[float] = None
     cda_delta_wind_minus_30pct: Optional[float] = None
     wind_fragility: str = "unknown"
+    cda_ci_broad_low: Optional[float] = None
+    cda_ci_broad_high: Optional[float] = None
     gear_id: Optional[str] = None
     gear_name: Optional[str] = None
 

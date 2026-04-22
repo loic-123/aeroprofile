@@ -370,6 +370,8 @@ def _build_analysis_out(result):
         cda_delta_wind_plus_30pct=_f(result.cda_delta_wind_plus_30pct) if result.cda_delta_wind_plus_30pct is not None else None,
         cda_delta_wind_minus_30pct=_f(result.cda_delta_wind_minus_30pct) if result.cda_delta_wind_minus_30pct is not None else None,
         wind_fragility=result.wind_fragility,
+        cda_ci_broad_low=_f(result.cda_ci_broad_low) if result.cda_ci_broad_low is not None else None,
+        cda_ci_broad_high=_f(result.cda_ci_broad_high) if result.cda_ci_broad_high is not None else None,
         gear_id=result.gear_id,
         gear_name=result.gear_name,
         ride_date=result.ride_date,

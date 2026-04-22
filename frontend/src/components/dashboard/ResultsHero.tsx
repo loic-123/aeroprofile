@@ -121,11 +121,23 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
 
           {!unreliable ? (
             <dl className="space-y-1.5 text-xs font-mono max-w-md pt-2">
-              <div className="flex items-baseline gap-3">
-                <dt className="text-muted w-28 text-[10px] uppercase tracking-wider shrink-0">
+              {result.cda_ci_broad_low != null && result.cda_ci_broad_high != null && (
+                <div className="flex items-baseline gap-3">
+                  <dt className="text-muted w-28 text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1">
+                    {t("dashboard.icBroad")}
+                    <InfoTooltip text={t("tooltips.icBroad")} />
+                  </dt>
+                  <dd className="text-text whitespace-nowrap">
+                    [{result.cda_ci_broad_low.toFixed(3)} – {result.cda_ci_broad_high.toFixed(3)}]
+                  </dd>
+                </div>
+              )}
+              <div className="flex items-baseline gap-3 opacity-60">
+                <dt className="text-muted w-28 text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1">
                   {t("dashboard.icHessian")}
+                  <InfoTooltip text={t("tooltips.icHessianLimit")} />
                 </dt>
-                <dd className="text-text whitespace-nowrap">
+                <dd className="text-muted whitespace-nowrap">
                   [{result.cda_ci_low.toFixed(3)} – {result.cda_ci_high.toFixed(3)}]
                 </dd>
               </div>

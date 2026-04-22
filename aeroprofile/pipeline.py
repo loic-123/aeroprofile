@@ -129,6 +129,17 @@ class AnalysisResult:
     cda_delta_wind_plus_30pct: Optional[float] = None
     cda_delta_wind_minus_30pct: Optional[float] = None
     wind_fragility: str = "unknown"
+    # Broadened CdA 95% CI that augments the Hessian-only interval with
+    # two structural error sources the likelihood curvature can't see:
+    #   (a) wind sensitivity — max |ΔCdA| observed when the API wind is
+    #       perturbed by ±30% (the ERA5 coastal bias band).
+    #   (b) model fit quality — a R²-based penalty (coefficient 0.05) so a
+    #       ride with R²=0.25 carries a much wider interval than a ride
+    #       with R²=0.95, even if the Hessian-only CIs look similar.
+    # Half-width = hessian_half + max|Δwind±30%| + 0.05·max(0, 1-R²).
+    # None when any source is unavailable (e.g. Chung sensitivity failed).
+    cda_ci_broad_low: Optional[float] = None
+    cda_ci_broad_high: Optional[float] = None
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -1574,6 +1585,37 @@ async def analyze(
             wind_fragility, _max_delta, _api_ws_mean,
         )
 
+    # Broadened 95% CI on CdA that combines the Hessian curvature with
+    # two structural error sources the Hessian alone doesn't capture:
+    # wind sensitivity (max |ΔCdA| when API wind is perturbed ±30%) and
+    # fit quality (R²-based penalty so a poorly-fitted ride declares a
+    # wider interval than a well-fitted one of identical sensitivity).
+    # half_width = hessian_half + max|Δwind| + 0.05·max(0, 1-R²)
+    cda_ci_broad_low: Optional[float] = None
+    cda_ci_broad_high: Optional[float] = None
+    try:
+        _hess_half = 0.0
+        if (
+            sol.cda_ci is not None
+            and sol.cda_ci[0] is not None and sol.cda_ci[1] is not None
+            and not (np.isnan(sol.cda_ci[0]) or np.isnan(sol.cda_ci[1]))
+        ):
+            _hess_half = max(0.0, (float(sol.cda_ci[1]) - float(sol.cda_ci[0])) / 2.0)
+        _wind_half = 0.0
+        if cda_delta_wind_plus_30pct is not None and cda_delta_wind_minus_30pct is not None:
+            _wind_half = max(abs(cda_delta_wind_plus_30pct), abs(cda_delta_wind_minus_30pct))
+        _r2_penalty = 0.05 * max(0.0, min(1.0, 1.0 - float(sol.r_squared)))
+        _broad_half = _hess_half + _wind_half + _r2_penalty
+        cda_ci_broad_low = max(0.0, float(sol.cda) - _broad_half)
+        cda_ci_broad_high = float(sol.cda) + _broad_half
+        logger.info(
+            "CI_BROAD: hessian_half=%.4f wind_half=%.4f r2_penalty=%.4f → broad=[%0.3f, %0.3f] (±%.4f)",
+            _hess_half, _wind_half, _r2_penalty,
+            cda_ci_broad_low, cda_ci_broad_high, _broad_half,
+        )
+    except Exception as _e:
+        logger.warning("CI_BROAD computation failed: %s", _e)
+
     # Summary stats
     filter_summary = {name: int(df[name].sum()) for name in FILTER_NAMES}
     if ve_excluded_count > 0:
@@ -1643,6 +1685,8 @@ async def analyze(
         cda_delta_wind_plus_30pct=cda_delta_wind_plus_30pct,
         cda_delta_wind_minus_30pct=cda_delta_wind_minus_30pct,
         wind_fragility=wind_fragility,
+        cda_ci_broad_low=cda_ci_broad_low,
+        cda_ci_broad_high=cda_ci_broad_high,
         gear_id=gear_id,
         gear_name=gear_name,
     )

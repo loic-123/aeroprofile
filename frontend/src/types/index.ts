@@ -175,6 +175,11 @@ export interface AnalysisResult {
   cda_delta_wind_plus_30pct?: number | null;
   cda_delta_wind_minus_30pct?: number | null;
   wind_fragility?: "robust" | "moderate" | "fragile" | "unknown";
+  // Broadened 95% CI on CdA — Hessian + wind sensitivity + R² penalty.
+  // null when any source is unavailable. The dashboard uses these as
+  // the headline interval; the Hessian-only CI stays in a secondary line.
+  cda_ci_broad_low?: number | null;
+  cda_ci_broad_high?: number | null;
   gear_id?: string | null;
   gear_name?: string | null;
   cda_climb: number | null;

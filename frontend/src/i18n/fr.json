@@ -45,6 +45,7 @@
     "position": "Position",
     "icHessian": "IC Hessian 95%",
     "icConformal": "IC Conformal 95%",
+    "icBroad": "IC 95% élargi",
     "solverDelta": "Δ solver",
     "unreliable": "non fiable (R² < 0)",
     "priorReinforced": "prior renforcé ×{{factor}}",
@@ -671,6 +672,8 @@
     "whatIf": "Faites varier un paramètre et voyez l'impact sur la sortie. Le modèle recalcule point par point avec l'équation de Martin, en gardant parcours et météo identiques.",
     "positionRef": "La référence est le prior bayésien utilisé par le solveur — pas une vérité terrain. Elle représente la valeur moyenne attendue pour cette position sur ce type de vélo, issue de la littérature (Debraux et al. 2011) et des mesures soufflerie.",
     "positionInput": "Ta position de référence sert de prior (hypothèse de départ) pour le solveur. Elle ne fixe pas ton CdA — elle indique juste au modèle une valeur probable à partir de laquelle chercher, pour stabiliser l'estimation sur les sorties bruitées. Plus tu choisis une position aéro (ex. prolongateurs), plus le prior attend un CdA bas. Si tu n'es pas sûr, prends la position la plus proche de ta vraie posture sur le vélo — le solveur ajustera.",
+    "icBroad": "Intervalle de confiance 95% qui inclut trois sources d'incertitude : la courbure de la vraisemblance (Hessien), la sensibilité au vent (max |ΔCdA| quand on perturbe le vent API de ±30%), et un terme proportionnel à (1 − R²) qui pénalise les sorties mal ajustées. Plus honnête que l'IC Hessien seul, qui n'attrape que l'incertitude statistique du fit et ignore les biais de modèle.",
+    "icHessianLimit": "IC Hessien = courbure pure de la vraisemblance au point optimal. Il dit : « si je bouge un peu CdA, l'ajustement se dégrade à cette vitesse ». Mais il n'inclut PAS l'incertitude vent ni la qualité du fit (R²). Sur une sortie où R² < 0,5, cet IC peut être très étroit alors que le résultat est en fait peu fiable — préfère l'IC élargi au-dessus.",
     "cdaRefRanges": "Plages typiques de CdA issues de Debraux et al. 2011 et des mesures en soufflerie. Votre valeur est mise en évidence dans la plage correspondante. Le CdA dépend de la position sur le vélo, de la morphologie, et de l'équipement (casque, tenue).",
     "crrRefRanges": "Plages typiques de coefficient de résistance au roulement. Dépend du pneu (modèle, pression, largeur), du revêtement, et de la température. Un Crr bas = pneu qui roule bien sur surface lisse."
   },

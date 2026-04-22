@@ -26,6 +26,8 @@ import PowerMeterQuality from "./power-meter-quality";
 import PowerMeterQualityEn from "./power-meter-quality.en";
 import PriorInvariance from "./prior-invariance";
 import PriorInvarianceEn from "./prior-invariance.en";
+import ChoosePosition from "./choose-position";
+import ChoosePositionEn from "./choose-position.en";
 import i18n from "../../i18n";
 
 /**
@@ -56,4 +58,5 @@ export const ARTICLES: Record<string, () => JSX.Element> = {
   "intervals-integration": localized(IntervalsIntegration, IntervalsIntegrationEn),
   "power-meter-quality": localized(PowerMeterQuality, PowerMeterQualityEn),
   "prior-invariance": localized(PriorInvariance, PriorInvarianceEn),
+  "choose-position": localized(ChoosePosition, ChoosePositionEn),
 };

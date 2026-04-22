@@ -21,6 +21,7 @@ import type { AnalysisResult, HierarchicalAnalysisResult } from "../types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, isHardFailure, type BikeType } from "../types";
 import InfoTooltip from "../components/InfoTooltip";
 import { FormSection } from "../components/FormSection";
+import { useBlog } from "../components/BlogLayout";
 import CdATotem from "../components/CdATotem";
 import CdARunningAvgChart from "../components/CdARunningAvgChart";
 import CdAEvolutionChart from "../components/CdAEvolutionChart";
@@ -43,6 +44,7 @@ interface RideResult {
 
 export default function IntervalsPage() {
   const { t } = useTranslation();
+  const blog = useBlog();
   // Profile-driven initial state. We read the active profile ONCE at mount
   // to seed every form field; the ProfilePicker below can reload it on
   // demand or save the current form state back into the profile.
@@ -704,6 +706,16 @@ export default function IntervalsPage() {
                     onClick={() => setPositionIdx(i)}>{p.label}</span>
                 ))}
               </div>
+              <p className="text-[10px] text-muted mt-2 leading-snug">
+                {t("fileUpload.positionUnsure")}{" "}
+                <button
+                  type="button"
+                  onClick={() => blog.go("choose-position")}
+                  className="text-teal hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal rounded"
+                >
+                  {t("fileUpload.positionHelpLink")}
+                </button>
+              </p>
             </div>
           </FormSection>
 

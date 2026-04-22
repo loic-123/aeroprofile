@@ -5,6 +5,7 @@ import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType 
 import { Button } from "./ui";
 import { FormSection } from "./FormSection";
 import InfoTooltip from "./InfoTooltip";
+import { useBlog } from "./BlogLayout";
 
 interface Props {
   onAnalyze: (
@@ -45,6 +46,7 @@ export default function FileUpload({
   onSettingsChange,
 }: Props) {
   const { t } = useTranslation();
+  const blog = useBlog();
   const [files, setFiles] = useState<File[]>([]);
   const [mass, setMass] = useState<number>(initialMass ?? 80);
   const [bikeType, setBikeType] = useState<BikeType>(initialBikeType ?? "road");
@@ -289,6 +291,16 @@ export default function FileUpload({
                 </button>
               ))}
             </div>
+            <p className="text-[10px] text-muted mt-2 leading-snug">
+              {t("fileUpload.positionUnsure")}{" "}
+              <button
+                type="button"
+                onClick={() => blog.go("choose-position")}
+                className="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+              >
+                {t("fileUpload.positionHelpLink")}
+              </button>
+            </p>
           </div>
         </FormSection>
 

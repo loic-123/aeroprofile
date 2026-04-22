@@ -141,6 +141,8 @@
     "positionLabel": "Position sur le vélo :",
     "positionPrior": "(prior CdA ≈ {{value}})",
     "positionNoPrior": "(pas de prior - estimation libre)",
+    "positionUnsure": "Pas sûr de ta position ? Choisis « Je ne sais pas » dans le sélecteur.",
+    "positionHelpLink": "Comment choisir ?",
     "cacheSwitchAria": "Cache local des analyses",
     "cacheOn": "Cache local (activé)",
     "cacheOff": "Cache local (désactivé - re-analyse tout)",
@@ -803,6 +805,10 @@
       "cda-what-is-it": {
         "title": "CdA : qu'est-ce que c'est et pourquoi c'est important ?",
         "desc": "Le coefficient de traînée aérodynamique expliqué simplement. Comment il varie selon votre position, votre équipement, et pourquoi 0.01 de CdA fait une vraie différence."
+      },
+      "choose-position": {
+        "title": "Quelle position choisir dans le formulaire ?",
+        "desc": "Le sélecteur Position n'est pas un piège : il ne fixe pas ton CdA, il aide juste le solveur à démarrer. Comment remplir ce champ, et que choisir si tu n'es pas sûr du tout."
       },
       "wind-correction": {
         "title": "Correction du vent : de l'API météo au wind-inverse",

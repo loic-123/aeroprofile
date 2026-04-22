@@ -22,6 +22,7 @@ interface Article {
 const ARTICLES: Article[] = [
   { slug: "power-equation", tags: ["physique", "fondamentaux"], category: "Fundamentals", readMin: 6 },
   { slug: "cda-what-is-it", tags: ["aéro", "fondamentaux"], category: "Fundamentals", readMin: 5 },
+  { slug: "choose-position", tags: ["pratique", "fondamentaux"], category: "Fundamentals", readMin: 4, featured: true },
   { slug: "wind-correction", tags: ["vent", "météo", "avancé"], category: "Algorithms", readMin: 12, featured: true },
   { slug: "solvers", tags: ["solveur", "algorithme"], category: "Algorithms", readMin: 10 },
   { slug: "filters", tags: ["filtrage", "qualité"], category: "Algorithms", readMin: 8 },

@@ -141,6 +141,8 @@
     "positionLabel": "Riding position:",
     "positionPrior": "(CdA prior ≈ {{value}})",
     "positionNoPrior": "(no prior - free estimation)",
+    "positionUnsure": "Not sure about your position? Pick \"I don't know\" in the selector.",
+    "positionHelpLink": "How to choose?",
     "cacheSwitchAria": "Local analysis cache",
     "cacheOn": "Local cache (on)",
     "cacheOff": "Local cache (off - re-analyses everything)",
@@ -803,6 +805,10 @@
       "cda-what-is-it": {
         "title": "CdA: what is it and why does it matter?",
         "desc": "The aerodynamic drag coefficient explained simply. How it varies with your position, your equipment, and why 0.01 of CdA makes a real difference."
+      },
+      "choose-position": {
+        "title": "Which position should I pick in the form?",
+        "desc": "The Position selector is not a trap: it doesn't fix your CdA, it just helps the solver get started. How to fill this field, and what to pick if you really aren't sure."
       },
       "wind-correction": {
         "title": "Wind correction: from the weather API to wind-inverse",

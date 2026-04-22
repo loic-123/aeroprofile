@@ -111,6 +111,25 @@ function _save(list: LocalProfile[]): void {
   }
 }
 
+/** Custom event the in-app code dispatches whenever the profile list
+ *  or the active profile selection changes. ProfilePicker subscribes
+ *  to it so its useState(() => getProfiles()) initialiser doesn't get
+ *  stuck on the value it captured at first mount — the page is now
+ *  permanently mounted via display:none toggling and never gets the
+ *  remount that would otherwise refresh the state. We deliberately do
+ *  NOT fire on saveProfileSettings (per-field debounced auto-save)
+ *  because that would re-render the picker on every slider scrub
+ *  without any user-visible benefit. */
+export const PROFILES_CHANGED_EVENT = "aeroprofile:profiles-changed";
+
+function _emitProfilesChange(): void {
+  try {
+    window.dispatchEvent(new CustomEvent(PROFILES_CHANGED_EVENT));
+  } catch {
+    /* SSR / very old browser — ignore */
+  }
+}
+
 // --- Public API -----------------------------------------------------------
 
 export function getProfiles(): LocalProfile[] {
@@ -139,6 +158,7 @@ export function setActiveProfile(key: string): void {
   } catch {
     // ignore
   }
+  _emitProfilesChange();
 }
 
 /** Create a new profile from a display name and make it active.
@@ -159,7 +179,7 @@ export function addProfile(name: string, settings?: ProfileSettings): LocalProfi
     list.push({ key, name: trimmed, settings: finalSettings });
   }
   _save(list);
-  setActiveProfile(key);
+  setActiveProfile(key);  // already emits
   return { key, name: trimmed, settings: finalSettings };
 }
 
@@ -167,7 +187,9 @@ export function deleteProfile(key: string): void {
   const list = _load().filter((p) => p.key !== key);
   _save(list.length > 0 ? list : [DEFAULT_PROFILE]);
   if (getActiveProfile().key === key) {
-    setActiveProfile(DEFAULT_PROFILE.key);
+    setActiveProfile(DEFAULT_PROFILE.key);  // already emits
+  } else {
+    _emitProfilesChange();
   }
 }
 

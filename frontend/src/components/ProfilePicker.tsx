@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { User, Plus, Trash2, Check } from "lucide-react";
 import {
@@ -7,6 +7,7 @@ import {
   setActiveProfile,
   addProfile,
   deleteProfile,
+  PROFILES_CHANGED_EVENT,
   type LocalProfile,
   type ProfileSettings,
 } from "../api/profiles";
@@ -37,6 +38,22 @@ export default function ProfilePicker({
   const [active, setActive] = useState<LocalProfile>(() => getActiveProfile());
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
+
+  // Both Analyse and Intervals render their own ProfilePicker instance.
+  // When the user creates / activates / deletes a profile on one tab,
+  // the OTHER instance must re-pull from localStorage — the components
+  // are mounted permanently (display:none toggle) so the lazy init
+  // useState above never re-runs. Subscribe to the api/profiles event
+  // and refresh when it fires (the picker that triggered the change
+  // also receives its own event, but that's a no-op rerender).
+  useEffect(() => {
+    const refresh = () => {
+      setProfiles(getProfiles());
+      setActive(getActiveProfile());
+    };
+    window.addEventListener(PROFILES_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(PROFILES_CHANGED_EVENT, refresh);
+  }, []);
 
   const refresh = () => {
     setProfiles(getProfiles());

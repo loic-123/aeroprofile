@@ -41,7 +41,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
   // shows "—" immediately — no animation on non-values.
   const rolled = useNumberRoll(unreliable ? 0 : result.cda, {
     decimals: 3,
-    durationMs: 900,
+    durationMs: 1400,
   });
 
   const conformal = useMemo(() => {
@@ -122,7 +122,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
           {!unreliable ? (
             <dl className="space-y-1.5 text-xs font-mono max-w-md pt-2">
               <div className="flex items-baseline gap-3">
-                <dt className="text-muted w-32 text-[10px] uppercase tracking-wider shrink-0">
+                <dt className="text-muted w-28 text-[10px] uppercase tracking-wider shrink-0">
                   {t("dashboard.icHessian")}
                 </dt>
                 <dd className="text-text">
@@ -131,7 +131,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
               </div>
               {conformal && (
                 <div className="flex items-baseline gap-3">
-                  <dt className="text-muted w-32 text-[10px] uppercase tracking-wider shrink-0">
+                  <dt className="text-muted w-28 text-[10px] uppercase tracking-wider shrink-0">
                     {t("dashboard.icConformal")}
                   </dt>
                   <dd className="text-accent">
@@ -142,7 +142,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
               )}
               {personalSolverBias && Math.abs(personalSolverBias.median) > 0.005 && (
                 <div className="flex items-baseline gap-3">
-                  <dt className="text-muted w-32 text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1">
+                  <dt className="text-muted w-28 text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1">
                     Δ solver
                     <InfoTooltip text={t("tooltips.solverDeltaMedian")} />
                   </dt>
@@ -186,7 +186,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
             className="flex justify-center md:justify-end"
           >
             <div className="relative">
-              <PositionSchematic cda={result.cda} size={200} />
+              <PositionSchematic cda={result.cda} size={160} />
               <div className="text-center mt-2 text-[10px] uppercase tracking-widest text-muted font-semibold">
                 {t("dashboard.position")}
               </div>

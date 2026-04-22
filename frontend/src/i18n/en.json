@@ -386,9 +386,9 @@
     "windRobust": "Open-Meteo wind consistent with data (robust)",
     "windModerate": "Wind may be imprecise (CdA moderately sensitive)",
     "windFragile": "Wind probably wrong - fragile CdA",
-    "windBodyFragile": "On this ride, varying the API wind by ±30% moves the estimated CdA by more than 0.05 m². Typical of an area where Open-Meteo doesn't capture the real wind (coast, relief, coarse grid). Enter measured wind to make the analysis reliable.",
-    "windBodyModerate": "Varying the API wind by ±30% moves the CdA by 0.02 to 0.05 m². Moderate sensitivity - a measured wind would improve precision.",
-    "windBodyRobust": "Varying the API wind by ±30% leaves the CdA almost unchanged. Estimate is robust to wind.",
+    "windBodyFragile": "Strong API wind (≥ 4 m/s) on a highly sensitive ride (±30% of wind moves CdA by more than 0.05 m²). This is the scenario where ERA5 / Open-Meteo can be imprecise (coast, relief, strong wind). Enter measured wind for a reliable analysis.",
+    "windBodyModerate": "The CdA shifts by 0.025 to 0.05 m² when the API wind is perturbed by ±30%. Moderate sensitivity - a measured wind would improve precision, but the estimate is still usable.",
+    "windBodyRobust": "Perturbing the API wind by ±30% leaves the CdA almost unchanged. Robust estimate.",
     "windCorrect": "Correct the wind",
     "windCorrectDialogTitle": "Correct the measured wind",
     "windApiUsed": "API wind: <strong>{{ms}} m/s ({{kmh}} km/h) from {{dir}}°</strong>",
@@ -551,7 +551,66 @@
     "version": "v2026.04 · made in France",
     "nav": "Footer",
     "methods": "Methods",
-    "about": "About"
+    "about": "About",
+    "privacy": "Privacy"
+  },
+  "loading": {
+    "didYouKnow": "Did you know?",
+    "facts": {
+      "1": "Your CdA matters as much as your fitness: an amateur tucked in (CdA 0.28) beats a pro upright (CdA 0.42) at equal power.",
+      "2": "Doubling your power does not double your speed: aero drag scales with speed cubed. +50% watts = only +14% km/h.",
+      "3": "At 35 km/h on the flat, 80% of your power fights the air. The rest: tyres, transmission, accelerations.",
+      "4": "A skinsuit saves more watts than aero wheels. Spend your budget in the right order.",
+      "5": "The Chung method estimates your CdA without a wind tunnel. It compares your GPS elevation to the one reconstructed from the energy balance.",
+      "6": "Open-Meteo gives wind at 10 m. At rider level (1.3 m), it's roughly 65% of that in open terrain.",
+      "7": "A small rider (5ft7, 145 lbs) will naturally have a CdA around 0.26. A taller one (6ft3, 190 lbs) closer to 0.34.",
+      "8": "TT extensions + flat back can save 30 W at 40 km/h. That's two years of training."
+    }
+  },
+  "privacy": {
+    "back": "Back",
+    "eyebrow": "Privacy",
+    "title": "Privacy policy",
+    "lastUpdate": "Last update: April 22, 2026",
+    "s1": {
+      "title": "In one sentence",
+      "body": "AeroProfile is a client-side tool: your activity files (FIT / GPX / TCX) are analysed in your browser, the server does not retain them, and no advertising profile is built on you. The rest of this page details exactly what travels, where, and why."
+    },
+    "s2": {
+      "title": "What we process, and where",
+      "body": "When you upload an activity file, three things happen:",
+      "item1": "The file is sent to our server for parsing and analysis (Chung VE, wind_inverse, etc.). It stays in memory for the duration of the computation (a few seconds), then is discarded without being written to disk.",
+      "item2": "The result (CdA, Crr, charts) is sent back to your browser and cached locally in your localStorage so we don't recompute if you drop the same file again.",
+      "item3": "Nothing is linked to an account, email, or identity - there are no user accounts on AeroProfile."
+    },
+    "s3": {
+      "title": "What is stored in your browser",
+      "body": "Everything stays on your device via localStorage:",
+      "item1": "Your analysis history (CdA, Crr, ride metadata) for the History module.",
+      "item2": "Your athlete profiles (mass, bike type, position) to pre-fill the form.",
+      "item3": "Your Intervals.icu API token (if you use the integration) - never forwarded to our server beyond the proxied calls to intervals.icu."
+    },
+    "s4": {
+      "title": "Third parties",
+      "body": "To do its job, AeroProfile calls two external services: <openmeteo></openmeteo> to fetch weather data (wind, temperature, pressure) matching your ride's date and GPS coordinates, and, only if you explicitly opt in, <intervals></intervals> to import your activities (token provided by you, stored only in your browser)."
+    },
+    "s5": {
+      "title": "Analytics",
+      "body": "AeroProfile uses a minimal analytics stack (Vercel Analytics) that counts page views and usage events (Analyze click, export). No third-party cookies, no fingerprinting, no sharing with ad networks. You can block this tracking via your usual blocker without breaking the tool."
+    },
+    "s6": {
+      "title": "Your rights",
+      "body": "Under GDPR, you have the right:",
+      "item1": "Of access: all your data lives in your browser's localStorage (DevTools → Application → Local Storage).",
+      "item2": "To erasure: clear the localStorage (or use the Reset button in Settings).",
+      "item3": "To portability: export your history as JSON from the History panel.",
+      "item4": "To opt out: you can use AeroProfile without creating an account (there is none) and nothing is retained server-side after the computation.",
+      "contact": "For any question: <mail></mail>."
+    },
+    "s7": {
+      "title": "Changes to this policy",
+      "body": "Significant changes will be mentioned here with the update date. AeroProfile is open source - you can follow the full history on GitHub."
+    }
   },
   "blogIndexHeader": {
     "eyebrow": "Methods",

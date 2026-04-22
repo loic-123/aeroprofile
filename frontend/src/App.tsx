@@ -439,6 +439,20 @@ export default function App() {
       </header>
 
       <main className={mode === "home" ? "flex-1" : "flex-1 max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 w-full"}>
+        {/* BlogProvider wraps the whole <main> so blog-article deep-links
+            work from anywhere in the app (e.g. the "Why a prior?" button
+            rendered inside the ResultsDashboard's PositionDelta). The
+            .go() callback navigates to /blog in addition to setting the
+            slug — that's what makes the jump actually visible. */}
+        <BlogProvider
+          value={{
+            slug: blogSlug,
+            go: (slug) => {
+              setBlogSlug(slug);
+              if (mode !== "blog") setMode("blog");
+            },
+          }}
+        >
         <AnimatePresence mode="wait">
           <motion.div
             key={mode}
@@ -476,13 +490,11 @@ export default function App() {
         ) : mode === "intervals" ? (
           <IntervalsPage />
         ) : mode === "blog" ? (
-          <BlogProvider value={{ slug: blogSlug, go: setBlogSlug }}>
-            {blogSlug && ARTICLES[blogSlug] ? (
-              (() => { const Comp = ARTICLES[blogSlug]; return <Comp />; })()
-            ) : (
-              <BlogIndex />
-            )}
-          </BlogProvider>
+          blogSlug && ARTICLES[blogSlug] ? (
+            (() => { const Comp = ARTICLES[blogSlug]; return <Comp />; })()
+          ) : (
+            <BlogIndex />
+          )
         ) : mode === "compare" ? (
           <CompareMode onBack={() => setMode("single")} />
         ) : (
@@ -903,6 +915,7 @@ export default function App() {
         )}
           </motion.div>
         </AnimatePresence>
+        </BlogProvider>
       </main>
       <Footer
         onGotoMethods={() => {

@@ -85,31 +85,28 @@ export default function MapView({ profile }: { profile: ProfileData }) {
         paint: { "line-width": 3.5, "line-color": "#10B981" },
       });
 
-      // Throttle mousemove with rAF so we don't trigger a React state
-      // update on every native mousemove event (16 ms minimum between
-      // updates on a 60 Hz display).
-      let rafPending = false;
-      let lastEvent: maplibregl.MapLayerMouseEvent | null = null;
+      // Light throttle: update hover state at most once per animation
+      // frame (≈ 16 ms @ 60 Hz). Unlike the rAF-coalesce-latest pattern,
+      // we read e.point / e.features IMMEDIATELY (inside the synchronous
+      // event handler) because MapLibre reuses the event object between
+      // dispatches — reading them in a deferred rAF callback returned
+      // stale / null features. We just debounce the setState.
+      let lastFrame = 0;
       map.on("mousemove", ["route-cda", "route-invalid"], (e) => {
-        lastEvent = e;
-        if (rafPending) return;
-        rafPending = true;
-        requestAnimationFrame(() => {
-          rafPending = false;
-          const ev = lastEvent;
-          lastEvent = null;
-          if (!ev) return;
-          const f = ev.features?.[0];
-          if (!f) return;
-          map.getCanvas().style.cursor = "crosshair";
-          const props = f.properties as { cda: number | null; distance_km: number };
-          setHover({
-            cda: props.cda,
-            distanceKm: props.distance_km,
-            x: ev.point.x,
-            y: ev.point.y,
-          });
-        });
+        const f = e.features?.[0];
+        if (!f) return;
+        map.getCanvas().style.cursor = "crosshair";
+        const props = f.properties as { cda: number | null; distance_km: number };
+        const snapshot = {
+          cda: props.cda,
+          distanceKm: props.distance_km,
+          x: e.point.x,
+          y: e.point.y,
+        };
+        const now = performance.now();
+        if (now - lastFrame < 16) return;
+        lastFrame = now;
+        setHover(snapshot);
       });
       const clearHover = () => {
         map.getCanvas().style.cursor = "";

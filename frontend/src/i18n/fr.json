@@ -533,7 +533,7 @@
   },
   "about": {
     "eyebrow": "À propos",
-    "title": "AeroProfile",
+    "title": "Comment une question de vélo a dégénéré en solveur bayésien.",
     "back": "Retour",
     "p1": "<name>Loïc</name>. Cycliste, avec la fâcheuse habitude de ne pas laisser une question en suspens — ce qui, à terme, débouche sur des projets comme celui-ci.",
     "p2": "Mon père et moi, on fait des sorties ensemble depuis un moment. Même coin de Bretagne, même vent, même café à l'arrivée, et à chaque fois le même écart : une dizaine de watts entre nous. Il est un peu plus lourd que moi, certes, mais on roule en Bretagne — pas dans les Alpes — donc le poids n'explique pas grand chose. La piste la plus sérieuse, c'est le <em>CdA</em>, un nombre qui résume comment tu t'opposes à l'air : ta position, la forme de ton casque, la façon dont tu tiens le guidon. Mon père et moi, on ne fend probablement pas l'air pareil. Mais pour le vérifier, il faut normalement un vélodrome, un protocole très contraignant, ou un capteur embarqué à 600 balles — ce qui, pour une question que seuls deux cyclistes bretons se posent, semble légèrement disproportionné.",
@@ -551,7 +551,66 @@
     "version": "v2026.04 · made in France",
     "nav": "Pied de page",
     "methods": "Méthodes",
-    "about": "À propos"
+    "about": "À propos",
+    "privacy": "Confidentialité"
+  },
+  "loading": {
+    "didYouKnow": "Le saviez-vous ?",
+    "facts": {
+      "1": "Ton CdA compte autant que ta forme : un amateur en position tuck (CdA 0,28) va plus vite qu'un pro en position haute (CdA 0,42) à puissance égale.",
+      "2": "Doubler sa puissance ne double pas sa vitesse : l'aéro scale en vitesse au cube. +50% de watts = seulement +14% de km/h.",
+      "3": "À 35 km/h sur le plat, 80% de ta puissance se bat contre l'air. Le reste : pneus, transmission, accélérations.",
+      "4": "Un combi moulant gagne plus de watts qu'une paire de roues profilées. Dépense ton budget dans le bon ordre.",
+      "5": "La méthode Chung estime ton CdA sans tunnel à vent. Elle compare ton altitude GPS à celle reconstruite par le bilan d'énergie.",
+      "6": "Open-Meteo te donne le vent à 10 m. Au niveau du cycliste (1,3 m), c'est environ 65% de cette valeur en terrain ouvert.",
+      "7": "Un petit cycliste (1m70, 65 kg) aura naturellement un CdA vers 0,26. Un grand gabarit (1m90, 85 kg) plutôt vers 0,34.",
+      "8": "La position prolongateurs + dos plat peut faire gagner 30 W à 40 km/h sur un CLM. C'est deux ans d'entraînement."
+    }
+  },
+  "privacy": {
+    "back": "Retour",
+    "eyebrow": "Confidentialité",
+    "title": "Politique de confidentialité",
+    "lastUpdate": "Dernière mise à jour : 22 avril 2026",
+    "s1": {
+      "title": "En une phrase",
+      "body": "AeroProfile est un outil client : tes fichiers d'activité (FIT / GPX / TCX) sont analysés dans ton navigateur, le serveur ne les conserve pas, et aucun profil publicitaire n'est construit sur toi. Le reste de cette page détaille exactement ce qui transite, où, et pourquoi."
+    },
+    "s2": {
+      "title": "Ce que nous traitons, et où",
+      "body": "Quand tu téléverses un fichier d'activité, trois choses se passent :",
+      "item1": "Le fichier est envoyé à notre serveur pour être parsé et analysé (Chung VE, wind_inverse, etc.). Il reste en mémoire le temps du calcul (quelques secondes), puis est supprimé sans être sauvegardé sur disque.",
+      "item2": "Le résultat (CdA, Crr, graphiques) est renvoyé à ton navigateur et mis en cache localement dans ton localStorage pour éviter de recalculer si tu re-déposes le même fichier.",
+      "item3": "Rien n'est associé à un compte, un email, ou une identité - nous ne gérons pas de comptes utilisateurs sur AeroProfile."
+    },
+    "s3": {
+      "title": "Ce qui est stocké dans ton navigateur",
+      "body": "Tout reste sur ton appareil via localStorage :",
+      "item1": "L'historique de tes analyses (CdA, Crr, métadonnées de sortie) pour le module Historique.",
+      "item2": "Tes profils athlète (masse, type de vélo, position) pour préremplir le formulaire.",
+      "item3": "Ton jeton API Intervals.icu (si tu utilises l'intégration) - jamais transmis à notre serveur au-delà des appels proxifiés vers intervals.icu."
+    },
+    "s4": {
+      "title": "Services tiers",
+      "body": "Pour faire son travail, AeroProfile appelle deux services externes : <openmeteo></openmeteo> pour récupérer les données météo (vent, température, pression) correspondant à la date et aux coordonnées GPS de ta sortie, et, si tu l'utilises explicitement, <intervals></intervals> pour importer tes activités (jeton fourni par toi, stocké uniquement dans ton navigateur)."
+    },
+    "s5": {
+      "title": "Analytics",
+      "body": "AeroProfile utilise un analytics minimaliste (Vercel Analytics) qui compte les vues de pages et les événements d'usage (clic Analyser, export). Pas de cookies tiers, pas de fingerprinting, pas de partage à des régies publicitaires. Tu peux bloquer ce traçage via ton bloqueur habituel sans casser l'outil."
+    },
+    "s6": {
+      "title": "Tes droits",
+      "body": "Conformément au RGPD, tu as le droit :",
+      "item1": "D'accès : toutes tes données sont dans le localStorage de ton navigateur (DevTools → Application → Local Storage).",
+      "item2": "D'effacement : vide le localStorage (ou utilise le bouton Réinitialiser dans les Paramètres).",
+      "item3": "De portabilité : exporte ton historique en JSON depuis le panneau Historique.",
+      "item4": "D'opposition : tu peux utiliser AeroProfile sans créer de compte (il n'y en a pas) et sans que rien ne soit retenu côté serveur après le calcul.",
+      "contact": "Pour toute question : <mail></mail>."
+    },
+    "s7": {
+      "title": "Modifications de cette politique",
+      "body": "Les changements significatifs seront mentionnés ici avec la date de mise à jour. AeroProfile est open source - tu peux suivre l'historique complet sur GitHub."
+    }
   },
   "blogIndexHeader": {
     "eyebrow": "Méthodes",

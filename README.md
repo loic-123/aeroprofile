@@ -20,8 +20,8 @@ Upload a FIT / GPX / TCX file from any regular ride and AeroProfile tells you:
 - Your **Crr** (rolling resistance) on that ride's surface
 - How your CdA splits by **flat / climb / descent** — diagnoses position change or wind error
 - Whether your **power meter is drifting** — bias ratio on flat pedaling, independent of the solver
-- How **fragile** the estimate is to Open-Meteo wind uncertainty (post-hoc sensitivity)
-- The **stability** of your CdA across all your past rides (rolling σ timeline)
+- How **fragile** the estimate is to Open-Meteo wind uncertainty (±30% sensitivity test; if `fragile`, a one-click manual wind override lets you feed in a measured value)
+- The **stability** of your CdA across all your past rides (rolling σ timeline in the dedicated **Progress** page)
 
 Upload several rides → get a **DerSimonian–Laird** hierarchical aggregate with HKSJ small-sample correction. Connect your **Intervals.icu** account → analyse a year of data in one click.
 
@@ -92,13 +92,17 @@ Not every ride can yield a good CdA — and silently averaging bad rides poisons
 
 Each ride chip in the UI is colour-coded by exclusion category (orange = bound, yellow = solver noise, red = bad fit, slate = error). The gate thresholds are documented and tested.
 
-### 5. Open-Meteo wind sensitivity, per ride
+### 5. Open-Meteo wind fragility test + manual wind override
 
-ERA5 (the backbone of Open-Meteo's historical archive) has a documented −0.7% mean bias on wind speed and under-predicts high winds (Jourdier 2020; Copernicus ASR 2025). Instead of applying a blind correction, AeroProfile reruns Chung VE with wind × 1.05 post-hoc and shows the resulting Δ CdA — so the user sees whether **this specific ride** is wind-fragile (red) or robust (green).
+ERA5 (the backbone of Open-Meteo's historical archive) has a documented −0.7% mean bias on wind speed and **under-predicts high winds** (Jourdier 2020; Copernicus ASR 2025). AeroProfile attacks this on three fronts:
+
+- **Adaptive prior σ** — the `wind_inverse` solver widens its wind prior (`σ_wind = clamp(2 + 0.4·(V_API − 3), 2, 5)` m/s) as the API magnitude grows, because that's where ERA5 bias grows too.
+- **Post-hoc ±30% sensitivity test** — Chung VE is rerun with wind × 1.30 and × 0.70 (plausible bounds of the ERA5 bias window in coastal zones). A ride is flagged `fragile` only when **both** criteria hold: `max|ΔCdA| ≥ 0.05` **AND** `V_API ≥ 4 m/s` — avoiding false positives on flat rides with gentle API wind.
+- **Manual wind override** — when fragile fires, the user can type a measured wind (station / Windy / Tempest / felt) directly in the dashboard. Value is back-converted from rider-height to 10 m equivalent, and the solver's wind prior is tightened to σ = 0.5 m/s around that value.
 
 ### 6. Power-meter drift tracking — independent of the solver
 
-On the flat-pedaling portions of each ride, AeroProfile computes `measured_P / theoretical_P(CdA_bike_type_default, Crr=0.005)` — a calibration bias ratio that doesn't depend on the solver. The history page shows a KDE of the ratio per sensor, so a drifting Assioma or a miscalibrated 4iiii is visible as a shift or widening of its bell curve over time. Sensor-quality-aware: high-quality meters get a `model_mismatch` flag instead of `sensor_miscalib` because they rarely drift.
+On the flat-pedaling portions of each ride, AeroProfile computes `measured_P / theoretical_P(CdA_bike_type_default, Crr=0.005)` — a calibration bias ratio that doesn't depend on the solver. The **Progress** page shows a KDE of the ratio per sensor, so a drifting Assioma or a miscalibrated 4iiii is visible as a shift or widening of its bell curve over time. Sensor-quality-aware: high-quality meters get a `model_mismatch` flag instead of `sensor_miscalib` because they rarely drift.
 
 ## Pipeline overview
 
@@ -242,7 +246,7 @@ P × η = P_aero + P_roll + P_grav + P_accel + P_bearings
 
 ### Solver cascade
 
-- **Wind-Inverse** (primary) — jointly estimates (CdA, Crr, wind per 30-min segment) inside a Chung VE objective. Open-Meteo wind serves as a Gaussian prior (σ = 2 m/s / component). Requires heading variance > 0.25.
+- **Wind-Inverse** (primary) — jointly estimates (CdA, Crr, wind per 30-min segment) inside a Chung VE objective. Open-Meteo wind serves as a Gaussian prior with **adaptive σ** per component: `σ = clamp(2 + 0.4·(V_API − 3), 2, 5)` m/s — tight at low wind (where ERA5 is accurate), relaxed at high wind (where the documented ERA5 bias grows). Requires heading variance > 0.25. If the user supplies a manual wind override, σ drops to 0.5 m/s.
 - **Chung VE** (fallback + always-on cross-check) — minimises Σ(altitude_real − altitude_virtual)² with API wind. Used when wind-inverse is unavailable, AND as an independent cross-check on every ride regardless.
 - **Martin LS** (baseline) — per-point power residuals, multi-start TRF, for linear/velodrome rides.
 

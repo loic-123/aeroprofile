@@ -687,6 +687,7 @@ export default function IntervalsPage() {
             <div>
               <label className="block text-xs text-muted mb-1">
                 Position :
+                <InfoTooltip text={t("tooltips.positionInput")} />
                 <span className="text-teal font-semibold ml-1">{POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].label}</span>
                 {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior > 0 ? (
                   <span className="ml-1">(prior CdA ≈ {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior})</span>

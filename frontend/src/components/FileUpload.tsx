@@ -4,6 +4,7 @@ import { useTranslation, Trans } from "react-i18next";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
 import { Button } from "./ui";
 import { FormSection } from "./FormSection";
+import InfoTooltip from "./InfoTooltip";
 
 interface Props {
   onAnalyze: (
@@ -255,6 +256,7 @@ export default function FileUpload({
           <div>
             <label htmlFor={positionId} className="block text-xs text-muted mb-1">
               {t("fileUpload.positionLabel")}
+              <InfoTooltip text={t("tooltips.positionInput")} />
               <span className="text-primary font-semibold ml-1">{POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].label}</span>
               {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior > 0 ? (
                 <span className="ml-1">{t("fileUpload.positionPrior", { value: POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior })}</span>

@@ -668,6 +668,7 @@
     "evolChart": "Each point is one analysed ride. If CdA decreases over time, the rider improved their aero position (or changed equipment). Caveat: CdA also varies with conditions (wind, drafting, route). Points with R² < 0.3 are more uncertain.",
     "whatIf": "Vary a parameter and see the impact on the ride. The model recomputes point by point with the Martin equation, keeping the route and weather identical.",
     "positionRef": "The reference is the Bayesian prior used by the solver — not a ground truth. It represents the mean expected value for this position on this bike type, from the literature (Debraux et al. 2011) and wind-tunnel measurements.",
+    "positionInput": "Your reference position acts as a prior (starting hypothesis) for the solver. It doesn't fix your CdA — it just tells the model a likely value to search around, to stabilise the estimate on noisy rides. The more aero the position (e.g. aero bars), the lower the expected prior. If unsure, pick the closest match to your actual posture on the bike — the solver will adjust.",
     "cdaRefRanges": "Typical CdA ranges from Debraux et al. 2011 and wind-tunnel measurements. Your value is highlighted in the matching range. CdA depends on the position on the bike, the rider's morphology, and equipment (helmet, kit).",
     "crrRefRanges": "Typical rolling-resistance coefficient ranges. Depends on the tyre (model, pressure, width), the surface, and the temperature. Low Crr = a tyre that rolls well on smooth surfaces."
   },

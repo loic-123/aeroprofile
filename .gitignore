@@ -26,3 +26,6 @@ tests/fixtures/laurette/
 
 # Marketing drafts (posts, emails, launch kit) — local only
 marketing/
+
+# Claude Code scratch (plans, session notes, memory) — local only
+.claude/

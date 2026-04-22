@@ -125,7 +125,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
                 <dt className="text-muted w-28 text-[10px] uppercase tracking-wider shrink-0">
                   {t("dashboard.icHessian")}
                 </dt>
-                <dd className="text-text">
+                <dd className="text-text whitespace-nowrap">
                   [{result.cda_ci_low.toFixed(3)} – {result.cda_ci_high.toFixed(3)}]
                 </dd>
               </div>
@@ -134,7 +134,7 @@ export function ResultsHero({ result, unreliable, bikeType, positionIdx }: Props
                   <dt className="text-muted w-28 text-[10px] uppercase tracking-wider shrink-0">
                     {t("dashboard.icConformal")}
                   </dt>
-                  <dd className="text-accent">
+                  <dd className="text-accent whitespace-nowrap">
                     [{conformal.low.toFixed(3)} – {conformal.high.toFixed(3)}]
                     <span className="text-muted ml-1.5">n={conformal.n}</span>
                   </dd>

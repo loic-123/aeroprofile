@@ -38,7 +38,7 @@ export function PositionDelta({ cda, bikeType, positionIdx }: Props) {
           {t("position.reference")}
           <InfoTooltip text={t("tooltips.positionRef")} />
         </div>
-        <div className="text-xs text-muted font-mono">
+        <div className="text-xs text-muted font-mono whitespace-nowrap">
           {preset.label.toLowerCase()} · {bikeLabel}
         </div>
       </div>
@@ -54,7 +54,7 @@ export function PositionDelta({ cda, bikeType, positionIdx }: Props) {
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">{t("position.delta")}</div>
-          <div className={better ? "text-accent" : "text-warn"}>
+          <div className={`whitespace-nowrap ${better ? "text-accent" : "text-warn"}`}>
             {better ? "-" : "+"}
             {absDelta.toFixed(3)}
             <span className="text-muted ml-1.5 text-xs">

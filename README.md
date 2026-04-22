@@ -6,7 +6,7 @@
 
 [🚀 Try the live demo](https://aeroprofile.cc) · [📖 Methodology articles](https://aeroprofile.cc/#blog) · [🐛 Report an issue](https://github.com/loic-123/aeroprofile/issues)
 
-[![tests](https://img.shields.io/badge/tests-32%20passing-brightgreen)](tests/) [![license](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE) [![python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml) [![stack](https://img.shields.io/badge/stack-FastAPI%20%2B%20React-orange)](#stack)
+[![tests](https://img.shields.io/badge/tests-35%20passing-brightgreen)](tests/) [![license](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE) [![python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml) [![i18n](https://img.shields.io/badge/i18n-FR%20%7C%20EN-blue)](frontend/src/i18n) [![stack](https://img.shields.io/badge/stack-FastAPI%20%2B%20React-orange)](#stack)
 
 </div>
 
@@ -145,15 +145,19 @@ On the flat-pedaling portions of each ride, AeroProfile computes `measured_P / t
 - **Backend**: Python 3.11, FastAPI, NumPy, pandas, scipy (TRF + least_squares), fitdecode, httpx
 - **Frontend**: React 18, Vite, TailwindCSS, MapLibre GL, KaTeX (methodology articles)
 - **Weather**: Open-Meteo historical + forecast APIs (tiled)
-- **Tests**: pytest (32 passing, including hierarchical solver, wind-inverse recovery, prior invariance)
-- **Deploy**: single FastAPI service serving the built React SPA
+- **Tests**: pytest (35 passing, including hierarchical solver, wind-inverse recovery, prior invariance, manual-wind override)
+- **i18n**: react-i18next, full FR + EN coverage (UI + 14 methodology articles)
+- **Analytics**: GoatCounter (privacy-first, no cookies)
+- **PWA**: web manifest + offline-compatible install on mobile / desktop
+- **Reliability**: `asyncio.Semaphore` on heavy solver endpoints, healthcheck-tolerant Docker image, 3× retry with backoff on the frontend — batches of 70+ rides no longer cascade to 404s on CPU saturation
+- **Deploy**: single FastAPI service serving the built React SPA, Traefik reverse proxy, container resource limits on a shared Hostinger KVM 2 VPS
 
 ## How it's tested
 
 ```bash
-pytest -q              # 32 tests: parsers, physics, solvers,
+pytest -q              # 35 tests: parsers, physics, solvers,
                        # hierarchical DL, wind-inverse invariance,
-                       # filters, weather interpolation
+                       # manual-wind override, filters, weather
 cd frontend && npx tsc --noEmit && npm run build
 ```
 
@@ -171,7 +175,8 @@ Pull requests are welcome, especially:
 - **New weather sources** (ERA5 direct, ECMWF, Météo-France AROME) — `aeroprofile/weather/`
 - **New solvers** — `aeroprofile/solver/` (see `wind_inverse.py` for the canonical pattern)
 - **Validation against wind-tunnel or velodrome datasets** — we currently validate on synthetic data only
-- **UI translations** (currently French; English localization would help adoption)
+- **Strava integration** — plan drafted in `STRAVA-INTEGRATION-PLAN.md`, dev deferred post-launch
+- **Additional languages** — i18n infrastructure via react-i18next + JSON namespaces is in place (currently FR + EN), adding DE/ES/IT is mostly translation work
 
 ## References — the papers we actually rely on
 

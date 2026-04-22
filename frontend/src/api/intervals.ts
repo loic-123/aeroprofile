@@ -45,7 +45,7 @@ export const DEFAULT_FILTERS: RideFilters = {
   // perfectly flat CdA ride, while 60 km with 2000 m D+ = 33 m/km is a
   // climb). The field stays in the schema for backward compatibility.
   max_elevation_m: 99999,
-  min_duration_h: 1.0,
+  min_duration_h: 0.5,  // 30 min
   max_elevation_per_km: 10,  // 10 m/km = 1% average grade
 };
 

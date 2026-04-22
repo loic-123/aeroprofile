@@ -153,6 +153,22 @@ export default function IntervalsPage() {
     setListing(false);
   };
 
+  // Auto-fetch activities:
+  //  - as soon as the user connects successfully (profile becomes non-null),
+  //  - and every time the date window changes after connection.
+  // Debounced 500 ms so scrubbing through dates doesn't flood the
+  // Intervals.icu API with one call per keystroke. Client-side filters
+  // (distance, D+/km, sensor, group, duration) don't re-trigger a fetch —
+  // they're applied in-memory via ``filteredActivities``.
+  useEffect(() => {
+    if (!profile) return;
+    const id = setTimeout(() => {
+      doList();
+    }, 500);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, oldest, newest]);
+
   // Keywords that strongly suggest group riding / drafting → exclude by default
   const GROUP_KEYWORDS = /\b(group[e]?|peloton|avec|aspi|aspiration|porte[- ]?bagage|roue|draft|à deux|à trois|à [0-9]+|cyclosportive|granfondo|course|compét|critérium|kermesse)\b/i;
 
@@ -987,18 +1003,21 @@ export default function IntervalsPage() {
           )}
           </FormSection>
 
-          <div className="flex items-center gap-3 pt-2">
-            <button onClick={doList} disabled={listing}
-              className="px-4 py-2 border border-border rounded hover:border-muted text-sm flex items-center gap-2">
-              {listing ? <Loader2 className="animate-spin" size={14} /> : <Filter size={14} />}
-              Rechercher les sorties
-            </button>
-            {listed && (
-              <span className="text-sm text-muted">
-                <span className="text-teal font-mono">{allActivities.length}</span> {t("intervals.bikeRides")}
-                {" "}{t("intervals.ofActivities", { count: totalCount })}
-              </span>
-            )}
+          <div className="flex items-center gap-2 pt-2 text-sm text-muted">
+            {listing ? (
+              <>
+                <Loader2 className="animate-spin text-teal" size={14} aria-hidden />
+                <span>{t("intervals.fetchingRides")}</span>
+              </>
+            ) : listed ? (
+              <>
+                <Filter size={14} className="text-muted" aria-hidden />
+                <span>
+                  <span className="text-teal font-mono">{allActivities.length}</span> {t("intervals.bikeRides")}
+                  {" "}{t("intervals.ofActivities", { count: totalCount })}
+                </span>
+              </>
+            ) : null}
           </div>
         </div>
       )}

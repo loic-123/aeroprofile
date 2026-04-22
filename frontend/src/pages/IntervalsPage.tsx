@@ -247,7 +247,6 @@ export default function IntervalsPage() {
     if (availableSensors.unknown > 0) next.add("__unknown__");
     setSensorFilter(next);
   };
-  const selectNoSensors = () => setSensorFilter(new Set(["__none__"]));
 
   const doAnalyze = async () => {
     setAnalyzing(true);
@@ -954,7 +953,6 @@ export default function IntervalsPage() {
                     <span className="text-[11px] text-muted font-semibold">{t("intervals.filterSensor")}</span>
                     <div className="flex items-center gap-1 text-[9px]">
                       <button onClick={selectAllSensors} className="px-1.5 py-0.5 rounded border border-border hover:border-teal text-muted hover:text-teal">{t("intervals.filterAll")}</button>
-                      <button onClick={selectNoSensors} className="px-1.5 py-0.5 rounded border border-border hover:border-coral text-muted hover:text-coral">{t("intervals.filterNone")}</button>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1.5">

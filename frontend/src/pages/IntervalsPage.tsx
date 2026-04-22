@@ -182,14 +182,13 @@ export default function IntervalsPage() {
     initialSettings.intervalsFilters?.excludeGroup ?? true,
   );
   // Pre-analysis sensor filter: lets the user exclude candidate rides
-  // by their power meter before the expensive analysis loop. Initialises
-  // from the saved profile if one exists; otherwise empty (= "all")
-  // until the activity list loads and the seed-everything logic fires.
-  const [sensorFilter, setSensorFilter] = useState<Set<string>>(
-    () => new Set(initialSettings.sensorFilter ?? []),
-  );
-  const [sensorFilterInitialised, setSensorFilterInitialised] = useState(
-    (initialSettings.sensorFilter?.length ?? 0) > 0,
+  // by their power meter. Stored as a BLACKLIST of unchecked sensors so
+  // "no config" means "everything is included" — the common case and
+  // the default. Any sensor that appears in the ride list and is not in
+  // this set is considered checked. Resilient to Intervals sensor
+  // renames: a new key simply starts as "checked".
+  const [sensorBlacklist, setSensorBlacklist] = useState<Set<string>>(
+    () => new Set(initialSettings.sensorBlacklist ?? []),
   );
 
   // Base filter — everything except the D+/km grade ratio and the sensor filter
@@ -204,13 +203,12 @@ export default function IntervalsPage() {
     if (excludeGroup && GROUP_KEYWORDS.test(a.name)) return false;
     return true;
   };
-  // Sensor filter: applied on top of the base filters. An empty set means
-  // "don't filter by sensor" (show all rides). Use "__unknown__" for rides
-  // without a power_meter field.
+  // Sensor filter: applied on top of the base filters. Blacklist —
+  // returns true (keep) unless the ride's sensor key is explicitly
+  // blacklisted.
   const passesSensorFilter = (a: typeof allActivities[number]) => {
-    if (sensorFilter.size === 0) return true;
     const key = a.power_meter || "__unknown__";
-    return sensorFilter.has(key);
+    return !sensorBlacklist.has(key);
   };
   // D+/km exclusion on top of the base filters — tracked separately so we
   // can show "X rides excluded by grade filter" in the UI.
@@ -237,26 +235,18 @@ export default function IntervalsPage() {
       unknown,
     };
   })();
-  // First time the sensor list becomes non-empty, seed the filter with
-  // everything selected so nothing gets accidentally excluded.
-  if (!sensorFilterInitialised && (availableSensors.list.length > 0 || availableSensors.unknown > 0)) {
-    const initial = new Set<string>();
-    for (const [k] of availableSensors.list) initial.add(k);
-    if (availableSensors.unknown > 0) initial.add("__unknown__");
-    setSensorFilter(initial);
-    setSensorFilterInitialised(true);
-  }
+  // A sensor is "checked" whenever it is NOT in the blacklist. Toggle
+  // flips the blacklist membership (add if checked, remove if not).
+  const isSensorChecked = (k: string) => !sensorBlacklist.has(k);
   const toggleSensor = (k: string) => {
-    const next = new Set(sensorFilter);
+    const next = new Set(sensorBlacklist);
     if (next.has(k)) next.delete(k);
     else next.add(k);
-    setSensorFilter(next);
+    setSensorBlacklist(next);
   };
   const selectAllSensors = () => {
-    const next = new Set<string>();
-    for (const [k] of availableSensors.list) next.add(k);
-    if (availableSensors.unknown > 0) next.add("__unknown__");
-    setSensorFilter(next);
+    // Clearing the blacklist = everything checked again.
+    setSensorBlacklist(new Set());
   };
 
   const doAnalyze = async () => {
@@ -309,11 +299,9 @@ export default function IntervalsPage() {
       exclude_group: excludeGroup,
       n_candidates: baseFiltered.length,
       n_selected: filteredActivities.length,
-      sensor_filter:
-        sensorFilter.size > 0 &&
-        sensorFilter.size < availableSensors.list.length + (availableSensors.unknown > 0 ? 1 : 0)
-          ? Array.from(sensorFilter)
-          : null,
+      // Sensors the user actively excluded (blacklist). null when
+      // nothing is excluded — the common case.
+      sensor_filter: sensorBlacklist.size > 0 ? Array.from(sensorBlacklist) : null,
       // UI-level filters that shape the aggregate — included in the
       // session log so a future reader can reproduce the exact view the
       // user was looking at.
@@ -590,7 +578,7 @@ export default function IntervalsPage() {
       minDurationH: filters.min_duration_h,
       excludeGroup,
     },
-    sensorFilter: Array.from(sensorFilter),
+    sensorBlacklist: Array.from(sensorBlacklist),
   });
 
   const applySettings = (s: ProfileSettings) => {
@@ -616,9 +604,8 @@ export default function IntervalsPage() {
       });
       if (s.intervalsFilters.excludeGroup != null) setExcludeGroup(s.intervalsFilters.excludeGroup);
     }
-    if (s.sensorFilter != null) {
-      setSensorFilter(new Set(s.sensorFilter));
-      setSensorFilterInitialised(s.sensorFilter.length > 0);
+    if (s.sensorBlacklist != null) {
+      setSensorBlacklist(new Set(s.sensorBlacklist));
     }
     // Reset the connected profile so the user re-clicks "Se connecter" with
     // the (potentially new) credentials.
@@ -642,7 +629,7 @@ export default function IntervalsPage() {
   }, [
     mass, bikeType, positionIdx, crrFixed, maxNrmse, useCache, minConfidence,
     apiKey, athleteId, oldest, newest,
-    filters, excludeGroup, sensorFilter,
+    filters, excludeGroup, sensorBlacklist,
   ]);
 
   return (
@@ -1001,7 +988,7 @@ export default function IntervalsPage() {
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {availableSensors.list.map(([k, n]) => {
-                      const checked = sensorFilter.has(k);
+                      const checked = isSensorChecked(k);
                       return (
                         <label key={k} className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border font-mono cursor-pointer ${
                           checked ? "bg-teal/10 border-teal text-teal" : "bg-panel border-border text-muted hover:border-muted"
@@ -1014,9 +1001,9 @@ export default function IntervalsPage() {
                     })}
                     {availableSensors.unknown > 0 && (
                       <label className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border font-mono cursor-pointer ${
-                        sensorFilter.has("__unknown__") ? "bg-muted/20 border-muted text-text" : "bg-panel border-border text-muted"
+                        isSensorChecked("__unknown__") ? "bg-muted/20 border-muted text-text" : "bg-panel border-border text-muted"
                       }`}>
-                        <input type="checkbox" checked={sensorFilter.has("__unknown__")} onChange={() => toggleSensor("__unknown__")} className="accent-teal scale-75" />
+                        <input type="checkbox" checked={isSensorChecked("__unknown__")} onChange={() => toggleSensor("__unknown__")} className="accent-teal scale-75" />
                         <span>{t("intervals.sensorUnknown")}</span>
                         <span className="opacity-60">({availableSensors.unknown})</span>
                       </label>

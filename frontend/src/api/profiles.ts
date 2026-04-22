@@ -47,11 +47,14 @@ export interface ProfileSettings {
   // Minimum solver cross-check confidence to keep a ride in the
   // aggregate. "off" | "medium" | "high".
   minConfidence?: "off" | "medium" | "high";
-  // Per-activity power-meter inclusion set. Array of sensor keys the
-  // user wants to keep (including the synthetic "__unknown__" bucket).
-  // Empty array means "first visit, seed with everything" — the page
-  // rewrites the field as soon as the activity list loads.
-  sensorFilter?: string[];
+  // Per-activity power-meter EXCLUSION list (blacklist). Sensor keys
+  // the user has explicitly unchecked. Empty / missing means
+  // "everything is kept" — the default and most common case. A
+  // blacklist (rather than inclusion list) is resilient to sensor
+  // renames: if Intervals.icu relabels a device the next time, the
+  // new key simply defaults to "included" instead of silently being
+  // dropped because its old name is no longer in an allowlist.
+  sensorBlacklist?: string[];
 }
 
 export interface LocalProfile {

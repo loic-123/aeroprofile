@@ -26,6 +26,7 @@ import CdATotem from "../components/CdATotem";
 import CdARunningAvgChart from "../components/CdARunningAvgChart";
 import CdAEvolutionChart from "../components/CdAEvolutionChart";
 import ResultsDashboard from "../components/ResultsDashboard";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import TabSwitcher from "../components/TabSwitcher";
 import ReferenceTable from "../components/ReferenceTable";
 import PositionSchematic from "../components/PositionSchematic";
@@ -1528,7 +1529,15 @@ export default function IntervalsPage() {
                   })}
                 </div>
               </div>
-              <ResultsDashboard result={selectedResult} massKg={mass} />
+              <ErrorBoundary
+                label="Intervals ride detail"
+                // Key the boundary on selectedIdx so a crash on one ride
+                // doesn't sticky-persist when the user clicks a different
+                // ride — the boundary auto-resets as the key changes.
+                key={`detail-${selectedIdx}`}
+              >
+                <ResultsDashboard result={selectedResult} massKg={mass} />
+              </ErrorBoundary>
             </div>
           )}
         </>

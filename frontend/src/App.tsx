@@ -3,6 +3,7 @@ import FileUpload from "./components/FileUpload";
 import AnalysisLoading from "./components/AnalysisLoading";
 import ProfilePicker from "./components/ProfilePicker";
 import ResultsDashboard from "./components/ResultsDashboard";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import CompareMode from "./components/CompareMode";
 import BlogIndex from "./pages/BlogIndex";
 import IntervalsPage from "./pages/IntervalsPage";
@@ -580,7 +581,9 @@ export default function App() {
 
                 {/* Single file → no tabs, show dashboard directly */}
                 {!isMulti && selectedResult && (
-                  <ResultsDashboard result={selectedResult} massKg={lastMass} bikeType={bikeType} positionIdx={lastPositionIdx} onReanalyzeWithWind={handleReanalyzeWithWind} />
+                  <ErrorBoundary label="Results dashboard" key={`rd-${selectedIdx}`}>
+                    <ResultsDashboard result={selectedResult} massKg={lastMass} bikeType={bikeType} positionIdx={lastPositionIdx} onReanalyzeWithWind={handleReanalyzeWithWind} />
+                  </ErrorBoundary>
                 )}
 
                 {/* Single file excluded → show warning with reason */}
@@ -911,7 +914,9 @@ export default function App() {
                             })}
                           </div>
                         </div>
-                        <ResultsDashboard result={selectedResult} massKg={lastMass} bikeType={bikeType} positionIdx={lastPositionIdx} onReanalyzeWithWind={handleReanalyzeWithWind} />
+                        <ErrorBoundary label="Results dashboard" key={`rd-${selectedIdx}`}>
+                    <ResultsDashboard result={selectedResult} massKg={lastMass} bikeType={bikeType} positionIdx={lastPositionIdx} onReanalyzeWithWind={handleReanalyzeWithWind} />
+                  </ErrorBoundary>
                       </div>
                     )}
                   </>

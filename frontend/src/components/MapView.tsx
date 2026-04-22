@@ -16,38 +16,57 @@ export default function MapView({ profile }: { profile: ProfileData }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<HoverState | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
 
   const { collection, stats } = useMemo(
     () => buildCdASegments(profile),
     [profile],
   );
 
-  useEffect(() => {
-    if (!ref.current) return;
-    if (collection.features.length === 0) return;
-
+  // Precompute bounds once per profile — avoids Math.min/max spread calls
+  // at every effect run.
+  const bounds = useMemo<[[number, number], [number, number]] | null>(() => {
     const lats = profile.lat;
     const lons = profile.lon;
-    const bounds: [[number, number], [number, number]] = [
-      [Math.min(...lons), Math.min(...lats)],
-      [Math.max(...lons), Math.max(...lats)],
-    ];
+    if (!lats?.length || !lons?.length) return null;
+    let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+    for (let i = 0; i < lats.length; i++) {
+      if (lats[i] < minLat) minLat = lats[i];
+      if (lats[i] > maxLat) maxLat = lats[i];
+      if (lons[i] < minLon) minLon = lons[i];
+      if (lons[i] > maxLon) maxLon = lons[i];
+    }
+    if (!Number.isFinite(minLon)) return null;
+    return [[minLon, minLat], [maxLon, maxLat]];
+  }, [profile]);
+
+  // Create the map ONCE per container. Route data updates don't
+  // tear-and-rebuild the map — we just patch the source.
+  useEffect(() => {
+    if (!ref.current || !bounds) return;
 
     const map = new maplibregl.Map({
       container: ref.current,
       style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
       bounds,
-      fitBoundsOptions: { padding: 30 },
+      fitBoundsOptions: { padding: 30, animate: false },
+      // Performance knobs: cap zoom so dense vector tiles at z>15 aren't
+      // requested, disable antialias (we don't have fine labels at
+      // small-to-medium zooms) and let MapLibre drop expired tiles.
+      maxZoom: 15,
+      antialias: false,
+      refreshExpiredTiles: false,
+      attributionControl: false,
+      fadeDuration: 0,
     });
+    mapRef.current = map;
 
     map.on("load", () => {
       map.addSource("route-cda", {
         type: "geojson",
-        data: collection as any,
+        data: { type: "FeatureCollection", features: [] },
       });
 
-      // Filtered / invalid segments — drawn in muted grey under the coloured
-      // segments so the route still reads as a continuous shape.
       map.addLayer({
         id: "route-invalid",
         type: "line",
@@ -57,53 +76,88 @@ export default function MapView({ profile }: { profile: ProfileData }) {
         paint: { "line-color": "#3F3F46", "line-width": 2, "line-opacity": 0.6 },
       });
 
-      // Valid segments coloured by rolling CdA on a p10/p50/p90 gradient.
       map.addLayer({
         id: "route-cda",
         type: "line",
         source: "route-cda",
         filter: ["==", ["get", "valid"], true],
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: {
-          "line-width": 3.5,
-          "line-color": [
-            "interpolate",
-            ["linear"],
-            ["get", "cda"],
-            stats.q10,
-            "#10B981",
-            stats.median,
-            "#F59E0B",
-            stats.q90,
-            "#EF4444",
-          ],
-        },
+        paint: { "line-width": 3.5, "line-color": "#10B981" },
       });
 
+      // Throttle mousemove with rAF so we don't trigger a React state
+      // update on every native mousemove event (16 ms minimum between
+      // updates on a 60 Hz display).
+      let rafPending = false;
+      let lastEvent: maplibregl.MapLayerMouseEvent | null = null;
       map.on("mousemove", ["route-cda", "route-invalid"], (e) => {
-        const f = e.features?.[0];
-        if (!f) return;
-        map.getCanvas().style.cursor = "crosshair";
-        const props = f.properties as { cda: number | null; distance_km: number };
-        setHover({
-          cda: props.cda,
-          distanceKm: props.distance_km,
-          x: e.point.x,
-          y: e.point.y,
+        lastEvent = e;
+        if (rafPending) return;
+        rafPending = true;
+        requestAnimationFrame(() => {
+          rafPending = false;
+          const ev = lastEvent;
+          lastEvent = null;
+          if (!ev) return;
+          const f = ev.features?.[0];
+          if (!f) return;
+          map.getCanvas().style.cursor = "crosshair";
+          const props = f.properties as { cda: number | null; distance_km: number };
+          setHover({
+            cda: props.cda,
+            distanceKm: props.distance_km,
+            x: ev.point.x,
+            y: ev.point.y,
+          });
         });
       });
-      map.on("mouseleave", "route-cda", () => {
+      const clearHover = () => {
         map.getCanvas().style.cursor = "";
         setHover(null);
-      });
-      map.on("mouseleave", "route-invalid", () => {
-        map.getCanvas().style.cursor = "";
-        setHover(null);
-      });
+      };
+      map.on("mouseleave", "route-cda", clearHover);
+      map.on("mouseleave", "route-invalid", clearHover);
     });
 
-    return () => map.remove();
-  }, [collection, stats, profile]);
+    return () => {
+      mapRef.current = null;
+      map.remove();
+    };
+    // Depend only on bounds *presence* — route data updates flow through
+    // the next effect by patching the source, without tearing down the
+    // WebGL context.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bounds != null]);
+
+  // Patch the route source + re-bind palette stops when the ride data
+  // changes, without tearing down the map.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const src = map.getSource("route-cda") as maplibregl.GeoJSONSource | undefined;
+      if (!src) return;
+      src.setData(collection as any);
+      if (map.getLayer("route-cda")) {
+        map.setPaintProperty("route-cda", "line-color", [
+          "interpolate",
+          ["linear"],
+          ["get", "cda"],
+          stats.q10,
+          "#10B981",
+          stats.median,
+          "#F59E0B",
+          stats.q90,
+          "#EF4444",
+        ] as any);
+      }
+      if (bounds) {
+        map.fitBounds(bounds, { padding: 30, animate: false });
+      }
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.once("load", apply);
+  }, [collection, stats, bounds]);
 
   return (
     <div className="bg-panel border border-border rounded-lg p-4 h-full flex flex-col">

@@ -1,9 +1,13 @@
+import { lazy, Suspense } from "react";
 import type { AnalysisResult, BikeType } from "../types";
 import AnomalyAlerts from "./AnomalyAlerts";
 import ReferenceTable from "./ReferenceTable";
 import WhatIfSimulator from "./WhatIfSimulator";
 import FilterSummary from "./FilterSummary";
-import MapView from "./MapView";
+// MapView pulls in maplibre-gl (~200 KB gzipped). Lazy-load so the
+// critical dashboard render doesn't pay for it on users who never
+// scroll to the map area.
+const MapView = lazy(() => import("./MapView"));
 import { ResultsHeader } from "./dashboard/ResultsHeader";
 import { ResultsHero } from "./dashboard/ResultsHero";
 import { ResultsSecondaryStats } from "./dashboard/ResultsSecondaryStats";
@@ -53,7 +57,13 @@ export default function ResultsDashboard({ result, massKg, bikeType, positionIdx
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
           <ResultsHero result={result} unreliable={unreliable} bikeType={bikeType} positionIdx={positionIdx} />
           <div className="min-h-[340px] lg:min-h-0">
-            <MapView profile={result.profile} />
+            <Suspense
+              fallback={
+                <div className="h-full min-h-[340px] bg-panel border border-border rounded-lg animate-pulse" />
+              }
+            >
+              <MapView profile={result.profile} />
+            </Suspense>
           </div>
         </div>
       ) : (

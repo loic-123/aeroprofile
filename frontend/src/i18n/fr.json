@@ -341,7 +341,7 @@
     "flatSpeed": "V plat",
     "wCda": "W/CdA",
     "stabilityTitle": "Stabilité du CdA (écart-type glissant sur {{n}} sorties)",
-    "stabilityLegend": "{{count}} fenêtres · <good>σ&lt;{{good}}</good> bon · <warn>&lt;{{warn}}</warn> moyen · <bad>&gt;{{warn}}</bad> peu fiable",
+    "stabilityLegend": "{{count}} fenêtres · <good>σ﹤{{good}}</good> bon · <warn>﹤{{warn}}</warn> moyen · <bad>﹥{{warn}}</bad> peu fiable",
     "stabilityDesc": "Écart-type (σ) de votre CdA sur les {{n}} dernières sorties à chaque date. Plus c'est bas, plus vos estimations sont reproductibles. Une baisse brutale = changement de capteur ou meilleure calibration. Les zones grises indiquent les fenêtres sous le seuil de bonne qualité.",
     "biasDistTitle": "Distribution du biais de calibration par capteur",
     "biasDistDesc": "Biais = puissance mesurée / puissance théorique (CdA prior, Crr=0.005) sur les portions plates. Un capteur bien calibré centre à 1.0 avec une distribution serrée. Un capteur qui dérive montre une distribution large ou décentrée.",

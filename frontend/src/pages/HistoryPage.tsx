@@ -144,6 +144,13 @@ export default function HistoryPage() {
     m === "single" ? t("history.modeSingle") : m === "intervals" ? t("history.modeIntervals") : t("history.modeCompare");
 
   // --- Filter options (athletes / sensors / bikes) ---
+  // Options for each dimension are computed from the entries that pass
+  // the OTHER dimensions' filters. Un-checking an athlete therefore makes
+  // that athlete's sensors / bikes disappear from the other filter
+  // blocks (they no longer contribute to any visible data). Keeping them
+  // listed would let the user check a sensor that can never match — a
+  // confusing dead option.
+  //
   // Sensor options are built from the per-ride `rideCdas[].powerMeter`
   // field, not the entry-level `powerMeterLabel`. Aggregate entries built
   // from a mix of sensors surface as "Mixte (N capteurs — principal : …)"
@@ -156,33 +163,76 @@ export default function HistoryPage() {
     let sensorUnknown = 0;
     const bc = new Map<string, { label: string; count: number }>();
     let bikeUnknown = 0;
+
+    // Helpers that check whether an entry matches the "other" filters
+    // (excluding the one we're currently enumerating).
+    const noAthleteFilter = selectedAthletes.size === 0;
+    const noSensorFilter = selectedSensors.size === 0;
+    const noBikeFilter = selectedBikes.size === 0;
+    const matchesAthlete = (e: HistoryEntry) => {
+      if (noAthleteFilter) return true;
+      const key = e.athleteKey || "__unknown__";
+      return selectedAthletes.has(key);
+    };
+    const matchesBike = (e: HistoryEntry) => {
+      if (noBikeFilter) return true;
+      const key = e.bikeKey || "__unknown__";
+      return selectedBikes.has(key);
+    };
+    const matchesSensor = (e: HistoryEntry) => {
+      if (noSensorFilter) return true;
+      const hasPerRide = e.rideCdas.some((rc) => rc.powerMeter);
+      if (hasPerRide) {
+        const hit = e.rideCdas.some((rc) => rc.powerMeter && selectedSensors.has(rc.powerMeter));
+        const unknownHit = selectedSensors.has("__unknown__") && e.rideCdas.some((rc) => !rc.powerMeter);
+        return hit || unknownHit;
+      }
+      const key = (e.powerMeterLabel && !e.powerMeterLabel.startsWith("Mixte"))
+        ? e.powerMeterLabel
+        : "__unknown__";
+      return selectedSensors.has(key);
+    };
+
     for (const e of entries) {
-      // Athlete
+      // Athlete options — scoped to entries that pass sensor + bike
+      // filters (so an athlete with no visible rides after other filters
+      // still appears, to let the user re-enable them easily; we want
+      // the cascade to go DOWN, not loop back).
+      // Pragmatic choice: list athletes from ALL entries (no scoping).
+      // An athlete filter is a top-level identity concept — the user
+      // should be able to see every athlete in their history regardless
+      // of the sensor/bike they happen to use right now.
       if (e.athleteKey) {
         const lbl = e.athleteName || e.athleteKey;
         const cur = ac.get(e.athleteKey) || { label: lbl, count: 0 };
         ac.set(e.athleteKey, { label: lbl, count: cur.count + 1 });
       } else athleteUnknown++;
-      // Sensor — walk the per-ride list. Fall back to the entry label for
-      // legacy entries that don't carry per-ride sensor metadata.
-      const hasPerRide = e.rideCdas.some((rc) => rc.powerMeter);
-      if (hasPerRide) {
-        for (const rc of e.rideCdas) {
-          if (rc.powerMeter) sc.set(rc.powerMeter, (sc.get(rc.powerMeter) || 0) + 1);
-          else sensorUnknown++;
+
+      // Sensor options — only count entries that pass the athlete + bike
+      // filters. Unchecking athlete B removes B's sensors from the list.
+      if (matchesAthlete(e) && matchesBike(e)) {
+        const hasPerRide = e.rideCdas.some((rc) => rc.powerMeter);
+        if (hasPerRide) {
+          for (const rc of e.rideCdas) {
+            if (rc.powerMeter) sc.set(rc.powerMeter, (sc.get(rc.powerMeter) || 0) + 1);
+            else sensorUnknown++;
+          }
+        } else if (e.powerMeterLabel && !e.powerMeterLabel.startsWith("Mixte")) {
+          sc.set(e.powerMeterLabel, (sc.get(e.powerMeterLabel) || 0) + e.rideCdas.length);
+        } else {
+          sensorUnknown += e.rideCdas.length || 1;
         }
-      } else if (e.powerMeterLabel && !e.powerMeterLabel.startsWith("Mixte")) {
-        // Legacy single-sensor entry: use its label directly, count N rides.
-        sc.set(e.powerMeterLabel, (sc.get(e.powerMeterLabel) || 0) + e.rideCdas.length);
-      } else {
-        sensorUnknown += e.rideCdas.length || 1;
       }
-      // Bike
-      if (e.bikeKey) {
-        const lbl = e.bikeLabel || e.bikeKey;
-        const cur = bc.get(e.bikeKey) || { label: lbl, count: 0 };
-        bc.set(e.bikeKey, { label: lbl, count: cur.count + 1 });
-      } else bikeUnknown++;
+
+      // Bike options — only count entries that pass the athlete + sensor
+      // filters.
+      if (matchesAthlete(e) && matchesSensor(e)) {
+        if (e.bikeKey) {
+          const lbl = e.bikeLabel || e.bikeKey;
+          const cur = bc.get(e.bikeKey) || { label: lbl, count: 0 };
+          bc.set(e.bikeKey, { label: lbl, count: cur.count + 1 });
+        } else bikeUnknown++;
+      }
     }
     return {
       athleteOptions: {
@@ -202,7 +252,7 @@ export default function HistoryPage() {
         unknownCount: bikeUnknown,
       },
     };
-  }, [entries]);
+  }, [entries, selectedAthletes, selectedSensors, selectedBikes]);
 
   // --- Auto-select filter values on first render AND when a new one
   //     appears in the entries (e.g. a fresh analysis introduces a new

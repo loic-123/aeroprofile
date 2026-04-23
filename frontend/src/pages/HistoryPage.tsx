@@ -84,6 +84,13 @@ export default function HistoryPage() {
   // have server-side storage, this JSON dump is the user's only backup
   // against a browser cache wipe or a device change.
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Sets of keys we've ever seen for each filter dimension. Anything
+  // missing is a newcomer that arrived with a fresh analysis — the
+  // filter-seeding effects auto-check newcomers without touching keys
+  // the user has unchecked.
+  const seenSensorKeys = useRef<Set<string>>(new Set());
+  const seenAthleteKeys = useRef<Set<string>>(new Set());
+  const seenBikeKeys = useRef<Set<string>>(new Set());
   const [importMessage, setImportMessage] = useState<
     { kind: "ok" | "err"; text: string } | null
   >(null);
@@ -197,28 +204,95 @@ export default function HistoryPage() {
     };
   }, [entries]);
 
-  // --- First-render initialisation (select all) ---
-  if (!sensorFilterInitialised && (sensorOptions.labels.length > 0 || sensorOptions.unknownCount > 0)) {
-    const initial = new Set<string>();
-    for (const [lbl] of sensorOptions.labels) initial.add(lbl);
-    if (sensorOptions.unknownCount > 0) initial.add("__unknown__");
-    setSelectedSensors(initial);
-    setSensorFilterInitialised(true);
-  }
-  if (!athletesInitialised && (athleteOptions.labels.length > 0 || athleteOptions.unknownCount > 0)) {
-    const initial = new Set<string>();
-    for (const opt of athleteOptions.labels) initial.add(opt.key);
-    if (athleteOptions.unknownCount > 0) initial.add("__unknown__");
-    setSelectedAthletes(initial);
-    setAthletesInitialised(true);
-  }
-  if (!bikesInitialised && (bikeOptions.labels.length > 0 || bikeOptions.unknownCount > 0)) {
-    const initial = new Set<string>();
-    for (const opt of bikeOptions.labels) initial.add(opt.key);
-    if (bikeOptions.unknownCount > 0) initial.add("__unknown__");
-    setSelectedBikes(initial);
-    setBikesInitialised(true);
-  }
+  // --- Auto-select filter values on first render AND when a new one
+  //     appears in the entries (e.g. a fresh analysis introduces a new
+  //     sensor / athlete / bike). We add the newcomer to the selection
+  //     set so the user sees it checked by default, but never re-add a
+  //     value the user has explicitly unchecked before — tracked via
+  //     the ``*Initialised`` flag (first pass = seed everything) and
+  //     comparing the current option set to the current selection set
+  //     on subsequent passes.
+  useEffect(() => {
+    const allKeys = new Set<string>();
+    for (const [lbl] of sensorOptions.labels) allKeys.add(lbl);
+    if (sensorOptions.unknownCount > 0) allKeys.add("__unknown__");
+    if (allKeys.size === 0) return;
+    if (!sensorFilterInitialised) {
+      setSelectedSensors(new Set(allKeys));
+      seenSensorKeys.current = new Set(allKeys);
+      setSensorFilterInitialised(true);
+      return;
+    }
+    // Merge any NEW keys into the current selection. Previously-
+    // unchecked keys remain unchecked because they're still in
+    // selectedSensors ∪ allKeys with the "unchecked" state living in
+    // the complement — but wait, we model selection as an allowlist,
+    // so "unchecked" means "absent from the set". To preserve a
+    // deliberate unchecking while still seeding new keys as checked,
+    // we only add keys we've NEVER seen before. Tracked via a ref.
+    setSelectedSensors((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const k of allKeys) {
+        if (!seenSensorKeys.current.has(k)) {
+          next.add(k);
+          seenSensorKeys.current.add(k);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [sensorOptions, sensorFilterInitialised]);
+
+  useEffect(() => {
+    const allKeys = new Set<string>();
+    for (const opt of athleteOptions.labels) allKeys.add(opt.key);
+    if (athleteOptions.unknownCount > 0) allKeys.add("__unknown__");
+    if (allKeys.size === 0) return;
+    if (!athletesInitialised) {
+      setSelectedAthletes(new Set(allKeys));
+      seenAthleteKeys.current = new Set(allKeys);
+      setAthletesInitialised(true);
+      return;
+    }
+    setSelectedAthletes((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const k of allKeys) {
+        if (!seenAthleteKeys.current.has(k)) {
+          next.add(k);
+          seenAthleteKeys.current.add(k);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [athleteOptions, athletesInitialised]);
+
+  useEffect(() => {
+    const allKeys = new Set<string>();
+    for (const opt of bikeOptions.labels) allKeys.add(opt.key);
+    if (bikeOptions.unknownCount > 0) allKeys.add("__unknown__");
+    if (allKeys.size === 0) return;
+    if (!bikesInitialised) {
+      setSelectedBikes(new Set(allKeys));
+      seenBikeKeys.current = new Set(allKeys);
+      setBikesInitialised(true);
+      return;
+    }
+    setSelectedBikes((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const k of allKeys) {
+        if (!seenBikeKeys.current.has(k)) {
+          next.add(k);
+          seenBikeKeys.current.add(k);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [bikeOptions, bikesInitialised]);
 
   // --- Intersection filter: an entry is kept if it matches ALL filter dimensions ---
   // Sensor filter operates on per-ride sensors so a mixed-sensor aggregate

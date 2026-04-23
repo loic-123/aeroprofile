@@ -67,15 +67,33 @@ class IntervalsClient:
         self._auth = httpx.BasicAuth(username="API_KEY", password=api_key)
 
     async def _get(self, path: str, **kwargs) -> httpx.Response:
-        """GET request with retry on 429."""
+        """GET request with retry on 429 and transport errors.
+
+        Network failures (``ConnectError``, ``ReadTimeout``) are transient
+        by default: we retry with the same exponential backoff as on
+        429 (1 s → 2 s → 4 s). If all retries fail we re-raise the last
+        exception so the caller sees an actionable httpx error instead
+        of silently cascading through the whole batch.
+        """
+        last_exc: Exception | None = None
         async with httpx.AsyncClient(timeout=30.0, auth=self._auth) as client:
             for attempt in range(4):
-                r = await client.get(f"{BASE_URL}{path}", **kwargs)
+                try:
+                    r = await client.get(f"{BASE_URL}{path}", **kwargs)
+                except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout,
+                        httpx.RemoteProtocolError, httpx.PoolTimeout) as e:
+                    last_exc = e
+                    if attempt < 3:
+                        await asyncio.sleep(2 ** attempt)
+                        continue
+                    raise
                 if r.status_code == 429:
                     await asyncio.sleep(2 ** attempt)
                     continue
                 return r
-            return r
+            # All retries returned 429 — surface the last response so the
+            # caller can read the status / headers and decide what to do.
+            return r  # type: ignore[possibly-undefined]
 
     async def get_athlete(self) -> AthleteProfile:
         """Fetch athlete profile (name, weight, FTP).

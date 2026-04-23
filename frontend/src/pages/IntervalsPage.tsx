@@ -8,6 +8,7 @@ import {
   analyzeBatchIntervals,
   logAnalysisSession,
   DEFAULT_FILTERS,
+  IntervalsCircuitOpenError,
   type AthleteProfile,
   type ActivitySummary,
   type RideFilters,
@@ -326,6 +327,7 @@ export default function IntervalsPage() {
     };
 
     const results: RideResult[] = [];
+    let circuitHalted = false;
     for (let i = 0; i < filteredActivities.length; i++) {
       const act = filteredActivities[i];
       const fromCache = useCache ? getCachedInterval(act.id, cacheOpts) : null;
@@ -343,11 +345,26 @@ export default function IntervalsPage() {
           results.push({ activity: act, result: res, excluded: !!qBad || confBad || nrmse > MAX_NRMSE || res.cda < MIN_CDA || res.cda > MAX_CDA });
           setCacheInterval(act.id, res, cacheOpts);
         } catch (e: any) {
+          // Circuit breaker open → stop the batch. Firing more requests
+          // only deepens the Intervals.icu rate-limit we just hit.
+          if (e instanceof IntervalsCircuitOpenError) {
+            circuitHalted = true;
+            setConnError(
+              `Analyse stoppée — ${e.message}. Les sorties déjà analysées sont conservées, ` +
+              `attends quelques minutes puis relance.`,
+            );
+            break;
+          }
           results.push({ activity: act, error: e.message, excluded: true });
         }
       }
       setDoneCount(i + 1);
       setRides([...results]);
+    }
+    if (circuitHalted) {
+      // Ensure the UI flips out of "analysing" state even though we
+      // didn't reach the natural end of the loop.
+      setAnalyzing(false);
     }
 
     const good = results.filter((r) => !r.excluded && r.result);

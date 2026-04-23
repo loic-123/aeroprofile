@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import httpx
 import logging
 import tempfile
 from datetime import date, datetime
@@ -20,6 +21,48 @@ _ANALYZE_SEMAPHORE = asyncio.Semaphore(1)
 # ride is ~20-30 s; 90 s is the emergency ceiling. If we hit this the
 # frontend retry will kick in.
 _RIDE_TIMEOUT_S = 90.0
+
+# Simple in-memory circuit breaker against Intervals.icu rate-limits.
+# Each ConnectError / timeout we get from intervals.icu bumps the counter;
+# every successful fetch resets it. Past ``_INTERVALS_FAIL_THRESHOLD``
+# consecutive failures we enter "open" state: subsequent /analyze-ride
+# calls return 503 immediately (telling the frontend to stop the batch)
+# until ``_INTERVALS_COOLDOWN_S`` has passed. Prevents one ride-fetch
+# failure from cascading into 150 identical failures that only dig the
+# rate-limit deeper.
+_INTERVALS_FAIL_THRESHOLD = 5
+_INTERVALS_COOLDOWN_S = 120.0
+_intervals_consecutive_fails = 0
+_intervals_circuit_open_until: float = 0.0
+
+
+def _intervals_circuit_open() -> bool:
+    """Return True if Intervals.icu is currently considered down."""
+    import time as _time
+    return _time.monotonic() < _intervals_circuit_open_until
+
+
+def _intervals_record_failure() -> None:
+    """Bump the consecutive-failure counter and open the breaker if
+    threshold is reached. Call from every code path that catches an
+    Intervals.icu network exception."""
+    global _intervals_consecutive_fails, _intervals_circuit_open_until
+    import time as _time
+    _intervals_consecutive_fails += 1
+    if _intervals_consecutive_fails >= _INTERVALS_FAIL_THRESHOLD:
+        _intervals_circuit_open_until = _time.monotonic() + _INTERVALS_COOLDOWN_S
+        _log.warning(
+            "INTERVALS CIRCUIT OPEN — %d consecutive fetch failures, cooling down %.0f s",
+            _intervals_consecutive_fails, _INTERVALS_COOLDOWN_S,
+        )
+
+
+def _intervals_record_success() -> None:
+    """Reset the consecutive-failure counter on any successful fetch."""
+    global _intervals_consecutive_fails
+    if _intervals_consecutive_fails > 0:
+        _log.info("INTERVALS circuit resetting after %d failures", _intervals_consecutive_fails)
+    _intervals_consecutive_fails = 0
 
 from fastapi import APIRouter, Form, HTTPException, Query
 from pydantic import BaseModel
@@ -258,6 +301,20 @@ async def analyze_ride(
         f"{cda_prior_sigma:.3f}" if cda_prior_sigma is not None else "None",
         disable_prior,
     )
+
+    # Circuit breaker: if Intervals has been failing repeatedly, fail
+    # fast with 503 so the frontend stops its batch instead of firing
+    # another 140 requests that only deepen the rate-limit.
+    if _intervals_circuit_open():
+        import time as _time
+        remaining = _intervals_circuit_open_until - _time.monotonic()
+        raise HTTPException(
+            status_code=503,
+            detail=f"Intervals.icu temporairement injoignable "
+                   f"({_intervals_consecutive_fails} échecs consécutifs). "
+                   f"Réessaie dans {int(max(remaining, 0))} s.",
+        )
+
     client = IntervalsClient(api_key, athlete_id)
 
     # Fetch the activity metadata first — gives us power_meter, crank_length,
@@ -266,6 +323,7 @@ async def analyze_ride(
     pm_name: Optional[str] = None
     gear_id: Optional[str] = None
     gear_name: Optional[str] = None
+    meta_failed_transport = False
     try:
         meta = await client.get_activity_meta(activity_id)
         pm_name = meta.get("power_meter") or None
@@ -282,6 +340,10 @@ async def analyze_ride(
             "Could not fetch activity metadata for %s: %s (%s)",
             activity_id, _e, type(_e).__name__,
         )
+        if isinstance(_e, (httpx.ConnectError, httpx.ReadTimeout,
+                           httpx.ConnectTimeout, httpx.RemoteProtocolError,
+                           httpx.PoolTimeout)):
+            meta_failed_transport = True
 
     # Reuse cached bytes if a previous call (ride or batch) already fetched
     # this activity. Saves a 5-15 s Intervals.icu round-trip per repeated hit.
@@ -290,19 +352,41 @@ async def analyze_ride(
         try:
             fit_bytes = await client.download_fit(activity_id)
             _pp_cache.put_fit(athlete_id, activity_id, fit_bytes)
+            _intervals_record_success()  # FIT download is the real signal
         except Exception as e:
-            # Same defensive logging — and expose the exception type in
-            # the 422 detail so the frontend error banner is readable
-            # instead of "Téléchargement échoué : " with nothing after.
             _log.warning(
                 "FIT download failed for %s: %s (%s)",
                 activity_id, e, type(e).__name__,
             )
+            # Transport-level error = rate-limit / network issue ≠ bad
+            # activity. Bump the breaker so ≥ threshold consecutive
+            # failures switch the whole endpoint to 503 and the frontend
+            # halts the batch.
+            is_transport = isinstance(e, (httpx.ConnectError, httpx.ReadTimeout,
+                                          httpx.ConnectTimeout, httpx.RemoteProtocolError,
+                                          httpx.PoolTimeout))
+            if is_transport:
+                _intervals_record_failure()
+                # Return 503 so the frontend retry logic recognises it
+                # as a transient server issue and — with the new client
+                # 5-ConnectError cap — halts the batch quickly.
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Intervals.icu n'a pas répondu (activité {activity_id}): "
+                           f"{type(e).__name__} — {e}".strip(" —"),
+                )
+            # Non-transport failure (bad activity, permission denied…) —
+            # 422 so the frontend skips this one and moves on.
             raise HTTPException(
                 status_code=422,
-                detail=f"Intervals.icu n'a pas répondu (activité {activity_id}): "
+                detail=f"Téléchargement impossible (activité {activity_id}): "
                        f"{type(e).__name__} — {e}".strip(" —"),
             )
+    else:
+        # Cache hit ≠ proof Intervals is up, but it means we're making
+        # progress on the batch — don't count it against the breaker.
+        if not meta_failed_transport:
+            _intervals_record_success()
 
     # Write to temp file for the pipeline
     with tempfile.NamedTemporaryFile(suffix=".fit", delete=False) as tmp:

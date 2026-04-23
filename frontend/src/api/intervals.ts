@@ -105,13 +105,50 @@ export async function logAnalysisSession(payload: Record<string, unknown>): Prom
 // HTTP statuses that indicate a transient server / proxy issue where
 // the ride itself is fine — worth retrying a couple of times with
 // backoff rather than reporting `err` to the user. Covers the 404 that
-// Traefik returns when the backend is briefly evicted (unhealthy), the
-// 503 we emit ourselves on analysis timeout, and the 502/504 that
-// appear when the reverse proxy times out on a slow upstream.
-const RETRY_STATUSES = new Set([404, 500, 502, 503, 504]);
+// Traefik returns when the backend is briefly evicted (unhealthy) and
+// the 502/504 that appear when the reverse proxy times out on a slow
+// upstream. 503 is handled separately — it now signals the server-side
+// Intervals circuit breaker is open, which means the batch must STOP,
+// not retry.
+const RETRY_STATUSES = new Set([404, 500, 502, 504]);
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Thrown when the backend returns 503 from /analyze-ride, meaning the
+ *  Intervals.icu circuit breaker is open. The batch runner catches this
+ *  to halt gracefully instead of dispatching 140 more requests that
+ *  would only deepen the rate-limit. */
+export class IntervalsCircuitOpenError extends Error {
+  constructor(detail: string) {
+    super(detail);
+    this.name = "IntervalsCircuitOpenError";
+  }
+}
+
+// Serialise + space-out every /analyze-ride call. The backend semaphore
+// already processes one request at a time, but Node's default fetch
+// parallelism can queue 150 requests simultaneously — they each walk
+// through the server in sequence but the browser has already fired
+// them all and the Intervals sub-requests inside pile up too. A tiny
+// async mutex + 800 ms gap between releases is a much gentler pace.
+const THROTTLE_MIN_GAP_MS = 800;
+let _throttleChain: Promise<void> = Promise.resolve();
+async function _acquireThrottleSlot(): Promise<void> {
+  const prev = _throttleChain;
+  let release: () => void;
+  _throttleChain = new Promise<void>((r) => {
+    release = () => {
+      setTimeout(r, THROTTLE_MIN_GAP_MS);
+    };
+  });
+  await prev;
+  // Release happens when the caller finishes — we return a function
+  // that the caller must invoke. Simpler: release immediately on next
+  // tick so the gap is enforced BETWEEN starts, not around each call's
+  // full round-trip (which would serialise 30-s rides).
+  setTimeout(() => release!(), 0);
 }
 
 export async function analyzeRide(
@@ -136,6 +173,10 @@ export async function analyzeRide(
   if (cdaPriorMean && cdaPriorMean > 0 && !disablePrior) fd.append("cda_prior_mean", String(cdaPriorMean));
   if (cdaPriorSigma && cdaPriorSigma > 0 && !disablePrior) fd.append("cda_prior_sigma", String(cdaPriorSigma));
 
+  // Space out the request so we don't fire 150 of them in parallel
+  // against the Intervals.icu API and trip their rate-limit.
+  await _acquireThrottleSlot();
+
   // Up to 3 attempts: if the backend is momentarily overloaded or Traefik
   // has just evicted an unhealthy container, a 2-4 s pause is enough for
   // the healthcheck to go green again. A true 404 (activity purged by
@@ -146,6 +187,13 @@ export async function analyzeRide(
     try {
       const res = await fetch(`${API}/analyze-ride`, { method: "POST", body: fd });
       if (res.ok) return res.json();
+      // 503 = Intervals circuit breaker open (server saw ≥ 5 consecutive
+      // ConnectError/ReadTimeout on intervals.icu). Throw the specific
+      // error type so the batch runner can halt instead of retrying.
+      if (res.status === 503) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new IntervalsCircuitOpenError(err.detail || `HTTP 503`);
+      }
       // 422 = client error (bad file, bad params): never worth retrying.
       if (res.status === 422 || !RETRY_STATUSES.has(res.status)) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -156,6 +204,9 @@ export async function analyzeRide(
       const err = await res.json().catch(() => ({ detail: res.statusText }));
       lastErr = new Error(err.detail || `HTTP ${res.status}`);
     } catch (e) {
+      // Circuit-breaker exceptions must bubble up immediately, not be
+      // treated as a retryable network error.
+      if (e instanceof IntervalsCircuitOpenError) throw e;
       // Network error (TypeError from fetch) — also transient, retry.
       lastErr = e instanceof Error ? e : new Error(String(e));
     }

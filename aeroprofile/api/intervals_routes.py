@@ -274,7 +274,14 @@ async def analyze_ride(
             gear_id = gear.get("id") or None
             gear_name = gear.get("name") or None
     except Exception as _e:
-        _log.warning("Could not fetch activity metadata for %s: %s", activity_id, _e)
+        # Intervals sometimes silently times out on specific activities
+        # (corrupted metadata / rate-limit drop). Include the exception
+        # type so the log isn't "Could not fetch ... for X: " with an
+        # empty tail.
+        _log.warning(
+            "Could not fetch activity metadata for %s: %s (%s)",
+            activity_id, _e, type(_e).__name__,
+        )
 
     # Reuse cached bytes if a previous call (ride or batch) already fetched
     # this activity. Saves a 5-15 s Intervals.icu round-trip per repeated hit.
@@ -284,7 +291,18 @@ async def analyze_ride(
             fit_bytes = await client.download_fit(activity_id)
             _pp_cache.put_fit(athlete_id, activity_id, fit_bytes)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Téléchargement échoué : {e}")
+            # Same defensive logging — and expose the exception type in
+            # the 422 detail so the frontend error banner is readable
+            # instead of "Téléchargement échoué : " with nothing after.
+            _log.warning(
+                "FIT download failed for %s: %s (%s)",
+                activity_id, e, type(e).__name__,
+            )
+            raise HTTPException(
+                status_code=422,
+                detail=f"Intervals.icu n'a pas répondu (activité {activity_id}): "
+                       f"{type(e).__name__} — {e}".strip(" —"),
+            )
 
     # Write to temp file for the pipeline
     with tempfile.NamedTemporaryFile(suffix=".fit", delete=False) as tmp:

@@ -271,6 +271,7 @@
     "distRange": "Distance:",
     "maxElev": "Max elevation:",
     "gradeMaxLabel": "Max mean grade:",
+    "gradeDisabled": "disabled",
     "reAnalyze": "Re-analyze",
     "stillAnalyzing": "Analyzing {{done}} / {{total}}…"
   },

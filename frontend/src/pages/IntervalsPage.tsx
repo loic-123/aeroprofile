@@ -213,9 +213,13 @@ export default function IntervalsPage() {
     return !sensorBlacklist.has(key);
   };
   // D+/km exclusion on top of the base filters — tracked separately so we
-  // can show "X rides excluded by grade filter" in the UI.
+  // can show "X rides excluded by grade filter" in the UI. A slider set
+  // to the top (≥ 16 m/km) is treated as "disabled" — physically no
+  // normal rolling ride exceeds that threshold, but the explicit check
+  // keeps the logic readable and protects against a future value change.
   const passesGradeFilter = (a: typeof allActivities[number]) => {
     if (filters.max_elevation_per_km == null) return true;
+    if (filters.max_elevation_per_km >= 16) return true;
     if (a.distance_km <= 0) return true;
     return a.elevation_gain_m / a.distance_km <= filters.max_elevation_per_km;
   };
@@ -983,12 +987,19 @@ export default function IntervalsPage() {
               </div>
               <div>
                 <label className="block text-xs text-muted mb-1">
-                  {t("intervals.gradeMaxLabel")} <span className="text-teal font-mono">{filters.max_elevation_per_km ?? 999}</span> m/km
-                  <span className="text-[10px] text-muted ml-1">
-                    ({((filters.max_elevation_per_km ?? 0) / 10).toFixed(1)}% de pente moyenne)
-                  </span>
+                  {t("intervals.gradeMaxLabel")}{" "}
+                  {(filters.max_elevation_per_km ?? 0) >= 16 ? (
+                    <span className="text-teal font-mono">{t("intervals.gradeDisabled")}</span>
+                  ) : (
+                    <>
+                      <span className="text-teal font-mono">{filters.max_elevation_per_km ?? 15}</span> m/km
+                      <span className="text-[10px] text-muted ml-1">
+                        ({((filters.max_elevation_per_km ?? 0) / 10).toFixed(1)}% de pente moyenne)
+                      </span>
+                    </>
+                  )}
                 </label>
-                <input type="range" min={2} max={15} step={1}
+                <input type="range" min={2} max={16} step={1}
                   value={filters.max_elevation_per_km ?? 15}
                   onChange={(e) => setFilters({ ...filters, max_elevation_per_km: parseFloat(e.target.value) })}
                   className="w-full accent-teal" />

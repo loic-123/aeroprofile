@@ -271,6 +271,7 @@
     "distRange": "Distance :",
     "maxElev": "D+ max :",
     "gradeMaxLabel": "Pente moyenne max :",
+    "gradeDisabled": "désactivé",
     "reAnalyze": "Re-analyser",
     "stillAnalyzing": "Analyse {{done}} / {{total}}…"
   },

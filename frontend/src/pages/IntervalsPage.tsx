@@ -1126,8 +1126,11 @@ export default function IntervalsPage() {
         </div>
       )}
 
-      {/* Results */}
-      {goodRides.length > 0 && aggCda !== null && (
+      {/* Results — show chips/detail as soon as ANY ride was analysed, even
+          if every one was excluded by the filters. Keeps the "all rides
+          were rejected" case visible (otherwise the UI is a white void and
+          the user has no idea what happened). */}
+      {rides.length > 0 && (
         <>
           <TabSwitcher
             tabs={[
@@ -1140,6 +1143,11 @@ export default function IntervalsPage() {
 
           {viewTab === "overview" && (
             <div className="space-y-6">
+              {/* Totem + aggregate banners only make sense when at least one
+                  ride passed the filters; otherwise we show a "0 retained"
+                  helper block below the chips. */}
+              {goodRides.length > 0 && aggCda !== null && (
+                <>
               {/* Totem */}
               {!analyzing && <CdATotem cda={aggCda} />}
 
@@ -1329,6 +1337,33 @@ export default function IntervalsPage() {
                   />
                 </>
               )}
+                </>
+              )}
+
+              {/* 0 good rides fallback — visible instead of the aggregate
+                  banner when every ride was filtered out. */}
+              {goodRides.length === 0 && !analyzing && (
+                <div className="bg-panel border border-warn rounded-lg p-5">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">⚠</span>
+                    <div className="flex-1">
+                      <h3 className="text-base font-semibold mb-1">
+                        Aucune sortie n'a passé les filtres ({rides.length} analys&eacute;e{rides.length > 1 ? "s" : ""})
+                      </h3>
+                      <p className="text-sm text-muted mb-3">
+                        Le CdA moyen n'est pas calculable mais chaque sortie a bien &eacute;t&eacute;
+                        analys&eacute;e. Survole les pastilles ci-dessous pour voir pourquoi
+                        chacune a &eacute;t&eacute; exclue, ou clique dessus pour inspecter son
+                        d&eacute;tail (carte, CdA par segment, Chung cross-check).
+                      </p>
+                      <div className="text-xs text-muted space-y-1">
+                        <div>Seuil actuel : <span className="font-mono text-text">nRMSE &le; {maxNrmse}%</span></div>
+                        <div>Plage CdA : <span className="font-mono text-text">[{BIKE_TYPE_CONFIG[bikeType].minCda} &ndash; {BIKE_TYPE_CONFIG[bikeType].maxCda} m&sup2;]</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Ride chips */}
               <div className="bg-panel border border-border rounded-lg p-4">
@@ -1476,7 +1511,11 @@ export default function IntervalsPage() {
                       <button
                         key={i}
                         onClick={() => {
-                          if (r.result && !isBad) {
+                          // Analysed rides — even excluded ones — can be
+                          // inspected in the detail tab. The detail view is
+                          // often the best tool to understand WHY a ride
+                          // was rejected (CdA map, Chung cross-check, etc).
+                          if (r.result) {
                             setSelectedIdx(i);
                             setViewTab("detail");
                           }
@@ -1485,12 +1524,12 @@ export default function IntervalsPage() {
                         className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-mono transition ${
                           isBad
                             ? exclusionCategory === "phys"
-                              ? "bg-orange-900/20 text-orange-400/70 line-through border border-orange-900/50"
+                              ? "bg-orange-900/20 text-orange-400/70 line-through border border-orange-900/50" + (r.result ? " hover:border-orange-500 cursor-pointer" : "")
                               : exclusionCategory === "noisy"
-                                ? "bg-yellow-900/20 text-yellow-400/70 line-through border border-yellow-900/50"
+                                ? "bg-yellow-900/20 text-yellow-400/70 line-through border border-yellow-900/50" + (r.result ? " hover:border-yellow-500 cursor-pointer" : "")
                                 : exclusionCategory === "data"
                                   ? "bg-slate-800/30 text-slate-400/70 line-through border border-slate-700"
-                                  : "bg-red-900/20 text-red-400/60 line-through border border-red-900/40"
+                                  : "bg-red-900/20 text-red-400/60 line-through border border-red-900/40" + (r.result ? " hover:border-red-500 cursor-pointer" : "")
                             : "bg-emerald-900/30 text-emerald-400 border border-emerald-800 hover:border-teal cursor-pointer"
                         }`}
                       >
@@ -1573,7 +1612,10 @@ export default function IntervalsPage() {
                   <RidePicker
                     entries={rides
                       .map((r, i) => ({ ride: r, index: i }))
-                      .filter(({ ride }) => !ride.excluded && ride.result)
+                      // Include every analysed ride so the picker works even
+                      // when all rides are excluded or the user is inspecting
+                      // a rejected one.
+                      .filter(({ ride }) => !!ride.result)
                       .map(({ ride, index }) => ({
                         index,
                         date: ride.activity.start_date,

@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>AeroProfile — le VPS souffle un peu</title>
+<meta name="theme-color" content="#0A0A0B" />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<meta http-equiv="refresh" content="45" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0A0A0B;
+    --panel: #111113;
+    --border: #3F3F46;
+    --text: #EDEDEF;
+    --muted: #A1A1AA;
+    --iris: #7C6FDE;
+    --lime: #A3E635;
+    --coral: #EF4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, system-ui, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    line-height: 1.55;
+    background-image: radial-gradient(circle at 30% 40%, rgba(124, 111, 222, 0.18), transparent 60%);
+  }
+  .card {
+    max-width: 620px;
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px 36px;
+    position: relative;
+  }
+  .kicker {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 4px;
+    color: var(--muted);
+    margin-bottom: 28px;
+    text-transform: uppercase;
+  }
+  .kicker .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--coral);
+    margin-right: 10px;
+    vertical-align: middle;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50%      { opacity: 1;   transform: scale(1.2); }
+  }
+  h1 {
+    font-size: 34px;
+    font-weight: 600;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+    line-height: 1.2;
+  }
+  h1 .accent { color: var(--iris); }
+  p { color: var(--muted); font-size: 16px; margin-bottom: 14px; }
+  p strong { color: var(--text); font-weight: 500; }
+  .meta {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid #27272A;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+  }
+  .meta span { display: flex; align-items: center; gap: 6px; }
+  .meta .lbl { color: #6B6B73; }
+  .actions {
+    margin-top: 28px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font-family: Inter, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn:hover { border-color: var(--iris); color: var(--iris); }
+  .btn-primary {
+    background: var(--iris);
+    border-color: var(--iris);
+    color: #fff;
+  }
+  .btn-primary:hover { background: #6A5EC9; border-color: #6A5EC9; color: #fff; }
+  .footer {
+    margin-top: 32px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    color: #6B6B73;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .footer a { color: var(--muted); text-decoration: none; }
+  .footer a:hover { color: var(--text); }
+  @media (max-width: 500px) {
+    .card { padding: 28px 22px; }
+    h1 { font-size: 26px; }
+    p { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+  <div class="card" role="alert" aria-live="polite">
+    <div class="kicker"><span class="dot" aria-hidden="true"></span>AeroProfile &middot; Service momentan&eacute;ment essouffl&eacute;</div>
+
+    <h1>Le serveur <span class="accent">souffle un peu</span>.</h1>
+
+    <p>
+      Trop de monde essaie d&rsquo;estimer son CdA en m&ecirc;me temps.
+      Le VPS qui fait tourner le solveur tire la langue &mdash; un peu comme nous
+      tous sur une bosse &agrave; 10%.
+    </p>
+    <p>
+      <strong>Donne-lui 30 &agrave; 60 secondes pour r&eacute;cup&eacute;rer</strong>, cette page
+      se rafra&icirc;chit automatiquement.
+      En attendant, si tu veux comprendre comment le solveur gal&egrave;re
+      contre le vent, le <a href="https://github.com/loic-123/aeroprofile" style="color: var(--lime);">code est sur GitHub</a>.
+    </p>
+
+    <div class="meta" aria-label="Status technique">
+      <span><span class="lbl">STATUS</span> HTTP 503</span>
+      <span><span class="lbl">CAUSE</span> upstream saturated</span>
+      <span><span class="lbl">RETRY</span> auto in 45s</span>
+    </div>
+
+    <div class="actions">
+      <a class="btn btn-primary" href="/">R&eacute;essayer maintenant</a>
+      <a class="btn" href="https://github.com/loic-123/aeroprofile/issues" target="_blank" rel="noopener">Signaler un bug</a>
+    </div>
+
+    <p class="footer">
+      <a href="https://aeroprofile.cc">aeroprofile.cc</a> &middot; built by Lo&iuml;c Bouxirot
+    </p>
+  </div>
+</body>
+</html>

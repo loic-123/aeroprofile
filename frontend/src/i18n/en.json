@@ -565,16 +565,16 @@
   "about": {
     "back": "Back to home",
     "eyebrow": "About",
-    "title": "AeroProfile is what you get when a triathlete trains at Imperial's AI lab and can't find a CdA estimator he trusts.",
-    "p1": "Hi, I'm <name>Loïc Bouxirot</name>. AeroProfile exists because, in 2024, I bought an aero helmet and spent the next six months wondering - in the unhinged, slightly obsessive way only a triathlete can - whether it was actually doing anything, or whether I'd just given €300 to a company that sells <em>hope, in expanded polystyrene form</em>.",
-    "p2": "It turns out the answer to that question, honestly measured, requires inverse problems, Bayesian uncertainty, and a healthy respect for Open-Meteo's wind field. Which is a weirdly specific Venn diagram. So I wrote the tool I wanted to exist - leaning on the day job (safety-critical ML at <imperial>Imperial College London</imperial>, with previous stops at Safran, Decathlon, and Ochy doing foundation models, computer vision, and LLM pipelines) and the weekend habit (front-pack triathlon, headwinds, opinions about tyre pressure).",
-    "p3": "The wind-inverse solver, the hierarchical aggregation, the prior-invariance regression tests, the eight quality gates - they all come from that bicultural loop. If it looks over-engineered for a cycling tool, it's because every other tool I found was <em>under</em>-engineered for a measurement tool. I did not set out to write 14 methodology articles. It just kept happening.",
-    "p4": "The code is on GitHub. Bug reports with a FIT file attached are gold. Bug reports that begin with <em>\"I think your physics is wrong\"</em> are even better, provided they end with a FIT file.",
+    "title": "How a cycling question spiralled into a Bayesian solver.",
+    "p1": "<name>Loïc</name>. Cyclist, with the unfortunate habit of not letting a question go unanswered — which, eventually, leads to projects like this one.",
+    "p2": "My dad and I have been riding together for a while. Same corner of Brittany, same wind, same coffee at the end, and every time the same gap: ten-odd watts between us. He's a bit heavier than I am, sure, but we ride in Brittany — not the Alps — so weight doesn't explain much. The most plausible suspect is <em>CdA</em>, a single number that captures how you push against the air: your position, the shape of your helmet, how you hold the bars. Dad and I probably don't slice the air the same way. Verifying that normally requires a velodrome, a fairly demanding protocol, or a €600 onboard sensor — which, for a question only two Breton cyclists are asking, feels mildly disproportionate.",
+    "p3": "Hence the idea: what if a single <em>.fit</em> file were enough? You upload your ride — <em>.gpx</em> and <em>.tcx</em> work too — and the tool returns a CdA estimate with a calibrated confidence interval, no velodrome and no perfect conditions required. The actual hard part is that wind and drag don't separate cleanly: pin one to estimate the other and you're going to be wrong. That's where a solver that fits wind and drag jointly earns its keep — not for show, but because it's the only honest way to disentangle the two, leaning on weather data when the ride alone leaves several plausible answers on the table. A hierarchical meta-analysis then combines the results across multiple rides without flattening the uncertainty, and automatic guardrails drop files too noisy to be exploitable. Fourteen methodology articles document every choice, for those who really want to go down the rabbit hole — or who don't trust me, which is entirely fair.",
+    "p4": "The whole thing is open source, on GitHub. Bug reports are welcome, even better with a <em>.fit</em> file attached. Pushback on the physics or the statistics is also welcome: come with your arguments and your file.",
     "contact": "Get in touch",
-    "ctaAnalyzeTitle": "Analyze your ride",
-    "ctaAnalyzeBody": "The fastest way to see what the tool does - drop a .fit and get your CdA in ~30 seconds.",
-    "ctaMethodsTitle": "Read the methodology",
-    "ctaMethodsBody": "14 articles cover every solver, filter, and statistical choice inside AeroProfile."
+    "ctaAnalyzeTitle": "Analyze a ride",
+    "ctaAnalyzeBody": "Upload your .fit, .gpx or .tcx file and get a CdA estimate in seconds.",
+    "ctaMethodsTitle": "Methodology",
+    "ctaMethodsBody": "14 articles document the physical and statistical choices behind the tool."
   },
   "footer": {
     "brand": "AeroProfile",

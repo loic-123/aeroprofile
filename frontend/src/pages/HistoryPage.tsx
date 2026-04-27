@@ -13,6 +13,12 @@ import {
   type HistoryEntry,
 } from "../api/history";
 import { PageHeader, Button, Card, EmptyState } from "../components/ui";
+import {
+  bikeTypeLabel,
+  legacyBikeLabel,
+  legacyPositionLabel,
+} from "../lib/presetLabels";
+import type { BikeType } from "../types";
 
 /** Rolling standard deviation over a window of N consecutive values. */
 function rollingStd(values: number[], window: number): (number | null)[] {
@@ -826,7 +832,7 @@ export default function HistoryPage() {
                     <div>{t("history.colRmse")} : <span className="text-text font-mono">±{e.rmseW.toFixed(0)} W</span> (nRMSE {nrmse}%)</div>
                     <div>{t("history.colMass")} : <span className="text-text font-mono">{e.massKg} kg</span></div>
                     <div>{t("history.colRides")} : <span className="text-text font-mono">{e.nRides}</span> {t("history.ridesKept")}, <span className="text-text font-mono">{e.nExcluded}</span> {t("history.ridesExcluded")}</div>
-                    <div>{t("history.colBike")} : <span className="text-text">{e.bikeType}</span> · <span className="text-text">{e.positionLabel}</span></div>
+                    <div>{t("history.colBike")} : <span className="text-text">{bikeTypeLabel(t, e.bikeType as BikeType)}</span> · <span className="text-text">{legacyPositionLabel(t, e.positionLabel)}</span></div>
                     <div>{t("history.colCrr")} : <span className="text-text font-mono">{e.crrFixed != null ? `${e.crrFixed.toFixed(4)} (${t("history.fixed")})` : t("history.auto")}</span></div>
                     <div>{t("history.colPriorCda")} : <span className="text-text font-mono">
                       {e.cdaPriorMean != null && e.cdaPriorMean > 0 ? `${e.cdaPriorMean.toFixed(2)} ± ${e.cdaPriorSigma?.toFixed(2)}` : "—"}
@@ -847,7 +853,7 @@ export default function HistoryPage() {
                       <div>{t("history.colProfile")} : <span className="text-info font-mono">{e.athleteName}</span></div>
                     )}
                     {e.bikeLabel && (
-                      <div>{t("history.colBike")} : <span className="text-warn font-mono">{e.bikeLabel}</span></div>
+                      <div>{t("history.colBike")} : <span className="text-warn font-mono">{legacyBikeLabel(t, e.bikeLabel)}</span></div>
                     )}
                     {e.maxNrmse != null && (
                       <div>{t("history.colQualityThreshold")} : <span className="text-text font-mono">{e.maxNrmse >= 9.9 ? t("history.disabled") : `${(e.maxNrmse * 100).toFixed(0)}%`}</span></div>

@@ -13,6 +13,7 @@ import { analyze, analyzeBatch } from "./api/client";
 import { getCached, setCache, type CacheOpts } from "./api/cache";
 import type { AnalysisResult, HierarchicalAnalysisResult } from "./types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, isHardFailure, type BikeType } from "./types";
+import { positionLabel as _posLabel, bikeTypeLabel } from "./lib/presetLabels";
 import { Wind, Users, User, FileText, Loader2, BookOpen, Link2, TrendingUp } from "lucide-react";
 import { saveToHistory, type HistoryEntry } from "./api/history";
 import { weightedAggregate, type AggregationInput } from "./lib/aggregate";
@@ -263,7 +264,7 @@ export default function App() {
         cda: hCda, cdaLow: hLow, cdaHigh: hHigh, crr: hCrr,
         rmseW: sRmseAvg, avgPowerW: sPowerAvg, avgRho: sRhoAvg,
         bikeType: bt,
-        positionLabel: posPreset?.label || BIKE_TYPE_CONFIG[bt].label,
+        positionLabel: posPreset ? _posLabel(t, posPreset) : bikeTypeLabel(t, bt),
         massKg: mass_kg,
         crrFixed: opts.crr_fixed ?? null,
         cdaPriorMean: posPreset?.cdaPrior ?? null,

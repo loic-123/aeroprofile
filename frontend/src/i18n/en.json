@@ -36,6 +36,36 @@
     "fr": "Français",
     "en": "English"
   },
+  "bikeType": {
+    "road": "Road",
+    "tt": "TT / Triathlon",
+    "mtb": "MTB / Gravel",
+    "mixed": "Mixed ({{count}} bikes)"
+  },
+  "position": {
+    "unknown": "I don't know",
+    "veryAero": "Very aero",
+    "aeroDrops": "Aero (drops)",
+    "moderateHoods": "Moderate (hoods)",
+    "uprightTops": "Upright (tops)",
+    "proSuperman": "Pro (superman)",
+    "aeroBars": "Aero (aerobars)",
+    "upright": "Upright",
+    "aggressiveXC": "Aggressive (XC)",
+    "moderate": "Moderate",
+    "veryUpright": "Very upright"
+  },
+  "crrPreset": {
+    "modernRoadTubeless": "Modern road tubeless (GP5000 TLR, Corsa Pro) — default",
+    "velodromeTubular": "Velodrome tubular",
+    "raceTubeless": "Race tubeless (GP5000 S TR, Pro One TLR)",
+    "roadTubeless": "Road tubeless (GP5000, Corsa)",
+    "clincher": "Standard clincher (butyl tube)",
+    "endurance": "Endurance / training (4Season, Gatorskin)",
+    "gravel40": "Gravel 40mm (hard-packed)",
+    "mtb": "MTB (dirt / roots)",
+    "auto": "Auto — expert mode (often pinned at 0.005)"
+  },
   "dashboard": {
     "hierError": "Error: {{message}}",
     "chipError": "Error: {{message}}",

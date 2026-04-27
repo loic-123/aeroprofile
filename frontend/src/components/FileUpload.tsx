@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useId } from "react";
 import { Upload, Loader2, ChevronDown, ChevronRight, FileText, X } from "lucide-react";
 import { useTranslation, Trans } from "react-i18next";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, type BikeType } from "../types";
+import { positionLabel as _posLabel, crrPresetLabel } from "../lib/presetLabels";
 import { Button } from "./ui";
 import { FormSection } from "./FormSection";
 import InfoTooltip from "./InfoTooltip";
@@ -259,7 +260,7 @@ export default function FileUpload({
             <label htmlFor={positionId} className="block text-xs text-muted mb-1">
               {t("fileUpload.positionLabel")}
               <InfoTooltip text={t("tooltips.positionInput")} />
-              <span className="text-primary font-semibold ml-1">{POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].label}</span>
+              <span className="text-primary font-semibold ml-1">{_posLabel(t, POSITION_PRESETS_BY_BIKE[bikeType][positionIdx])}</span>
               {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior > 0 ? (
                 <span className="ml-1">{t("fileUpload.positionPrior", { value: POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior })}</span>
               ) : (
@@ -275,7 +276,7 @@ export default function FileUpload({
               value={positionIdx}
               onChange={(e) => setPositionIdx(parseInt(e.target.value))}
               className="w-full accent-primary"
-              aria-valuetext={POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].label}
+              aria-valuetext={_posLabel(t, POSITION_PRESETS_BY_BIKE[bikeType][positionIdx])}
             />
             <div className="flex justify-between text-[10px] text-muted mt-0.5">
               {POSITION_PRESETS_BY_BIKE[bikeType].map((p, i) => (
@@ -287,7 +288,7 @@ export default function FileUpload({
                     i === positionIdx ? "text-primary font-semibold" : ""
                   }`}
                 >
-                  {p.label}
+                  {_posLabel(t, p)}
                 </button>
               ))}
             </div>
@@ -323,7 +324,7 @@ export default function FileUpload({
             >
               {CRR_PRESETS.map((p) => (
                 <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
-                  {p.crr === 0 ? t("fileUpload.crrAuto") : `${p.crr.toFixed(4)} — ${p.label}`}
+                  {p.crr === 0 ? t("fileUpload.crrAuto") : `${p.crr.toFixed(4)} — ${crrPresetLabel(t, p)}`}
                 </option>
               ))}
             </select>

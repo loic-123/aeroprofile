@@ -20,6 +20,7 @@ import { getActiveProfile, saveProfileSettings, type ProfileSettings } from "../
 import ProfilePicker from "../components/ProfilePicker";
 import type { AnalysisResult, HierarchicalAnalysisResult } from "../types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, isHardFailure, type BikeType } from "../types";
+import { positionLabel as _posLabel, crrPresetLabel, multiBikeLabel, bikeTypeLabel } from "../lib/presetLabels";
 import InfoTooltip from "../components/InfoTooltip";
 import { FormSection } from "../components/FormSection";
 import { useBlog } from "../components/BlogLayout";
@@ -473,7 +474,10 @@ export default function IntervalsPage() {
         bikeLabel = sortedBikes[0][1].label;
       } else if (sortedBikes.length > 1) {
         bikeKey = "mixed";
-        bikeLabel = `Mixte (${sortedBikes.length} vélos)`;
+        // i18n key — re-localised at render time via legacyBikeLabel /
+        // multiBikeLabel. Persisted as a localised string for backward compat
+        // with already-saved history entries that don't carry bikeKey="mixed".
+        bikeLabel = multiBikeLabel(t, sortedBikes.length);
       }
 
       saveToHistory({
@@ -484,7 +488,7 @@ export default function IntervalsPage() {
         cda: hCda, cdaLow: hLow, cdaHigh: hHigh, crr: hCrr,
         rmseW: aggIP.rmseW, avgPowerW: aggIP.avgPowerW, avgRho: aggIP.avgRho,
         bikeType,
-        positionLabel: posP?.label || BIKE_TYPE_CONFIG[bikeType].label,
+        positionLabel: posP ? _posLabel(t, posP) : bikeTypeLabel(t, bikeType),
         massKg: mass,
         crrFixed: crr ?? null,
         cdaPriorMean: posP?.cdaPrior ?? null,
@@ -758,7 +762,7 @@ export default function IntervalsPage() {
               <label className="block text-xs text-muted mb-1">
                 Position :
                 <InfoTooltip text={t("tooltips.positionInput")} />
-                <span className="text-teal font-semibold ml-1">{POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].label}</span>
+                <span className="text-teal font-semibold ml-1">{_posLabel(t, POSITION_PRESETS_BY_BIKE[bikeType][positionIdx])}</span>
                 {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior > 0 ? (
                   <span className="ml-1">(prior CdA ≈ {POSITION_PRESETS_BY_BIKE[bikeType][positionIdx].cdaPrior})</span>
                 ) : (
@@ -771,7 +775,7 @@ export default function IntervalsPage() {
               <div className="flex justify-between text-[10px] text-muted mt-0.5">
                 {POSITION_PRESETS_BY_BIKE[bikeType].map((p, i) => (
                   <span key={i} className={`cursor-pointer ${i === positionIdx ? "text-teal font-semibold" : ""}`}
-                    onClick={() => setPositionIdx(i)}>{p.label}</span>
+                    onClick={() => setPositionIdx(i)}>{_posLabel(t, p)}</span>
                 ))}
               </div>
               <p className="text-[10px] text-muted mt-2 leading-snug">
@@ -800,7 +804,7 @@ export default function IntervalsPage() {
                 }`}>
                 {CRR_PRESETS.map((p) => (
                   <option key={p.crr} value={p.crr === 0 ? "" : String(p.crr)}>
-                    {p.crr === 0 ? t("fileUpload.crrAuto") : `${p.crr.toFixed(4)} — ${p.label}`}
+                    {p.crr === 0 ? t("fileUpload.crrAuto") : `${p.crr.toFixed(4)} — ${crrPresetLabel(t, p)}`}
                   </option>
                 ))}
               </select>

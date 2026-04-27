@@ -7,6 +7,7 @@ import { saveToHistory } from "../api/history";
 import { weightedAggregate } from "../lib/aggregate";
 import type { AnalysisResult, HierarchicalAnalysisResult } from "../types";
 import { BIKE_TYPE_CONFIG, POSITION_PRESETS_BY_BIKE, CRR_PRESETS, isHardFailure, type BikeType } from "../types";
+import { positionLabel as _posLabel } from "../lib/presetLabels";
 import PositionSchematic from "./PositionSchematic";
 import InfoTooltip from "./InfoTooltip";
 import CdAEvolutionChart from "./CdAEvolutionChart";
@@ -317,7 +318,7 @@ export default function CompareMode({ onBack }: { onBack: () => void }) {
           cda: hCda, cdaLow: hLow, cdaHigh: hHigh, crr: hCrr,
           rmseW: aggRider.rmseW, avgPowerW: aggRider.avgPowerW, avgRho: aggRider.avgRho,
           bikeType,
-          positionLabel: posP?.label || bikeType,
+          positionLabel: posP ? _posLabel(t, posP) : bikeType,
           massKg: rider.mass,
           crrFixed: crrVal && crrVal > 0 ? crrVal : null,
           cdaPriorMean: posP?.cdaPrior || null,
@@ -788,7 +789,7 @@ function RiderRow({
         <div className="mb-3">
           <div className="flex items-center gap-2 text-xs text-muted mb-1">
             Position :
-            <span className="text-teal font-semibold">{POSITION_PRESETS_BY_BIKE[bikeType][rider.positionIdx].label}</span>
+            <span className="text-teal font-semibold">{_posLabel(t, POSITION_PRESETS_BY_BIKE[bikeType][rider.positionIdx])}</span>
             <span className="opacity-60">(prior ≈ {POSITION_PRESETS_BY_BIKE[bikeType][rider.positionIdx].cdaPrior})</span>
           </div>
           <input

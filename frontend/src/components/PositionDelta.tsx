@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { POSITION_PRESETS_BY_BIKE, BIKE_TYPE_CONFIG, type BikeType } from "../types";
+import { positionLabel as _posLabel, bikeTypeLabel } from "../lib/presetLabels";
 import { useBlog } from "./BlogLayout";
 import InfoTooltip from "./InfoTooltip";
 
@@ -29,7 +30,7 @@ export function PositionDelta({ cda, bikeType, positionIdx }: Props) {
   const nextAero = aeroPresets[0];
   const potentialGain = nextAero ? cda - nextAero.cdaPrior : null;
 
-  const bikeLabel = BIKE_TYPE_CONFIG[bikeType].label.toLowerCase();
+  const bikeLabel = bikeTypeLabel(t, bikeType).toLowerCase();
 
   return (
     <div className="bg-panel border border-border rounded-lg p-4 space-y-3">
@@ -39,7 +40,7 @@ export function PositionDelta({ cda, bikeType, positionIdx }: Props) {
           <InfoTooltip text={t("tooltips.positionRef")} />
         </div>
         <div className="text-xs text-muted font-mono whitespace-nowrap">
-          {preset.label.toLowerCase()} · {bikeLabel}
+          {_posLabel(t, preset).toLowerCase()} · {bikeLabel}
         </div>
       </div>
 
@@ -68,7 +69,7 @@ export function PositionDelta({ cda, bikeType, positionIdx }: Props) {
       {nextAero && potentialGain != null && potentialGain > 0 && (
         <div className="text-xs text-muted leading-relaxed border-t border-border/40 pt-2.5">
           {t("position.more_aero_hint", {
-            label: nextAero.label.toLowerCase(),
+            label: _posLabel(t, nextAero).toLowerCase(),
             value: nextAero.cdaPrior.toFixed(3),
             gain: potentialGain.toFixed(3),
           })}{" "}

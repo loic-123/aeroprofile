@@ -1,34 +1,47 @@
 export type BikeType = "road" | "tt" | "mtb";
 
-// Display labels here are FR — the strings get persisted to localStorage
-// (history, profiles) and migrating them to canonical keys + i18n lookups
-// is a separate, larger refactor. Don't translate piecemeal: it'd produce
-// a hybrid history where some entries say "Route" and others "Road",
-// breaking grouping by bike type in the History page.
-export const BIKE_TYPE_CONFIG: Record<BikeType, { label: string; minCda: number; maxCda: number; defaultCrr: number; crrHint: string; description: string }> = {
-  road: { label: "Route", minCda: 0.22, maxCda: 0.50, defaultCrr: 0.0033, crrHint: "GP5000 S TR / tubeless haut de gamme", description: "Vélo de route (drops → tops)" },
-  tt: { label: "CLM / Triathlon", minCda: 0.15, maxCda: 0.32, defaultCrr: 0.0026, crrHint: "Tubulaire ou tubeless compétition, velodrome/lisse", description: "Prolongateurs / position aéro" },
-  mtb: { label: "VTT / Gravel", minCda: 0.30, maxCda: 0.65, defaultCrr: 0.0060, crrHint: "Pneu 40mm+ sur terrain mixte", description: "Position relevée, pneus larges" },
+// Each preset carries a canonical `key` (locale-independent, persisted in
+// localStorage) AND a `label` (FR fallback used when the i18n layer is not
+// available — runtime errors, log lines, et cetera). UI components should
+// resolve `bikeType.<key>` / `position.<key>` / `crrPreset.<key>` via
+// useTranslation() instead of reading `.label` directly. Old localStorage
+// entries that stored the FR `label` are mapped to keys at load time by
+// `lib/legacyLabelMigration.ts`.
+export interface BikeConfig {
+  key: string;
+  label: string;
+  minCda: number;
+  maxCda: number;
+  defaultCrr: number;
+  crrHint: string;
+  description: string;
+}
+export const BIKE_TYPE_CONFIG: Record<BikeType, BikeConfig> = {
+  road: { key: "road", label: "Route", minCda: 0.22, maxCda: 0.50, defaultCrr: 0.0033, crrHint: "GP5000 S TR / tubeless haut de gamme", description: "Vélo de route (drops → tops)" },
+  tt: { key: "tt", label: "CLM / Triathlon", minCda: 0.15, maxCda: 0.32, defaultCrr: 0.0026, crrHint: "Tubulaire ou tubeless compétition, velodrome/lisse", description: "Prolongateurs / position aéro" },
+  mtb: { key: "mtb", label: "VTT / Gravel", minCda: 0.30, maxCda: 0.65, defaultCrr: 0.0060, crrHint: "Pneu 40mm+ sur terrain mixte", description: "Position relevée, pneus larges" },
 };
 
 export interface CrrPreset {
+  key: string;
   label: string;
   crr: number;
 }
 
 export const CRR_PRESETS: CrrPreset[] = [
-  { label: "Tubeless route moderne (GP5000 TLR, Corsa Pro) — défaut", crr: 0.0032 },
-  { label: "Tubulaire vélodrome", crr: 0.0022 },
-  { label: "Tubeless compétition (GP5000 S TR, Pro One TLR)", crr: 0.0028 },
-  { label: "Tubeless route (GP5000, Corsa)", crr: 0.0035 },
-  { label: "Clincher standard (chambre butyl)", crr: 0.0045 },
-  { label: "Endurance / training (4Season, Gatorskin)", crr: 0.0055 },
-  { label: "Gravel 40mm (sentier compact)", crr: 0.0070 },
-  { label: "VTT (terre / racines)", crr: 0.0100 },
-  { label: "Auto — mode expert (souvent bloqué à 0.005)", crr: 0 },
+  { key: "modernRoadTubeless",  label: "Tubeless route moderne (GP5000 TLR, Corsa Pro) — défaut", crr: 0.0032 },
+  { key: "velodromeTubular",    label: "Tubulaire vélodrome", crr: 0.0022 },
+  { key: "raceTubeless",        label: "Tubeless compétition (GP5000 S TR, Pro One TLR)", crr: 0.0028 },
+  { key: "roadTubeless",        label: "Tubeless route (GP5000, Corsa)", crr: 0.0035 },
+  { key: "clincher",            label: "Clincher standard (chambre butyl)", crr: 0.0045 },
+  { key: "endurance",           label: "Endurance / training (4Season, Gatorskin)", crr: 0.0055 },
+  { key: "gravel40",            label: "Gravel 40mm (sentier compact)", crr: 0.0070 },
+  { key: "mtb",                 label: "VTT (terre / racines)", crr: 0.0100 },
+  { key: "auto",                label: "Auto — mode expert (souvent bloqué à 0.005)", crr: 0 },
 ];
 
 export interface PositionPreset {
+  key: string;
   label: string;
   cdaPrior: number;
   cdaSigma: number;
@@ -36,25 +49,25 @@ export interface PositionPreset {
 
 export const POSITION_PRESETS_BY_BIKE: Record<BikeType, PositionPreset[]> = {
   road: [
-    { label: "Je ne sais pas", cdaPrior: 0, cdaSigma: 0 },
-    { label: "Très aéro",        cdaPrior: 0.24, cdaSigma: 0.06 },
-    { label: "Aéro (drops)",     cdaPrior: 0.30, cdaSigma: 0.08 },
-    { label: "Modérée (cocottes)", cdaPrior: 0.34, cdaSigma: 0.08 },
-    { label: "Relâchée (tops)",  cdaPrior: 0.40, cdaSigma: 0.10 },
+    { key: "unknown",      label: "Je ne sais pas",      cdaPrior: 0,    cdaSigma: 0 },
+    { key: "veryAero",     label: "Très aéro",           cdaPrior: 0.24, cdaSigma: 0.06 },
+    { key: "aeroDrops",    label: "Aéro (drops)",        cdaPrior: 0.30, cdaSigma: 0.08 },
+    { key: "moderateHoods",label: "Modérée (cocottes)",  cdaPrior: 0.34, cdaSigma: 0.08 },
+    { key: "uprightTops",  label: "Relâchée (tops)",     cdaPrior: 0.40, cdaSigma: 0.10 },
   ],
   tt: [
-    { label: "Je ne sais pas", cdaPrior: 0, cdaSigma: 0 },
-    { label: "Pro (superman)",   cdaPrior: 0.18, cdaSigma: 0.03 },
-    { label: "Aéro (prolongateurs)", cdaPrior: 0.21, cdaSigma: 0.04 },
-    { label: "Modérée (hoods)",  cdaPrior: 0.25, cdaSigma: 0.05 },
-    { label: "Relâchée",        cdaPrior: 0.29, cdaSigma: 0.05 },
+    { key: "unknown",      label: "Je ne sais pas",         cdaPrior: 0,    cdaSigma: 0 },
+    { key: "proSuperman",  label: "Pro (superman)",         cdaPrior: 0.18, cdaSigma: 0.03 },
+    { key: "aeroBars",     label: "Aéro (prolongateurs)",   cdaPrior: 0.21, cdaSigma: 0.04 },
+    { key: "moderateHoods",label: "Modérée (hoods)",        cdaPrior: 0.25, cdaSigma: 0.05 },
+    { key: "upright",      label: "Relâchée",               cdaPrior: 0.29, cdaSigma: 0.05 },
   ],
   mtb: [
-    { label: "Je ne sais pas", cdaPrior: 0, cdaSigma: 0 },
-    { label: "Agressive (XC)",   cdaPrior: 0.35, cdaSigma: 0.06 },
-    { label: "Modérée",         cdaPrior: 0.42, cdaSigma: 0.08 },
-    { label: "Relâchée",        cdaPrior: 0.50, cdaSigma: 0.08 },
-    { label: "Très droite",     cdaPrior: 0.55, cdaSigma: 0.10 },
+    { key: "unknown",      label: "Je ne sais pas",      cdaPrior: 0,    cdaSigma: 0 },
+    { key: "aggressiveXC", label: "Agressive (XC)",      cdaPrior: 0.35, cdaSigma: 0.06 },
+    { key: "moderate",     label: "Modérée",             cdaPrior: 0.42, cdaSigma: 0.08 },
+    { key: "upright",      label: "Relâchée",            cdaPrior: 0.50, cdaSigma: 0.08 },
+    { key: "veryUpright",  label: "Très droite",         cdaPrior: 0.55, cdaSigma: 0.10 },
   ],
 };
 

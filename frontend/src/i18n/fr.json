@@ -36,6 +36,36 @@
     "fr": "Français",
     "en": "English"
   },
+  "bikeType": {
+    "road": "Route",
+    "tt": "CLM / Triathlon",
+    "mtb": "VTT / Gravel",
+    "mixed": "Mixte ({{count}} vélos)"
+  },
+  "position": {
+    "unknown": "Je ne sais pas",
+    "veryAero": "Très aéro",
+    "aeroDrops": "Aéro (drops)",
+    "moderateHoods": "Modérée (cocottes)",
+    "uprightTops": "Relâchée (tops)",
+    "proSuperman": "Pro (superman)",
+    "aeroBars": "Aéro (prolongateurs)",
+    "upright": "Relâchée",
+    "aggressiveXC": "Agressive (XC)",
+    "moderate": "Modérée",
+    "veryUpright": "Très droite"
+  },
+  "crrPreset": {
+    "modernRoadTubeless": "Tubeless route moderne (GP5000 TLR, Corsa Pro) — défaut",
+    "velodromeTubular": "Tubulaire vélodrome",
+    "raceTubeless": "Tubeless compétition (GP5000 S TR, Pro One TLR)",
+    "roadTubeless": "Tubeless route (GP5000, Corsa)",
+    "clincher": "Clincher standard (chambre butyl)",
+    "endurance": "Endurance / training (4Season, Gatorskin)",
+    "gravel40": "Gravel 40mm (sentier compact)",
+    "mtb": "VTT (terre / racines)",
+    "auto": "Auto — mode expert (souvent bloqué à 0.005)"
+  },
   "dashboard": {
     "hierError": "Erreur : {{message}}",
     "chipError": "Erreur : {{message}}",

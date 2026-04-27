@@ -746,9 +746,9 @@ async def analyze(
             )
             solver_method = "chung_ve"
             solver_note = (
-                "Méthode Chung (Virtual Elevation) utilisée : les autres "
-                f"solveurs avaient R² < 0.3. R² reporté ici = qualité "
-                "de la reconstruction d'altitude."
+                "Chung (Virtual Elevation) method used: the other solvers "
+                "all reported R² < 0.3. The R² shown here = quality of the "
+                "altitude reconstruction."
             )
             logger.info(
                 "CASCADE chung_ve WINS: CdA=%.3f Crr=%.5f R²=%.3f",
@@ -769,10 +769,9 @@ async def analyze(
     if sol is None:
         logger.error("CASCADE no solver succeeded")
         raise ValueError(
-            "Aucun solveur n'a réussi à estimer le CdA sur cette sortie "
-            "(toutes les méthodes ont échoué ou donné un résultat hors bornes). "
-            "Vérifiez que la sortie contient assez de points valides, "
-            "une puissance mesurée et une altitude cohérente."
+            "No solver was able to estimate CdA on this ride (every method "
+            "failed or returned an out-of-bounds result). Check that the ride "
+            "has enough valid points, measured power and consistent altitude."
         )
 
     logger.info("CASCADE final method=%s", solver_method)
@@ -1371,10 +1370,10 @@ async def analyze(
             # ok/non_identifiable split was missing.
             quality_status = "weak_estimate"
             quality_reason = (
-                f"Estimation peu précise sur cette sortie (σ_CdA = {cda_sigma_hess:.3f} m², "
-                f"juste sous le seuil de non-identifiabilité 0.05). La ride reste "
-                f"comptée dans l'agrégat (avec un poids faible en Méthode hiérarchique "
-                f"grâce à son σ_i élevé), mais son CdA individuel est peu fiable."
+                f"Low-precision estimate on this ride (σ_CdA = {cda_sigma_hess:.3f} m², "
+                f"just under the non-identifiable threshold of 0.05). The ride "
+                f"stays in the aggregate (down-weighted in the Hierarchical method "
+                f"thanks to its high σ_i), but its individual CdA is unreliable."
             )
 
     # "Prior dominated" — the MLE pass (no prior) and the MAP pass (with prior)
@@ -1396,12 +1395,12 @@ async def analyze(
         if _delta > 0.05:
             quality_status = "prior_dominated"
             quality_reason = (
-                f"Le prior a tiré le CdA de {sol.cda_raw:.3f} (MLE brut) à "
-                f"{sol.cda:.3f} (avec prior). Écart Δ={_delta:.3f} — les données "
-                "seules ne suffisaient pas à contraindre CdA/Crr, le résultat "
-                "reflète en partie la position choisie dans le sélecteur. "
-                "La ride reste comptée dans l'agrégat, mais son estimation "
-                "individuelle est moins fiable."
+                f"The prior pulled CdA from {sol.cda_raw:.3f} (raw MLE) to "
+                f"{sol.cda:.3f} (with prior). Gap Δ={_delta:.3f} — the data "
+                "alone weren't enough to constrain CdA/Crr, so the result "
+                "partly reflects the position picked in the selector. "
+                "The ride stays in the aggregate, but its individual "
+                "estimate is less reliable."
             )
 
     # Moderate bias anomaly (10-20%) on a ride where the solver converged

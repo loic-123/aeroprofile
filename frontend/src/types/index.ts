@@ -1,5 +1,10 @@
 export type BikeType = "road" | "tt" | "mtb";
 
+// Display labels here are FR — the strings get persisted to localStorage
+// (history, profiles) and migrating them to canonical keys + i18n lookups
+// is a separate, larger refactor. Don't translate piecemeal: it'd produce
+// a hybrid history where some entries say "Route" and others "Road",
+// breaking grouping by bike type in the History page.
 export const BIKE_TYPE_CONFIG: Record<BikeType, { label: string; minCda: number; maxCda: number; defaultCrr: number; crrHint: string; description: string }> = {
   road: { label: "Route", minCda: 0.22, maxCda: 0.50, defaultCrr: 0.0033, crrHint: "GP5000 S TR / tubeless haut de gamme", description: "Vélo de route (drops → tops)" },
   tt: { label: "CLM / Triathlon", minCda: 0.15, maxCda: 0.32, defaultCrr: 0.0026, crrHint: "Tubulaire ou tubeless compétition, velodrome/lisse", description: "Prolongateurs / position aéro" },

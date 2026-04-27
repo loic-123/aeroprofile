@@ -635,7 +635,7 @@ export default function App() {
                 {/* Single file error */}
                 {!isMulti && !selectedResult && rides.length === 1 && rides[0].error && (
                   <div className="bg-coral/10 border border-coral rounded-lg p-4 text-sm text-coral">
-                    Erreur d'analyse : {rides[0].error}
+                    {t("app.errors.analysisError", { message: rides[0].error })}
                   </div>
                 )}
 
@@ -729,7 +729,7 @@ export default function App() {
                                   <span>{hierError}</span>
                                 </div>
                               ) : (
-                                <div className="text-sm text-coral mt-1">Erreur : {hierError}</div>
+                                <div className="text-sm text-coral mt-1">{t("dashboard.hierError", { message: hierError })}</div>
                               )
                             )}
                             {hierResult && (
@@ -830,7 +830,7 @@ export default function App() {
                               let tooltip = "";
                               let nrmseVal = 0;
                               if (r.error) {
-                                tooltip = `Erreur : ${r.error}`;
+                                tooltip = t("dashboard.chipError", { message: r.error });
                               } else if (r.result) {
                                 nrmseVal = (r.result.rmse_w || 0) / Math.max(r.result.avg_power_w, 1);
                                 tooltip = `${r.file.name}\nCdA ${r.result.cda.toFixed(3)} • nRMSE ${(nrmseVal*100).toFixed(0)}% • ±${r.result.rmse_w.toFixed(0)}W`;

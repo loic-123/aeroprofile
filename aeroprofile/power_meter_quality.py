@@ -38,12 +38,12 @@ class PowerMeterInfo:
 
 
 _SINGLE_SIDE_WARNING = (
-    "**Capteur mono-jambe.** Le 4iiii Precision mesure uniquement la "
-    "jambe gauche et double le résultat. Toute asymétrie gauche/droite "
-    "(fatigue, montée, effort) rend la puissance reportée imprécise. "
-    "Il nécessite aussi une **calibration zero-offset à chaque départ** "
-    "pour compenser la dérive de température — sans ça, le CdA peut "
-    "varier de ±0.05 m² d'une sortie à l'autre."
+    "**Single-leg sensor.** The 4iiii Precision only measures the left "
+    "leg and doubles the result. Any left/right asymmetry (fatigue, "
+    "climbing, hard efforts) makes the reported power imprecise. It also "
+    "needs a **zero-offset calibration at every start** to compensate "
+    "for thermal drift — without it, CdA can vary by ±0.05 m² from one "
+    "ride to the next."
 )
 
 # Exact-match DB. Keys are the Intervals.icu `power_meter` strings as

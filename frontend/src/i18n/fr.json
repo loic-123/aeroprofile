@@ -37,6 +37,8 @@
     "en": "English"
   },
   "dashboard": {
+    "hierError": "Erreur : {{message}}",
+    "chipError": "Erreur : {{message}}",
     "cda": "CdA",
     "crr": "Crr",
     "rmse": "RMSE",

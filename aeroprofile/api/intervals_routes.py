@@ -128,7 +128,7 @@ async def connect(req: ConnectRequest):
     except Exception as e:
         raise HTTPException(
             status_code=401,
-            detail=f"Connexion échouée : {e}. Vérifiez votre clé API et athlete ID.",
+            detail=f"Connection failed: {e}. Check your API key and athlete ID.",
         )
     return AthleteOut(
         id=profile.id,
@@ -372,14 +372,14 @@ async def analyze_ride(
                 # 5-ConnectError cap — halts the batch quickly.
                 raise HTTPException(
                     status_code=503,
-                    detail=f"Intervals.icu n'a pas répondu (activité {activity_id}): "
+                    detail=f"Intervals.icu did not respond (activity {activity_id}): "
                            f"{type(e).__name__} — {e}".strip(" —"),
                 )
             # Non-transport failure (bad activity, permission denied…) —
             # 422 so the frontend skips this one and moves on.
             raise HTTPException(
                 status_code=422,
-                detail=f"Téléchargement impossible (activité {activity_id}): "
+                detail=f"Download failed (activity {activity_id}): "
                        f"{type(e).__name__} — {e}".strip(" —"),
             )
     else:
@@ -590,8 +590,8 @@ async def analyze_batch_intervals(
         _log.info("METHOD_B skipped: only %d valid rides (need ≥ 2)", len(all_dfs))
         raise HTTPException(
             status_code=422,
-            detail=f"Méthode hiérarchique nécessite au moins 2 sorties valides "
-                   f"(seulement {len(all_dfs)} disponible après le preprocessing).",
+            detail=f"Hierarchical method needs at least 2 valid rides "
+                   f"(only {len(all_dfs)} available after preprocessing).",
         )
     if len(all_dfs) < 10:
         # Between 2 and 9 rides, the classical DL estimator + Gaussian IC95

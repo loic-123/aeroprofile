@@ -97,10 +97,32 @@ def parse_fit(filepath: str | Path) -> RideData:
             if f.name == "manufacturer" and f.value:
                 device = str(f.value)
 
+    # Multi-sport guard. Triathlon / brick FIT files declare several
+    # `sport` messages with different values (e.g. running THEN cycling).
+    # The aero model only applies to the cycling segment, and silently
+    # mixing the two yields a meaningless CdA. Refuse the file with a
+    # clear message instead of producing a ride that mashes both sports
+    # together. ``session`` messages are checked too because some Wahoo /
+    # Garmin firmwares write the per-segment sport there rather than (or
+    # in addition to) the top-level `sport` message.
+    sport_values: set[str] = set()
     for msg in fit.get_messages("sport"):
         for f in msg:
             if f.name == "sport" and f.value:
-                sport = str(f.value)
+                sport_values.add(str(f.value))
+    for msg in fit.get_messages("session"):
+        for f in msg:
+            if f.name == "sport" and f.value:
+                sport_values.add(str(f.value))
+    if len(sport_values) > 1:
+        raise ValueError(
+            "Multisport FIT files are not supported yet — the file contains "
+            f"{len(sport_values)} different sports ({', '.join(sorted(sport_values))}). "
+            "Please export the cycling segment only (most platforms let you "
+            "split a brick / triathlon activity into per-sport files)."
+        )
+    if sport_values:
+        sport = next(iter(sport_values))
 
     seen_timestamps: set[datetime] = set()
     for msg in fit.get_messages("record"):

@@ -145,8 +145,8 @@ def _solve_chung_ve_inner(
     valid = df[df["filter_valid"]].reset_index(drop=True)
     if len(valid) < 60:
         raise ValueError(
-            f"Trop peu de points valides ({len(valid)}) pour la méthode Chung "
-            "(≥ 60 requis)."
+            f"Too few valid points ({len(valid)}) for the Chung method "
+            "(≥ 60 required)."
         )
 
     V = np.asarray(valid["v_ground"].to_numpy(), dtype=float)

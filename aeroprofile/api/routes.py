@@ -11,7 +11,7 @@ import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from aeroprofile.api.schemas import (
-    AnalysisResultOut, AnomalyOut, ProfileData,
+    AnalysisResultOut, AnomalyOut, LapOut, ProfileData,
     HierarchicalAnalysisOut, HierarchicalRideSummary,
 )
 from aeroprofile.pipeline import analyze, preprocess
@@ -100,6 +100,7 @@ async def analyze_endpoint(
     disable_prior: bool = Form(False),
     manual_wind_ms: float | None = Form(None),
     manual_wind_dir_deg: float | None = Form(None),
+    excluded_lap_indices: str | None = Form(None),
 ):
     ext = Path(file.filename or "").suffix.lower()
     if ext not in (".fit", ".gpx", ".tcx"):
@@ -121,6 +122,13 @@ async def analyze_endpoint(
         tmp.write(content)
         tmp_path = Path(tmp.name)
 
+    parsed_lap_idx: list[int] | None = None
+    if excluded_lap_indices:
+        try:
+            parsed_lap_idx = [int(x) for x in excluded_lap_indices.split(",") if x.strip()]
+        except ValueError:
+            raise HTTPException(status_code=400, detail="excluded_lap_indices must be a comma-separated list of integers.")
+
     try:
         result = await analyze(
             tmp_path,
@@ -133,6 +141,7 @@ async def analyze_endpoint(
             disable_prior=disable_prior,
             manual_wind_ms=manual_wind_ms,
             manual_wind_dir_deg=manual_wind_dir_deg,
+            excluded_lap_indices=parsed_lap_idx,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -215,6 +224,7 @@ async def analyze_endpoint(
         filter_summary=result.filter_summary,
         anomalies=[AnomalyOut(**a.to_dict()) for a in result.anomalies],
         profile=_df_to_profile(result.df),
+        laps=[LapOut(**lap) for lap in result.laps],
     )
 
 

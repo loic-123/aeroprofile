@@ -222,4 +222,14 @@ export interface AnalysisResult {
   filter_summary: Record<string, number>;
   anomalies: Anomaly[];
   profile: ProfileData;
+  laps?: Lap[];
+}
+
+export interface Lap {
+  index: number;
+  start_time: string;
+  end_time: string;
+  distance_m: number;
+  duration_s: number;
+  excluded: boolean;
 }

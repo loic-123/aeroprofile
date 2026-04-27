@@ -594,6 +594,14 @@
     "builderPitch": "Aero is half of your speed. Nobody measures it.",
     "builderCta": "About the builder"
   },
+  "lapSelector": {
+    "title": "Laps",
+    "summaryAllIncluded": "{{count}} laps · all included",
+    "summaryExcluded": "{{excluded}} of {{total}} excluded",
+    "tooShortHint": "Lap too short to be analysed (< 30 s)",
+    "includeAll": "Include all",
+    "reanalyze": "Re-analyse"
+  },
   "about": {
     "back": "Back to home",
     "eyebrow": "About",

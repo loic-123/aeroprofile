@@ -15,6 +15,15 @@ class AnomalyOut(BaseModel):
     value: Optional[float] = None
 
 
+class LapOut(BaseModel):
+    index: int
+    start_time: str
+    end_time: str
+    distance_m: float
+    duration_s: float
+    excluded: bool = False
+
+
 class ProfileData(BaseModel):
     distance_km: list[float]
     altitude_real: list[float]
@@ -100,6 +109,7 @@ class AnalysisResultOut(BaseModel):
 
     anomalies: list[AnomalyOut]
     profile: ProfileData
+    laps: list[LapOut] = []
 
 
 class HierarchicalRideSummary(BaseModel):

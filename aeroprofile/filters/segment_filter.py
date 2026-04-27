@@ -19,6 +19,7 @@ FILTER_NAMES = (
     "filter_power_spike",
     "filter_unsteady",
     "filter_drafting",
+    "filter_lap_excluded",
 )
 
 
@@ -38,6 +39,7 @@ def apply_filters(
     steady_speed_cv_max: float = 0.15,
     min_power_w: float = 50.0,
     max_accel: float = 0.3,
+    excluded_lap_ranges: list[tuple] | None = None,
 ) -> pd.DataFrame:
     """Adds one boolean column per filter plus ``filter_valid``. Mutates df.
 
@@ -154,6 +156,22 @@ def apply_filters(
         df["filter_drafting"] = draft_clean
     else:
         df["filter_drafting"] = np.zeros(n, dtype=bool)
+
+    lap_excl = np.zeros(n, dtype=bool)
+    if excluded_lap_ranges and "timestamp" in df.columns:
+        # Strip tz so the comparison works regardless of which side carries tzinfo
+        # (df timestamps are usually tz-naive after the pandas pipeline).
+        ts_series = pd.to_datetime(df["timestamp"], utc=True).dt.tz_convert(None)
+        ts = ts_series.to_numpy()
+        for start, end in excluded_lap_ranges:
+            s = pd.Timestamp(start)
+            e = pd.Timestamp(end)
+            if s.tzinfo is not None:
+                s = s.tz_convert("UTC").tz_localize(None)
+            if e.tzinfo is not None:
+                e = e.tz_convert("UTC").tz_localize(None)
+            lap_excl |= (ts >= np.datetime64(s)) & (ts < np.datetime64(e))
+    df["filter_lap_excluded"] = lap_excl
 
     any_filter = np.zeros(n, dtype=bool)
     for name in FILTER_NAMES:

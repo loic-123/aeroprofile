@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fitparse import FitFile
 
-from aeroprofile.parsers.models import RideData, RidePoint
+from aeroprofile.parsers.models import Lap, RideData, RidePoint
 
 SEMICIRCLE_TO_DEG = 180.0 / (2**31)
 
@@ -199,10 +199,33 @@ def parse_fit(filepath: str | Path) -> RideData:
             cum += d
             points[i].distance = cum
 
+    laps: list[Lap] = []
+    for msg in fit.get_messages("lap"):
+        values = {f.name: f.value for f in msg}
+        st = values.get("start_time")
+        if st is None:
+            continue
+        if st.tzinfo is None:
+            st = st.replace(tzinfo=timezone.utc)
+        elapsed = values.get("total_elapsed_time") or values.get("total_timer_time")
+        if elapsed is None:
+            continue
+        from datetime import timedelta
+        et = st + timedelta(seconds=float(elapsed))
+        laps.append(
+            Lap(
+                index=len(laps),
+                start_time=st,
+                end_time=et,
+                distance_m=float(values.get("total_distance") or 0.0),
+            )
+        )
+
     return RideData(
         points=points,
         sport=sport,
         start_time=points[0].timestamp if points else None,
         source_format="fit",
         device=device,
+        laps=laps,
     )

@@ -140,6 +140,7 @@ class AnalysisResult:
     # None when any source is unavailable (e.g. Chung sensitivity failed).
     cda_ci_broad_low: Optional[float] = None
     cda_ci_broad_high: Optional[float] = None
+    laps: list[dict] = field(default_factory=list)
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -365,6 +366,7 @@ async def analyze(
     gear_name: str | None = None,
     manual_wind_ms: float | None = None,
     manual_wind_dir_deg: float | None = None,
+    excluded_lap_indices: list[int] | None = None,
 ) -> AnalysisResult:
     bcfg = get_bike_config(bike_type)
     # Disable the CdA prior entirely (used in multi-ride mode where the
@@ -515,11 +517,18 @@ async def analyze(
     df["cda_yaw_factor"] = cda_yaw_correction(df["yaw_deg"].to_numpy())
 
     # Filters
+    excluded_lap_ranges: list[tuple] = []
+    if excluded_lap_indices and ride.laps:
+        idx_set = set(excluded_lap_indices)
+        for lap in ride.laps:
+            if lap.index in idx_set:
+                excluded_lap_ranges.append((lap.start_time, lap.end_time))
     df = apply_filters(
         df,
         mass=mass_kg,
         min_block_seconds=min_block_seconds,
         drop_descents=drop_descents,
+        excluded_lap_ranges=excluded_lap_ranges or None,
     )
     _n_total_filters = len(df)
     _n_valid_filters = int(df["filter_valid"].sum())
@@ -1688,6 +1697,17 @@ async def analyze(
         cda_ci_broad_high=cda_ci_broad_high,
         gear_id=gear_id,
         gear_name=gear_name,
+        laps=[
+            {
+                "index": lap.index,
+                "start_time": lap.start_time.isoformat(),
+                "end_time": lap.end_time.isoformat(),
+                "distance_m": lap.distance_m,
+                "duration_s": (lap.end_time - lap.start_time).total_seconds(),
+                "excluded": (excluded_lap_indices is not None and lap.index in set(excluded_lap_indices)),
+            }
+            for lap in ride.laps
+        ],
     )
 
 

@@ -69,11 +69,19 @@ export default function App() {
     crr_fixed?: number | null; eta?: number; wind_height_factor?: number;
     useCache?: boolean; bikeType?: BikeType; positionIdx?: number;
     maxNrmse?: number; manual_wind_ms?: number; manual_wind_dir_deg?: number;
+    excluded_lap_indices?: number[];
   };
   const [lastAnalyzeOpts, setLastAnalyzeOpts] = useState<AnalyzeOpts | null>(null);
   const [hierResult, setHierResult] = useState<HierarchicalAnalysisResult | null>(null);
   const [hierLoading, setHierLoading] = useState(false);
   const [hierError, setHierError] = useState<string | null>(null);
+  // Lap-exclusion state for the single-ride re-analyse flow. We track the
+  // currently *applied* set (last sent to the backend) and the *staged*
+  // set (what the user has toggled in the UI but not yet re-analysed).
+  // The "Re-analyse" button is enabled only when these differ.
+  const [appliedExcludedLaps, setAppliedExcludedLaps] = useState<number[]>([]);
+  const [stagedExcludedLaps, setStagedExcludedLaps] = useState<number[]>([]);
+  const [reanalyzingLaps, setReanalyzingLaps] = useState(false);
 
   // --- Upload-mode profile wiring -----------------------------------------
   // The ProfilePicker above FileUpload drives this: when the user loads
@@ -120,7 +128,7 @@ export default function App() {
   const handleAnalyze = async (
     files: File[],
     mass_kg: number,
-    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean; bikeType?: BikeType; positionIdx?: number; maxNrmse?: number; manual_wind_ms?: number; manual_wind_dir_deg?: number },
+    opts: { crr_fixed?: number | null; eta?: number; wind_height_factor?: number; useCache?: boolean; bikeType?: BikeType; positionIdx?: number; maxNrmse?: number; manual_wind_ms?: number; manual_wind_dir_deg?: number; excluded_lap_indices?: number[] },
   ) => {
     const bt = opts.bikeType || "road";
     setBikeType(bt);
@@ -171,6 +179,7 @@ export default function App() {
             cda_prior_mean: isMultiRide ? undefined : posPreset?.cdaPrior,
             cda_prior_sigma: isMultiRide ? undefined : posPreset?.cdaSigma,
             disable_prior: isMultiRide,
+            excluded_lap_indices: opts.excluded_lap_indices,
           });
           const nrmse = (res.rmse_w || 0) / Math.max(res.avg_power_w, 1);
           const qBad = isHardFailure(res.quality_status);
@@ -307,6 +316,39 @@ export default function App() {
     const nextOpts: AnalyzeOpts = { ...opts, manual_wind_ms, manual_wind_dir_deg, useCache: false };
     await handleAnalyze([ride.file], lastMass, nextOpts);
   };
+
+  const handleReanalyzeWithLaps = async () => {
+    const ride = rides[selectedIdx];
+    if (!ride?.file) return;
+    const opts = lastAnalyzeOpts ?? {};
+    const nextOpts: AnalyzeOpts = {
+      ...opts,
+      excluded_lap_indices: stagedExcludedLaps,
+      useCache: false,
+    };
+    setReanalyzingLaps(true);
+    try {
+      await handleAnalyze([ride.file], lastMass, nextOpts);
+      setAppliedExcludedLaps(stagedExcludedLaps);
+    } finally {
+      setReanalyzingLaps(false);
+    }
+  };
+
+  // Reset lap state whenever a new file is analysed (single-ride mode).
+  // We detect "new file" via the file reference changing on rides[0].
+  useEffect(() => {
+    if (rides.length === 1 && rides[0]?.result?.laps) {
+      const fromBackend = rides[0].result.laps
+        .filter((l) => l.excluded)
+        .map((l) => l.index);
+      setAppliedExcludedLaps(fromBackend);
+      setStagedExcludedLaps(fromBackend);
+    } else if (rides.length === 0) {
+      setAppliedExcludedLaps([]);
+      setStagedExcludedLaps([]);
+    }
+  }, [rides]);
 
   const goodRides = rides.filter((r) => !r.excluded && r.result);
   const hasResults = rides.some((r) => r.result);
@@ -599,7 +641,21 @@ export default function App() {
                 {/* Single file → no tabs, show dashboard directly */}
                 {!isMulti && selectedResult && (
                   <ErrorBoundary label="Results dashboard" key={`rd-${selectedIdx}`}>
-                    <ResultsDashboard result={selectedResult} massKg={lastMass} bikeType={bikeType} positionIdx={lastPositionIdx} onReanalyzeWithWind={handleReanalyzeWithWind} />
+                    <ResultsDashboard
+                      result={selectedResult}
+                      massKg={lastMass}
+                      bikeType={bikeType}
+                      positionIdx={lastPositionIdx}
+                      onReanalyzeWithWind={handleReanalyzeWithWind}
+                      excludedLapIndices={stagedExcludedLaps}
+                      onExcludedLapsChange={setStagedExcludedLaps}
+                      onReanalyzeWithLaps={handleReanalyzeWithLaps}
+                      reanalyzingLaps={reanalyzingLaps}
+                      lapsDirty={
+                        stagedExcludedLaps.length !== appliedExcludedLaps.length ||
+                        stagedExcludedLaps.some((i) => !appliedExcludedLaps.includes(i))
+                      }
+                    />
                   </ErrorBoundary>
                 )}
 

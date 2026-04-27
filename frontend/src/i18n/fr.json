@@ -594,6 +594,14 @@
     "builderPitch": "L'aéro, c'est la moitié de ta vitesse. Personne ne la mesure.",
     "builderCta": "À propos du créateur"
   },
+  "lapSelector": {
+    "title": "Tours",
+    "summaryAllIncluded": "{{count}} tours · tous inclus",
+    "summaryExcluded": "{{excluded}} sur {{total}} exclus",
+    "tooShortHint": "Tour trop court pour être analysé (< 30 s)",
+    "includeAll": "Tout inclure",
+    "reanalyze": "Ré-analyser"
+  },
   "about": {
     "eyebrow": "À propos",
     "title": "Comment une question de vélo a dégénéré en solveur bayésien.",

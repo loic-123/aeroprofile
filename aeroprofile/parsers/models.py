@@ -22,12 +22,21 @@ class RidePoint:
 
 
 @dataclass
+class Lap:
+    index: int
+    start_time: datetime
+    end_time: datetime
+    distance_m: float = 0.0
+
+
+@dataclass
 class RideData:
     points: list[RidePoint] = field(default_factory=list)
     sport: str = "cycling"
     start_time: Optional[datetime] = None
     source_format: str = ""
     device: Optional[str] = None
+    laps: list[Lap] = field(default_factory=list)
 
     def __len__(self) -> int:
         return len(self.points)

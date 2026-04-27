@@ -40,6 +40,7 @@ import { ResultsDiagnostics } from "./dashboard/ResultsDiagnostics";
 import { ResultsGradientBreakdown } from "./dashboard/ResultsGradientBreakdown";
 import { ResultsDerivedMetrics } from "./dashboard/ResultsDerivedMetrics";
 import { ResultsCharts } from "./dashboard/ResultsCharts";
+import { LapSelector } from "./dashboard/LapSelector";
 
 interface Props {
   result: AnalysisResult;
@@ -50,6 +51,15 @@ interface Props {
    *  the parent (App/IntervalsPage) that still has the original file and
    *  analysis options. Absent = hide the "Corriger le vent" button. */
   onReanalyzeWithWind?: (manual_wind_ms: number, manual_wind_dir_deg: number) => void;
+  /** Lap-selection state, owned by the parent (App.tsx). When all four
+   *  callbacks are absent the LapSelector is hidden — used in flows
+   *  where re-analysing with a different lap subset isn't supported
+   *  (e.g. results loaded from history). */
+  excludedLapIndices?: number[];
+  onExcludedLapsChange?: (excluded: number[]) => void;
+  onReanalyzeWithLaps?: () => void;
+  reanalyzingLaps?: boolean;
+  lapsDirty?: boolean;
 }
 
 /**
@@ -69,15 +79,39 @@ interface Props {
  * This replaces the previous 657-line monolith; everything that was
  * here moved to one of the specialised files listed above.
  */
-export default function ResultsDashboard({ result, massKg, bikeType, positionIdx, onReanalyzeWithWind }: Props) {
+export default function ResultsDashboard({
+  result,
+  massKg,
+  bikeType,
+  positionIdx,
+  onReanalyzeWithWind,
+  excludedLapIndices,
+  onExcludedLapsChange,
+  onReanalyzeWithLaps,
+  reanalyzingLaps,
+  lapsDirty,
+}: Props) {
   const badFit = result.r_squared < 0.3;
   const unreliable = result.r_squared < 0;
 
   const hasRoute = result.profile?.lat?.length > 0 && result.profile?.lon?.length > 0;
+  const hasLapControls =
+    !!result.laps && result.laps.length >= 2 &&
+    !!onExcludedLapsChange && !!onReanalyzeWithLaps;
 
   return (
     <div className="space-y-6">
       <ResultsHeader result={result} />
+      {hasLapControls && (
+        <LapSelector
+          laps={result.laps!}
+          excludedLapIndices={excludedLapIndices ?? []}
+          onChange={onExcludedLapsChange!}
+          onReanalyze={onReanalyzeWithLaps!}
+          reanalyzing={!!reanalyzingLaps}
+          dirty={!!lapsDirty}
+        />
+      )}
       {hasRoute && !unreliable ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
           <ResultsHero result={result} unreliable={unreliable} bikeType={bikeType} positionIdx={positionIdx} />

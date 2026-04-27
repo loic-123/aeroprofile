@@ -15,6 +15,7 @@ export interface AnalyzeParams {
   // provided for the override to take effect.
   manual_wind_ms?: number;
   manual_wind_dir_deg?: number;
+  excluded_lap_indices?: number[];
 }
 
 export async function analyze(params: AnalyzeParams): Promise<AnalysisResult> {
@@ -34,6 +35,9 @@ export async function analyze(params: AnalyzeParams): Promise<AnalysisResult> {
   if (params.manual_wind_ms != null && params.manual_wind_dir_deg != null) {
     fd.append("manual_wind_ms", String(params.manual_wind_ms));
     fd.append("manual_wind_dir_deg", String(params.manual_wind_dir_deg));
+  }
+  if (params.excluded_lap_indices && params.excluded_lap_indices.length > 0) {
+    fd.append("excluded_lap_indices", params.excluded_lap_indices.join(","));
   }
 
   const res = await fetch("/api/analyze", { method: "POST", body: fd });

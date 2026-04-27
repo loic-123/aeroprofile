@@ -141,6 +141,12 @@ class AnalysisResult:
     cda_ci_broad_low: Optional[float] = None
     cda_ci_broad_high: Optional[float] = None
     laps: list[dict] = field(default_factory=list)
+    # Per-lap CdA estimates (Chung VE on each included lap with crr fixed
+    # to the full-ride value, wind held to the Open-Meteo prior). Empty
+    # when the ride has fewer than 2 included laps or per-lap analysis
+    # was skipped. Each entry: {lap_index, status, cda, cda_ci_low,
+    # cda_ci_high, n_points}.
+    per_lap: list[dict] = field(default_factory=list)
 
 
 def _ride_to_df(ride: RideData) -> pd.DataFrame:
@@ -1708,6 +1714,16 @@ async def analyze(
             }
             for lap in ride.laps
         ],
+        per_lap=_per_lap_cda(
+            df,
+            ride.laps,
+            set(excluded_lap_indices or []),
+            mass=mass_kg,
+            eta=eta,
+            crr=float(sol.crr),
+            cda_lower=bcfg.cda_lower,
+            cda_upper=bcfg.cda_upper,
+        ) if len(ride.laps) >= 2 and (len(ride.laps) - len(set(excluded_lap_indices or []))) >= 2 else [],
     )
 
 
@@ -1740,6 +1756,95 @@ def _subset_cda(df: pd.DataFrame, mass: float, eta: float, crr: float, predicate
         return float(r.x[0])
     except Exception:
         return None
+
+
+def _per_lap_cda(
+    df: pd.DataFrame,
+    laps: list,
+    excluded_set: set[int],
+    mass: float,
+    eta: float,
+    crr: float,
+    cda_lower: float,
+    cda_upper: float,
+) -> list[dict]:
+    """Run a single-pass Chung VE on each *included* lap and return per-lap
+    CdA + CI. Wind is NOT re-fit per lap (not enough heading variety on
+    short segments) — the lap inherits the Open-Meteo wind from the global
+    df. Crr is held to the full-ride estimate so the per-lap inversion is
+    1-D and stable on as little as ~90 s of valid data.
+
+    Each entry: {lap_index, status, cda, cda_ci_low, cda_ci_high, n_points}.
+    Failed laps still appear in the list with status != "ok" so the UI can
+    explain *why* a lap was dropped.
+    """
+    from aeroprofile.solver.chung_ve import _solve_chung_ve_inner
+
+    out: list[dict] = []
+    if "timestamp" not in df.columns:
+        return out
+    ts_series = pd.to_datetime(df["timestamp"], utc=True).dt.tz_convert(None)
+
+    for lap in laps:
+        if lap.index in excluded_set:
+            continue
+        duration_s = (lap.end_time - lap.start_time).total_seconds()
+        if duration_s < 90.0:
+            out.append({
+                "lap_index": lap.index, "status": "lap_too_short",
+                "cda": None, "cda_ci_low": None, "cda_ci_high": None,
+                "n_points": 0,
+            })
+            continue
+        s = pd.Timestamp(lap.start_time)
+        e = pd.Timestamp(lap.end_time)
+        if s.tzinfo is not None:
+            s = s.tz_convert("UTC").tz_localize(None)
+        if e.tzinfo is not None:
+            e = e.tz_convert("UTC").tz_localize(None)
+        mask = (ts_series >= s) & (ts_series < e)
+        sub = df[mask].copy()
+        if len(sub) == 0:
+            out.append({
+                "lap_index": lap.index, "status": "insufficient_points",
+                "cda": None, "cda_ci_low": None, "cda_ci_high": None,
+                "n_points": 0,
+            })
+            continue
+        n_valid = int(sub["filter_valid"].sum())
+        if n_valid < 60:
+            out.append({
+                "lap_index": lap.index, "status": "insufficient_points",
+                "cda": None, "cda_ci_low": None, "cda_ci_high": None,
+                "n_points": n_valid,
+            })
+            continue
+        try:
+            res = _solve_chung_ve_inner(
+                sub,
+                mass=mass, eta=eta, crr_fixed=crr,
+                cda_prior_mean=None, cda_prior_sigma=None,
+                cda_lower=cda_lower, cda_upper=cda_upper,
+                adaptive_factor=1.0,
+            )
+        except Exception as ex:
+            out.append({
+                "lap_index": lap.index, "status": "chung_failed",
+                "cda": None, "cda_ci_low": None, "cda_ci_high": None,
+                "n_points": n_valid, "error": str(ex)[:200],
+            })
+            continue
+        ci_lo = float(res.cda_ci[0]) if res.cda_ci and not np.isnan(res.cda_ci[0]) else None
+        ci_hi = float(res.cda_ci[1]) if res.cda_ci and not np.isnan(res.cda_ci[1]) else None
+        out.append({
+            "lap_index": lap.index,
+            "status": "ok",
+            "cda": float(res.cda),
+            "cda_ci_low": ci_lo,
+            "cda_ci_high": ci_hi,
+            "n_points": n_valid,
+        })
+    return out
 
 
 def _rolling_cda(df: pd.DataFrame, mass: float, eta: float, window_s: int) -> np.ndarray:

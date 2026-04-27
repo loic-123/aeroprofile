@@ -223,6 +223,7 @@ export interface AnalysisResult {
   anomalies: Anomaly[];
   profile: ProfileData;
   laps?: Lap[];
+  per_lap?: PerLapResult[];
 }
 
 export interface Lap {
@@ -232,4 +233,14 @@ export interface Lap {
   distance_m: number;
   duration_s: number;
   excluded: boolean;
+}
+
+export interface PerLapResult {
+  lap_index: number;
+  status: "ok" | "lap_too_short" | "insufficient_points" | "chung_failed";
+  cda: number | null;
+  cda_ci_low: number | null;
+  cda_ci_high: number | null;
+  n_points: number;
+  error?: string | null;
 }

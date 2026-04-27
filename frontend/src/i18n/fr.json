@@ -600,7 +600,15 @@
     "summaryExcluded": "{{excluded}} sur {{total}} exclus",
     "tooShortHint": "Tour trop court pour être analysé (< 30 s)",
     "includeAll": "Tout inclure",
-    "reanalyze": "Ré-analyser"
+    "reanalyze": "Ré-analyser",
+    "perLapHeading": "CdA par tour",
+    "perLapHint": "Chung VE par tour, Crr fixé, vent Open-Meteo",
+    "deltaHeadline": "Tour #{{a}} − Tour #{{b}} : ΔCdA = {{dCda}} m²",
+    "gate": {
+      "lap_too_short": "tour trop court",
+      "insufficient_points": "pas assez de données valides",
+      "chung_failed": "échec du solveur"
+    }
   },
   "about": {
     "eyebrow": "À propos",

@@ -2,11 +2,12 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { Lap } from "../../types";
+import type { Lap, PerLapResult } from "../../types";
 import { Button, Card } from "../ui";
 
 interface Props {
   laps: Lap[];
+  perLap?: PerLapResult[];
   excludedLapIndices: number[];
   onChange: (excluded: number[]) => void;
   onReanalyze: () => void;
@@ -18,6 +19,7 @@ const MIN_LAP_DURATION_S = 30;
 
 export function LapSelector({
   laps,
+  perLap,
   excludedLapIndices,
   onChange,
   onReanalyze,
@@ -28,6 +30,40 @@ export function LapSelector({
   const [open, setOpen] = useState(false);
 
   if (!laps || laps.length < 2) return null;
+
+  const perLapByIndex = useMemo(() => {
+    const map = new Map<number, PerLapResult>();
+    if (perLap) for (const r of perLap) map.set(r.lap_index, r);
+    return map;
+  }, [perLap]);
+
+  const okPerLap = useMemo(
+    () => (perLap ?? []).filter((r) => r.status === "ok" && r.cda != null),
+    [perLap],
+  );
+
+  // Headline Δ when exactly 2 laps were successfully solved.
+  // σ_Δ ≈ √(σ_A² + σ_B²) — assumes per-lap CdA estimates are
+  // approximately independent given the shared wind. Conservative
+  // (slightly too wide), but auditable.
+  const delta = useMemo(() => {
+    if (okPerLap.length !== 2) return null;
+    const [a, b] = okPerLap;
+    const cdaA = a.cda!;
+    const cdaB = b.cda!;
+    const sigmaA = a.cda_ci_high != null && a.cda_ci_low != null
+      ? (a.cda_ci_high - a.cda_ci_low) / 3.92
+      : null;
+    const sigmaB = b.cda_ci_high != null && b.cda_ci_low != null
+      ? (b.cda_ci_high - b.cda_ci_low) / 3.92
+      : null;
+    const dCda = cdaA - cdaB;
+    let ciHalf: number | null = null;
+    if (sigmaA != null && sigmaB != null) {
+      ciHalf = 1.96 * Math.sqrt(sigmaA * sigmaA + sigmaB * sigmaB);
+    }
+    return { aIdx: a.lap_index, bIdx: b.lap_index, dCda, ciHalf };
+  }, [okPerLap]);
 
   const totalDuration = useMemo(
     () => laps.reduce((sum, l) => sum + l.duration_s, 0),
@@ -144,6 +180,74 @@ export function LapSelector({
                   );
                 })}
               </ul>
+
+              {perLap && perLap.length > 0 && (
+                <div className="pt-3 mt-3 border-t border-border space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-text">
+                      {t("lapSelector.perLapHeading")}
+                    </span>
+                    <span className="text-[10px] text-muted">
+                      {t("lapSelector.perLapHint")}
+                    </span>
+                  </div>
+                  {delta && (
+                    <div className="rounded-md bg-primary-subtle border border-primary-border px-3 py-2 text-xs">
+                      <div className="text-text">
+                        {t("lapSelector.deltaHeadline", {
+                          a: delta.aIdx + 1,
+                          b: delta.bIdx + 1,
+                          dCda: delta.dCda.toFixed(3),
+                        })}
+                      </div>
+                      {delta.ciHalf != null && (
+                        <div className="text-muted font-mono mt-0.5">
+                          95% CI: [
+                          {(delta.dCda - delta.ciHalf).toFixed(3)} ;
+                          {(delta.dCda + delta.ciHalf).toFixed(3)}] m²
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] font-mono">
+                    {laps
+                      .filter((l) => !excludedSet.has(l.index))
+                      .map((l) => {
+                        const pl = perLapByIndex.get(l.index);
+                        if (!pl) return null;
+                        if (pl.status !== "ok" || pl.cda == null) {
+                          return (
+                            <li
+                              key={l.index}
+                              className="px-2 py-1 rounded border border-border/50 text-muted/70 flex items-center gap-2"
+                            >
+                              <span>#{l.index + 1}</span>
+                              <span className="italic">
+                                {t(`lapSelector.gate.${pl.status}`)}
+                              </span>
+                            </li>
+                          );
+                        }
+                        const ciStr =
+                          pl.cda_ci_low != null && pl.cda_ci_high != null
+                            ? `[${pl.cda_ci_low.toFixed(3)} ; ${pl.cda_ci_high.toFixed(3)}]`
+                            : "";
+                        return (
+                          <li
+                            key={l.index}
+                            className="px-2 py-1 rounded border border-border flex items-center gap-2"
+                          >
+                            <span className="text-muted">#{l.index + 1}</span>
+                            <span className="text-text">
+                              CdA {pl.cda.toFixed(3)}
+                            </span>
+                            <span className="text-muted">{ciStr}</span>
+                          </li>
+                        );
+                      })}
+                  </ul>
+                </div>
+              )}
 
               <div className="flex items-center justify-between gap-2 pt-1">
                 <button

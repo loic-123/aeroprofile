@@ -11,7 +11,7 @@ import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from aeroprofile.api.schemas import (
-    AnalysisResultOut, AnomalyOut, LapOut, ProfileData,
+    AnalysisResultOut, AnomalyOut, LapOut, PerLapResultOut, ProfileData,
     HierarchicalAnalysisOut, HierarchicalRideSummary,
 )
 from aeroprofile.pipeline import analyze, preprocess
@@ -225,6 +225,7 @@ async def analyze_endpoint(
         anomalies=[AnomalyOut(**a.to_dict()) for a in result.anomalies],
         profile=_df_to_profile(result.df),
         laps=[LapOut(**lap) for lap in result.laps],
+        per_lap=[PerLapResultOut(**pl) for pl in result.per_lap],
     )
 
 

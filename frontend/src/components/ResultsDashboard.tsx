@@ -105,6 +105,7 @@ export default function ResultsDashboard({
       {hasLapControls && (
         <LapSelector
           laps={result.laps!}
+          perLap={result.per_lap}
           excludedLapIndices={excludedLapIndices ?? []}
           onChange={onExcludedLapsChange!}
           onReanalyze={onReanalyzeWithLaps!}

@@ -24,6 +24,16 @@ class LapOut(BaseModel):
     excluded: bool = False
 
 
+class PerLapResultOut(BaseModel):
+    lap_index: int
+    status: str  # "ok" | "lap_too_short" | "insufficient_points" | "chung_failed"
+    cda: Optional[float] = None
+    cda_ci_low: Optional[float] = None
+    cda_ci_high: Optional[float] = None
+    n_points: int = 0
+    error: Optional[str] = None
+
+
 class ProfileData(BaseModel):
     distance_km: list[float]
     altitude_real: list[float]
@@ -110,6 +120,7 @@ class AnalysisResultOut(BaseModel):
     anomalies: list[AnomalyOut]
     profile: ProfileData
     laps: list[LapOut] = []
+    per_lap: list[PerLapResultOut] = []
 
 
 class HierarchicalRideSummary(BaseModel):

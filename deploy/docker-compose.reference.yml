@@ -56,6 +56,7 @@ services:
       # stays as a legacy fallback ; drop it once nothing external
       # references it anymore.
       - "traefik.http.routers.aeroprofile.rule=Host(`app.aeroprofile.cc`) || Host(`aero.srv1216048.hstgr.cloud`)"
+      - "traefik.http.routers.aeroprofile.priority=100"
       - "traefik.http.routers.aeroprofile.entrypoints=web,websecure"
       - "traefik.http.routers.aeroprofile.tls=true"
       - "traefik.http.routers.aeroprofile.tls.certresolver=mytlschallenge"
@@ -87,6 +88,7 @@ services:
       - "traefik.docker.network=n8n_default"
       # Portfolio landing on aeroprofile.cc (+ www).
       - "traefik.http.routers.aeroprofile-landing.rule=Host(`aeroprofile.cc`) || Host(`www.aeroprofile.cc`)"
+      - "traefik.http.routers.aeroprofile-landing.priority=100"
       - "traefik.http.routers.aeroprofile-landing.entrypoints=web,websecure"
       - "traefik.http.routers.aeroprofile-landing.tls=true"
       - "traefik.http.routers.aeroprofile-landing.tls.certresolver=mytlschallenge"

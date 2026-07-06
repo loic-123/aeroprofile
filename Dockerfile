@@ -6,6 +6,12 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+# VITE_LANDING_MODE=1 switches App.tsx to the portfolio landing page
+# instead of the CdA app shell. Two builds of the same repo produce
+# two different container images: aeroprofile (app) and
+# aeroprofile-landing. Defaults to empty → normal CdA build.
+ARG VITE_LANDING_MODE=""
+ENV VITE_LANDING_MODE=$VITE_LANDING_MODE
 RUN npm run build
 # produces /frontend/dist
 

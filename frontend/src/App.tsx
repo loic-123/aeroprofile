@@ -35,6 +35,22 @@ import CdATotem from "./components/CdATotem";
 import TabSwitcher from "./components/TabSwitcher";
 import ReferenceTable from "./components/ReferenceTable";
 import PositionSchematic from "./components/PositionSchematic";
+import { PortfolioLandingPage } from "./pages/PortfolioLandingPage";
+
+/**
+ * When the frontend is built with VITE_LANDING_MODE=1 (used by the
+ * aeroprofile-landing container serving aeroprofile.cc), the CdA app
+ * shell is bypassed entirely and the portfolio page is rendered. The
+ * legacy CdA app is served untouched from app.aeroprofile.cc by a
+ * separate container built without this flag.
+ */
+const IS_LANDING = import.meta.env.VITE_LANDING_MODE === "1";
+
+// Legacy CdA-app routes that used to live under aeroprofile.cc/ but
+// have moved to app.aeroprofile.cc/ when landing mode is active. If a
+// visitor hits one of these directly on the landing host, redirect
+// hard to the app subdomain so no bookmark or external link breaks.
+const LEGACY_APP_ROUTES = /^\/(methods|history|intervals|blog)(\/.*)?$/;
 
 type Mode = "home" | "single" | "compare" | "intervals" | "blog" | "history" | "about" | "privacy";
 
@@ -48,6 +64,28 @@ interface RideAnalysis {
 }
 
 export default function App() {
+  if (IS_LANDING) {
+    return <LandingShell />;
+  }
+  return <AppCdA />;
+}
+
+/**
+ * Landing shell served on aeroprofile.cc. Handles the legacy-route
+ * redirect (visitors hitting /methods, /history, etc. get bounced to
+ * app.aeroprofile.cc) before rendering the portfolio.
+ */
+function LandingShell() {
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (LEGACY_APP_ROUTES.test(path)) {
+      window.location.replace(`https://app.aeroprofile.cc${path}${window.location.search}`);
+    }
+  }, []);
+  return <PortfolioLandingPage />;
+}
+
+function AppCdA() {
   const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>("home");
   const [rides, setRides] = useState<RideAnalysis[]>([]);

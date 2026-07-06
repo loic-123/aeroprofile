@@ -11,12 +11,20 @@
 #
 # Paths are absolute and VPS-specific; don't try to `docker compose up` this
 # file from your laptop — it references /opt/aeroprofile as the build context.
+#
+# Two containers built from the same repo, each with a different
+# VITE_LANDING_MODE ARG:
+#   - `aeroprofile`         → CdA app,     served on app.aeroprofile.cc
+#   - `aeroprofile-landing` → portfolio,   served on aeroprofile.cc + www
 
 services:
   aeroprofile:
     build:
       context: /opt/aeroprofile
       dockerfile: Dockerfile
+      # Default (empty) → CdA app shell.
+      args:
+        VITE_LANDING_MODE: ""
     image: aeroprofile:latest
     container_name: aeroprofile
     restart: unless-stopped
@@ -44,15 +52,53 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=n8n_default"
-      # Dual-host: aeroprofile.cc (+ www) is the canonical domain; the
-      # temporary Hostinger auto-FQDN stays live for a few days so any
-      # external link pointing at the old sub-domain still resolves.
-      # Drop the last two Host(...) clauses once the migration has settled.
-      - "traefik.http.routers.aeroprofile.rule=Host(`aeroprofile.cc`) || Host(`www.aeroprofile.cc`) || Host(`aero.srv1216048.hstgr.cloud`)"
+      # CdA app now lives on app.aeroprofile.cc. The Hostinger auto-FQDN
+      # stays as a legacy fallback ; drop it once nothing external
+      # references it anymore.
+      - "traefik.http.routers.aeroprofile.rule=Host(`app.aeroprofile.cc`) || Host(`aero.srv1216048.hstgr.cloud`)"
       - "traefik.http.routers.aeroprofile.entrypoints=web,websecure"
       - "traefik.http.routers.aeroprofile.tls=true"
       - "traefik.http.routers.aeroprofile.tls.certresolver=mytlschallenge"
       - "traefik.http.services.aeroprofile.loadbalancer.server.port=8001"
+
+  aeroprofile-landing:
+    build:
+      context: /opt/aeroprofile
+      dockerfile: Dockerfile
+      args:
+        VITE_LANDING_MODE: "1"
+    image: aeroprofile:landing
+    container_name: aeroprofile-landing
+    restart: unless-stopped
+    # Landing is static content — a tenth of the CdA app footprint.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 384m
+        reservations:
+          memory: 64m
+    ports:
+      - "127.0.0.1:8002:8001"
+    networks:
+      - n8n_default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=n8n_default"
+      # Portfolio landing on aeroprofile.cc (+ www).
+      - "traefik.http.routers.aeroprofile-landing.rule=Host(`aeroprofile.cc`) || Host(`www.aeroprofile.cc`)"
+      - "traefik.http.routers.aeroprofile-landing.entrypoints=web,websecure"
+      - "traefik.http.routers.aeroprofile-landing.tls=true"
+      - "traefik.http.routers.aeroprofile-landing.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.aeroprofile-landing.loadbalancer.server.port=8001"
+      # Redirect legacy CdA routes (that used to live under aeroprofile.cc/)
+      # to their new home on app.aeroprofile.cc. A JS-side fallback in
+      # App.tsx handles the same paths in case Traefik ever drops the
+      # middleware — belt and braces.
+      - "traefik.http.middlewares.aero-legacy-redir.redirectregex.regex=^https://(?:www\\.)?aeroprofile\\.cc/(methods|history|intervals|blog)(/.*)?$$"
+      - "traefik.http.middlewares.aero-legacy-redir.redirectregex.replacement=https://app.aeroprofile.cc/$${1}$${2}"
+      - "traefik.http.middlewares.aero-legacy-redir.redirectregex.permanent=true"
+      - "traefik.http.routers.aeroprofile-landing.middlewares=aero-legacy-redir"
 
 networks:
   n8n_default:

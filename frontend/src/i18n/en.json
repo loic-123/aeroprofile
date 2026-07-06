@@ -624,6 +624,39 @@
     "ctaMethodsTitle": "Methodology",
     "ctaMethodsBody": "14 articles document the physical and statistical choices behind the tool."
   },
+  "portfolio": {
+    "hero": {
+      "eyebrow": "Software engineer & endurance cyclist",
+      "title": "Data-first performance tools, built by an engineer who trains.",
+      "tagline": "I build tools where physics, statistics and endurance sports meet — open-source, honest about their uncertainty, and useful for the athlete or coach in front of me.",
+      "ctaProjects": "See the projects",
+      "ctaAbout": "About"
+    },
+    "projects": {
+      "eyebrow": "Projects",
+      "title": "Two products, one obsession: telling athletes something wearables can't.",
+      "openApp": "Open the app →",
+      "viewCode": "Source",
+      "aeroprofile": {
+        "eyebrow": "AeroProfile — CdA from any ride",
+        "title": "AeroProfile",
+        "pitch": "Upload a .fit, .gpx or .tcx file and get your aerodynamic drag (CdA) with calibrated uncertainty — no velodrome, no protocol. A joint wind + drag solver honestly separates the two."
+      },
+      "hrv": {
+        "eyebrow": "HRV Analysis — orthostatic autonomic profiling",
+        "title": "HRV Analysis",
+        "pitch": "Drop a Polar H10 recording and get orthostatic HRV, Schmitt fatigue typology, readiness score, saturation detection and an AI explanation — the analysis your watch doesn't do."
+      }
+    },
+    "contact": {
+      "eyebrow": "Get in touch",
+      "title": "The best conversations start with a specific question.",
+      "body": "Bug reports, methodology pushback, collaborations on endurance-sport data or a job discussion — I read everything."
+    },
+    "footer": {
+      "tagline": "Data-first performance tools · Open-source · Made in Brittany"
+    }
+  },
   "footer": {
     "brand": "AeroProfile",
     "tagline": "Open-source CdA estimator for cyclists. Built by Loïc Bouxirot. AGPL-3.0 licensed. Your ride data stays in your browser - nothing is stored on any server.",

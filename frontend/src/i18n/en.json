@@ -9,7 +9,8 @@
       "about": "About",
       "history": "History",
       "github": "GitHub",
-      "home": "Home"
+      "home": "Home",
+      "portfolio": "Portfolio"
     },
     "cta": {
       "analyze": "Analyze",
@@ -626,9 +627,9 @@
   },
   "portfolio": {
     "hero": {
-      "eyebrow": "Software engineer & endurance cyclist",
-      "title": "Data-first performance tools, built by an engineer who trains.",
-      "tagline": "I build tools where physics, statistics and endurance sports meet — open-source, honest about their uncertainty, and useful for the athlete or coach in front of me.",
+      "eyebrow": "Data Scientist × Product Manager · endurance cyclist",
+      "title": "Data-first performance tools, built by someone who trains.",
+      "tagline": "I build tools where physics, statistics and endurance sports meet. Open-source, honest about their uncertainty, useful for the athlete or coach in front of me.",
       "ctaProjects": "See the projects",
       "ctaAbout": "About"
     },
@@ -638,20 +639,20 @@
       "openApp": "Open the app →",
       "viewCode": "Source",
       "aeroprofile": {
-        "eyebrow": "AeroProfile — CdA from any ride",
+        "eyebrow": "AeroProfile · CdA from any ride",
         "title": "AeroProfile",
-        "pitch": "Upload a .fit, .gpx or .tcx file and get your aerodynamic drag (CdA) with calibrated uncertainty — no velodrome, no protocol. A joint wind + drag solver honestly separates the two."
+        "pitch": "Upload a .fit, .gpx or .tcx file and get your aerodynamic drag (CdA) with calibrated uncertainty. No velodrome, no protocol. A joint wind and drag solver honestly separates the two."
       },
       "hrv": {
-        "eyebrow": "HRV Analysis — orthostatic autonomic profiling",
+        "eyebrow": "HRV Analysis · orthostatic autonomic profiling",
         "title": "HRV Analysis",
-        "pitch": "Drop a Polar H10 recording and get orthostatic HRV, Schmitt fatigue typology, readiness score, saturation detection and an AI explanation — the analysis your watch doesn't do."
+        "pitch": "Drop a Polar H10 recording and get orthostatic HRV, Schmitt fatigue typology, readiness score, saturation detection and an AI explanation. The analysis your watch doesn't do."
       }
     },
     "contact": {
       "eyebrow": "Get in touch",
       "title": "The best conversations start with a specific question.",
-      "body": "Bug reports, methodology pushback, collaborations on endurance-sport data or a job discussion — I read everything."
+      "body": "Bug reports, methodology pushback, collaborations on endurance-sport data or a job discussion. I read everything."
     },
     "footer": {
       "tagline": "Data-first performance tools · Open-source · Made in Brittany"

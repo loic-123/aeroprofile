@@ -9,7 +9,8 @@
       "about": "À propos",
       "history": "Historique",
       "github": "GitHub",
-      "home": "Accueil"
+      "home": "Accueil",
+      "portfolio": "Portfolio"
     },
     "cta": {
       "analyze": "Analyser",
@@ -626,9 +627,9 @@
   },
   "portfolio": {
     "hero": {
-      "eyebrow": "Ingénieur logiciel & cycliste d'endurance",
-      "title": "Des outils de performance data-first, faits par un ingénieur qui s'entraîne.",
-      "tagline": "Je construis des outils au croisement de la physique, des stats et du sport d'endurance — open-source, honnêtes sur leur incertitude, utiles à l'athlète ou au coach en face de moi.",
+      "eyebrow": "Data Scientist × Product Manager · cycliste d'endurance",
+      "title": "Des outils de performance data-first, faits par quelqu'un qui s'entraîne.",
+      "tagline": "Je construis des outils au croisement de la physique, des stats et du sport d'endurance. Open-source, honnêtes sur leur incertitude, utiles à l'athlète ou au coach en face de moi.",
       "ctaProjects": "Voir les projets",
       "ctaAbout": "À propos"
     },
@@ -638,20 +639,20 @@
       "openApp": "Ouvrir l'application →",
       "viewCode": "Code source",
       "aeroprofile": {
-        "eyebrow": "AeroProfile — CdA depuis n'importe quelle sortie",
+        "eyebrow": "AeroProfile · CdA depuis n'importe quelle sortie",
         "title": "AeroProfile",
-        "pitch": "Charge un .fit, .gpx ou .tcx et obtiens ton coefficient de traînée aérodynamique (CdA) avec une incertitude calibrée — sans vélodrome, sans protocole. Un solveur vent + traînée conjoint sépare honnêtement les deux."
+        "pitch": "Charge un .fit, .gpx ou .tcx et obtiens ton coefficient de traînée aérodynamique (CdA) avec une incertitude calibrée. Sans vélodrome, sans protocole. Un solveur vent et traînée conjoint sépare honnêtement les deux."
       },
       "hrv": {
-        "eyebrow": "HRV Analysis — profil autonome orthostatique",
+        "eyebrow": "HRV Analysis · profil autonome orthostatique",
         "title": "HRV Analysis",
-        "pitch": "Dépose un enregistrement Polar H10 et obtiens ton HRV orthostatique, ta typologie de fatigue Schmitt, un score de readiness, la détection de saturation et une explication IA — l'analyse que ta montre ne fait pas."
+        "pitch": "Dépose un enregistrement Polar H10 et obtiens ton HRV orthostatique, ta typologie de fatigue Schmitt, un score de readiness, la détection de saturation et une explication IA. L'analyse que ta montre ne fait pas."
       }
     },
     "contact": {
       "eyebrow": "Me contacter",
       "title": "Les meilleures conversations commencent par une question précise.",
-      "body": "Bug reports, critiques méthodologiques, collaborations autour de la data du sport d'endurance ou discussion pro — je lis tout."
+      "body": "Bug reports, critiques méthodologiques, collaborations autour de la data du sport d'endurance ou discussion pro. Je lis tout."
     },
     "footer": {
       "tagline": "Outils de performance data-first · Open-source · Fait en Bretagne"

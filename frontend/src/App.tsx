@@ -468,6 +468,20 @@ function AppCdA() {
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-30 border-b border-border/60 bg-bg/85 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
+          {/* Back-to-portfolio hop. The portfolio landing on
+              aeroprofile.cc is the canonical entry point for both
+              apps ; this link makes the two-domain topology explicit
+              to anyone landing here directly. */}
+          <a
+            href="https://aeroprofile.cc/"
+            aria-label={t("app.nav.portfolio")}
+            title={t("app.nav.portfolio")}
+            className="hidden sm:inline-flex items-center gap-1 text-xs text-muted hover:text-primary transition-colors"
+          >
+            <span aria-hidden>←</span>
+            <span>{t("app.nav.portfolio")}</span>
+          </a>
+
           {/* Brand — clickable, goes home */}
           <button
             onClick={() => changeMode("home")}
